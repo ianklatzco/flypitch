@@ -2699,4 +2699,258 @@ infixl:100 " ↑ᶠᵇ " => Fol.lift_bounded_formula
                  lift_bounded_formula_fst f n' (m + 1)]
       rfl
 
+/-! ## Sentence theories (src/fol.lean lines 2233-2759) -/
+
+/-- A `SentTheory` is a set of sentences (Lean 3: `Theory L = set (sentence L)`). -/
+abbrev SentTheory (L : Language.{u}) := Set (sentence L)
+
+/-- Project a sentence theory to a set of formulas -/
+@[reducible] def SentTheory.fst (T : SentTheory L) : Set (formula L) :=
+  bounded_preformula.fst '' T
+
+lemma SentTheory.lift_irrel (T : SentTheory L) : (lift_formula1 '' T.fst) = T.fst := by
+  rw [Set.image_image]
+  apply Set.image_congr'
+  exact lift_sentence_irrel
+
+/-- Derivability for sentence theories: T.fst ⊢ f.fst -/
+def SentTheory.sprf (T : SentTheory L) (f : sentence L) : Type u := T.fst ⊢ f.fst
+
+/-- Provability (nonempty-wrapped) for sentence theories -/
+def SentTheory.sprovable (T : SentTheory L) (f : sentence L) : Prop := T.fst ⊢' f.fst
+
+scoped notation:51 T " ⊢ₛ " f => Fol.SentTheory.sprf T f
+scoped notation:51 T " ⊢ₛ' " f => Fol.SentTheory.sprovable T f
+
+/-! ### All-realize-sentence — a structure models a sentence theory -/
+
+/-- A structure S realizes all sentences in T -/
+def all_realize_sentence (S : Structure L) (T : SentTheory L) : Prop :=
+  ∀ ⦃f⦄, f ∈ T → S ⊨ₘ f
+
+-- Use ⊨ₜ for "structure realizes a sentence theory" (distinct from existing ⊨ₛ)
+scoped notation:51 S " ⊨ₜ " T => Fol.all_realize_sentence S T
+
+lemma all_realize_sentence_of_subset {S : Structure L} {T₁ T₂ : SentTheory L}
+    (H : S ⊨ₜ T₂) (h_sub : T₁ ⊆ T₂) : S ⊨ₜ T₁ :=
+  fun _ hf => H (h_sub hf)
+
+@[simp] lemma all_realize_sentence_insert {S : Structure L} {f : sentence L} {T : SentTheory L} :
+    (S ⊨ₜ (insert f T)) ↔ (S ⊨ₘ f) ∧ (S ⊨ₜ T) := by
+  constructor
+  · intro H
+    exact ⟨H (Set.mem_insert f T), fun g hg => H (Set.mem_insert_of_mem f hg)⟩
+  · intro ⟨Hf, HT⟩ g hg
+    rcases hg with rfl | hg
+    · exact Hf
+    · exact HT hg
+
+@[simp] lemma all_realize_sentence_singleton {S : Structure L} {f : sentence L} :
+    (S ⊨ₜ ({f} : SentTheory L)) ↔ S ⊨ₘ f :=
+  ⟨fun H => H (Set.mem_singleton f),
+   fun H g hg => by rw [Set.mem_singleton_iff] at hg; subst hg; exact H⟩
+
+@[simp] lemma realize_sentence_of_mem {S : Structure L} {T : SentTheory L} {f : sentence L}
+    (H : S ⊨ₜ T) (h_mem : f ∈ T) : S ⊨ₘ f := H h_mem
+
+/-! ### ssatisfied — semantic consequence for sentence theories -/
+
+/-- T semantically entails ψ: every nonempty model of T satisfies ψ -/
+def ssatisfied (T : SentTheory L) (f : sentence L) : Prop :=
+  ∀ ⦃S : Structure L⦄, Nonempty S → all_realize_sentence S T → S ⊨ₘ f
+
+-- Note: ⊨ₛ is already taken by satisfied_in; use ssatisfied directly.
+
+def all_ssatisfied (T T' : SentTheory L) : Prop := ∀ f ∈ T', ssatisfied T f
+
+/-! ### Connection between ssatisfied and satisfied -/
+
+lemma satisfied_of_ssatisfied {T : SentTheory L} {f : sentence L}
+    (H : ssatisfied T f) : T.fst ⊨ f.fst := by
+  intro S v hT
+  rw [← realize_sentence_iff]
+  apply H ⟨v 0⟩
+  intro f' hf'
+  rw [realize_sentence_iff v]
+  apply hT
+  exact Set.mem_image_of_mem _ hf'
+
+lemma ssatisfied_of_satisfied {T : SentTheory L} {f : sentence L}
+    (H : T.fst ⊨ f.fst) : ssatisfied T f := by
+  intro S hS hT
+  obtain ⟨s⟩ := hS
+  rw [realize_sentence_iff (fun _ => s)]
+  apply H
+  intro f' hf'
+  rcases hf' with ⟨f'', hf'', rfl⟩
+  rw [← realize_sentence_iff]
+  exact hT hf''
+
+lemma satisfied_iff_ssatisfied {T : SentTheory L} {f : sentence L} :
+    ssatisfied T f ↔ T.fst ⊨ f.fst :=
+  ⟨satisfied_of_ssatisfied, ssatisfied_of_satisfied⟩
+
+lemma ssatisfied_snot {S : Structure L} {f : sentence L} (hS : ¬(S ⊨ₘ f)) : S ⊨ₘ (bd_not f) :=
+  hS
+
+/-! ## Model — bundled structure satisfying a sentence theory -/
+
+/-- A model of T is a structure satisfying T.
+    Lean 3 `Σ' (S : Structure L), S ⊨ T` → Lean 4 `{S : Structure L // all_realize_sentence S T}` -/
+def Model (T : SentTheory L) : Type (u + 1) :=
+  {S : Structure L // all_realize_sentence S T}
+
+namespace Model
+
+variable {T : SentTheory L}
+
+/-- The underlying structure of a model -/
+abbrev str (M : Model T) : Structure L := M.val
+
+/-- The model satisfies its theory -/
+lemma sat (M : Model T) : all_realize_sentence M.str T := M.property
+
+/-- A model realizes a sentence -/
+@[reducible] def realize (M : Model T) (ψ : sentence L) : Prop := M.str ⊨ₘ ψ
+
+end Model
+
+@[simp] lemma Model_realize_iff {T : SentTheory L} {M : Model T} {ψ : sentence L} :
+    Model.realize M ψ ↔ M.str ⊨ₘ ψ := Iff.rfl
+
+lemma Model_realize_of_theory {T : SentTheory L} (M : Model T) {ψ : sentence L}
+    (h : ψ ∈ T) : Model.realize M ψ := M.sat h
+
+@[simp] lemma false_of_Model_absurd {T : SentTheory L} (M : Model T) {ψ : sentence L}
+    (h : Model.realize M ψ) (h' : Model.realize M (bd_not ψ)) : False :=
+  h' h
+
+/-! ### Soundness at sentence level -/
+
+lemma ssatisfied_soundness {T : SentTheory L} {A : sentence L} (H : T ⊢ₛ' A) :
+    ssatisfied T A :=
+  ssatisfied_of_satisfied (formula_soundness (Nonempty.some H))
+
+/-- Given a model M with M realizes ¬ψ, we have ¬ ssatisfied T ψ -/
+lemma not_ssatisfied_of_model_not {T : SentTheory L} {ψ : sentence L}
+    (M : Model T) (hM : Model.realize M (bd_not ψ)) (h_nonempty : Nonempty M.str) :
+    ¬ ssatisfied T ψ := by
+  intro H
+  exact false_of_Model_absurd M (H h_nonempty M.sat) hM
+
+/-! ### Sentence-level is_consistent -/
+
+/-- T is consistent if T.fst ⊬' ⊥ (at sentence/formula level) -/
+def SentTheory.is_consistent (T : SentTheory L) : Prop := ¬(T.fst ⊢' ⊥')
+
+/-! ### Theory of a structure -/
+
+/-- The theory of a structure S: all sentences true in S -/
+def Th (S : Structure L) : SentTheory L := { f : sentence L | S ⊨ₘ f }
+
+lemma realize_sentence_Th (S : Structure L) : all_realize_sentence S (Th S) :=
+  fun f hf => hf
+
+lemma SentTheory.is_consistent_Th (S : Structure L) (HS : Nonempty S) :
+    (Th S).is_consistent := by
+  intro H
+  obtain ⟨h⟩ := H
+  have hsat : (Th S).fst ⊨ (⊥' : formula L) := formula_soundness h
+  obtain ⟨s⟩ := HS
+  exact hsat S (fun _ => s) (by
+    intro f hf
+    rcases hf with ⟨g, hg, rfl⟩
+    exact (realize_sentence_iff (fun _ => s) g).mp hg)
+
+@[simp] lemma in_theory_iff_satisfied {S : Structure L} {f : sentence L} :
+    f ∈ Th S ↔ S ⊨ₘ f := Iff.rfl
+
+/-! ### eliminates_quantifiers -/
+
+def eliminates_quantifiers (T : SentTheory L) : Prop :=
+  ∀ (f : sentence L), f ∈ T →
+  ∃ f' : sentence L,
+    bounded_preformula.quantifier_free f' ∧ T.fst ⊢' (f.fst ⇔ f'.fst)
+
+/-! ### L_empty, T_empty, T_equality -/
+
+/-- The empty language with no functions and no relations -/
+def L_empty : Language.{u} := ⟨fun _ => PEmpty, fun _ => PEmpty⟩
+
+/-- The empty theory over a language -/
+def T_empty (L : Language.{u}) : SentTheory L := ∅
+
+/-- The equality theory: empty theory over the empty language -/
+@[reducible] def T_equality : SentTheory (@L_empty.{u}) := T_empty (@L_empty.{u})
+
+/-! ## Section bd_alls (src/fol.lean lines 2706-2757) -/
+
+/-- Apply ∀' n times to an unbounded formula -/
+@[simp] def alls : ∀ (n : ℕ), formula L → formula L
+  | 0,     f => f
+  | n + 1, f => ∀' (alls n f)
+
+/-- Apply bd_all k times, reducing the bound index from n+k to n -/
+@[simp] def bd_alls' : ∀ (k n : ℕ), bounded_formula L (n + k) → bounded_formula L n
+  | 0,     _n, f => f
+  | k + 1, n, f => bd_alls' k n (bd_all f)
+
+/-- Close off a bounded formula by universally quantifying all n free variables -/
+@[simp] def bd_alls : ∀ (n : ℕ), bounded_formula L n → sentence L
+  | 0,     f => f
+  | n + 1, f => bd_alls n (bd_all f)
+
+@[simp] lemma alls'_alls : ∀ (n : ℕ) (ψ : bounded_formula L n),
+    bd_alls n ψ = bd_alls' n 0 (ψ.cast_eq (Nat.zero_add n).symm) := by
+  intro n
+  induction n with
+  | zero => intro ψ; simp [bounded_preformula.cast_eq]
+  | succ n ih =>
+    intro ψ
+    simp only [bd_alls, bd_alls']
+    rw [ih (bd_all ψ)]
+    simp [bounded_preformula.cast_eq]
+
+@[simp] lemma alls'_all_commute {n k : ℕ} (f : bounded_formula L (n + k + 1)) :
+    bd_alls' k n (bd_all f) = bd_all (bd_alls' k (n + 1) (f.cast_eq (by omega))) := by
+  induction k generalizing n with
+  | zero =>
+    simp [bd_alls', bounded_preformula.cast_eq]
+  | succ k ih =>
+    simp only [bd_alls']
+    rw [ih]
+    simp [bounded_preformula.cast_eq]
+
+@[simp] lemma realize_sentence_bd_alls {n : ℕ} {f : bounded_formula L n} {S : Structure L} :
+    S ⊨ₘ (bd_alls n f) ↔ ∀ xs : DVec S n, realize_bounded_formula xs f DVec.nil := by
+  induction n with
+  | zero =>
+    simp only [bd_alls, realize_sentence]
+    constructor
+    · intro H xs
+      rwa [DVec.zero_eq xs]
+    · intro H
+      exact H DVec.nil
+  | succ n ih =>
+    simp only [bd_alls]
+    rw [ih]
+    constructor
+    · intro H xs
+      cases xs with
+      | cons x xs' => exact H xs' x
+    · intro H xs x
+      exact H (DVec.cons x xs)
+
+@[simp] lemma alls_0 (ψ : formula L) : alls 0 ψ = ψ := rfl
+
+@[simp] lemma alls_all_commute (f : formula L) {k : ℕ} :
+    alls k (∀' f) = ∀' (alls k f) := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    simp only [alls]
+    rw [ih]
+
+@[simp] lemma alls_succ_k (f : formula L) {k : ℕ} : alls (k + 1) f = ∀' (alls k f) := rfl
+
 end Fol
