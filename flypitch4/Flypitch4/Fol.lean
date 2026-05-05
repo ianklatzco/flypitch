@@ -2326,6 +2326,17 @@ lemma realize_bounded_formula_iff {S : Structure L} {n} {v₁ : DVec S n} {v₂ 
     realize_bounded_formula v₁ f xs ↔ realize_formula v₂ f.fst xs :=
   realize_bounded_formula_iff_aux f v₁ v₂ hv xs
 
+lemma realize_bounded_formula_iff_of_fst {S : Structure L} {n} {v₁ w₁ : DVec S n}
+    {v₂ w₂ : ℕ → S}
+    (hv₁ : ∀ k (hk : k < n), v₁.nth k hk = v₂ k)
+    (hw₁ : ∀ k (hk : k < n), w₁.nth k hk = w₂ k)
+    {l₁ l₂} (t₁ : bounded_preformula L n l₁) (t₂ : bounded_preformula L n l₂)
+    (xs₁ : DVec S l₁) (xs₂ : DVec S l₂)
+    (H : realize_formula v₂ t₁.fst xs₁ ↔ realize_formula w₂ t₂.fst xs₂) :
+    (realize_bounded_formula v₁ t₁ xs₁ ↔ realize_bounded_formula w₁ t₂ xs₂) := by
+  rw [realize_bounded_formula_iff hv₁, realize_bounded_formula_iff hw₁]
+  exact H
+
 lemma realize_bounded_formula_irrel' {S : Structure L} {n n'} {v₁ : DVec S n} {v₂ : DVec S n'}
     (h : ∀ m (hn : m < n) (hn' : m < n'), v₁.nth m hn = v₂.nth m hn')
     {l} (f : bounded_preformula L n l) (f' : bounded_preformula L n' l)
