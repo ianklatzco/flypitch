@@ -499,6 +499,353 @@ def card_ex : Cardinal.{u} → PSet.{u} := fun κ => ordinalMk (Cardinal.ord κ)
   ∀ b : PSet.{u}, b ∈ y →
     ∃ a : PSet.{u}, a ∈ x ∧ ZFSet.pair (ZFSet.mk a) (ZFSet.mk b) ∈ ZFSet.mk f
 
+-- ============================================================
+-- Task 6b additions: lines 512-1000 of src/pSet_ordinal.lean
+-- ============================================================
+
+/-! ### Injectivity of ordinalMk (src lines 512-618) -/
+
+/-- The func of ordinalMk η at distinct indices gives inequivalent pSets.
+    Port of `ordinal.mk_inj` (src/pSet_ordinal.lean:595). -/
+lemma ordinalMk_inj (η : Ordinal.{u}) :
+    ∀ (i j : (ordinalMk η).Type), i ≠ j →
+      ¬ Equiv ((ordinalMk η).Func i) ((ordinalMk η).Func j) := by
+  -- TODO: port from src/pSet_ordinal.lean:595
+  intro i j hij _heq
+  apply hij
+  sorry
+
+/-- Injectivity: `ordinalMk η₁ ≡ ordinalMk η₂` → `η₁ = η₂`.
+    Port of `eq_of_mk_equiv` (src/pSet_ordinal.lean:604). -/
+lemma eq_of_mk_equiv {η₁ η₂ : Ordinal} (H_equiv : Equiv (ordinalMk η₁) (ordinalMk η₂)) :
+    η₁ = η₂ := by
+  refine le_antisymm ?_ ?_
+  · rw [← not_lt]; intro H_lt
+    -- H_lt : η₂ < η₁ (from not_lt of η₁ ≤ η₂)
+    -- H_mem : ordinalMk η₂ ∈ ordinalMk η₁
+    have H_mem := mk_mem_mk_of_lt H_lt
+    -- Want: ordinalMk η₁ ∈ ordinalMk η₁
+    -- Mem.congr_left H_equiv : ordinalMk η₁ ∈ w ↔ ordinalMk η₂ ∈ w
+    -- .mpr H_mem (H_mem : ordinalMk η₂ ∈ ordinalMk η₁) gives ordinalMk η₁ ∈ ordinalMk η₁
+    exact PSet.mem_irrefl _ ((PSet.Mem.congr_left H_equiv).mpr H_mem)
+  · rw [← not_lt]; intro H_lt
+    -- H_lt : η₁ < η₂ (from not_lt of η₂ ≤ η₁)
+    have H_mem := mk_mem_mk_of_lt H_lt
+    -- Mem.congr_left H_equiv.symm : ordinalMk η₂ ∈ w ↔ ordinalMk η₁ ∈ w
+    -- .mpr H_mem (H_mem : ordinalMk η₁ ∈ ordinalMk η₂) gives ordinalMk η₂ ∈ ordinalMk η₂
+    exact PSet.mem_irrefl _ ((PSet.Mem.congr_left H_equiv.symm).mpr H_mem)
+
+lemma eq_iff_mk_eq {η₁ η₂ : Ordinal} :
+    η₁ = η₂ ↔ Equiv (ordinalMk η₁) (ordinalMk η₂) :=
+  ⟨fun h => mk_equiv_of_eq h, fun h => eq_of_mk_equiv h⟩
+
+/-! ### Cardinal type size lemmas (src lines 620-666) -/
+
+open Cardinal in
+/-- The cardinality of `(ordinalMk (κ.ord)).Type` equals `κ`, for infinite `κ`.
+    Port of `mk_type_mk_eq` (src/pSet_ordinal.lean:620). -/
+lemma mk_type_mk_eq (κ : Cardinal) (H_inf : ℵ₀ ≤ κ) :
+    Cardinal.mk (ordinalMk (Cardinal.ord κ)).Type = κ := by
+  simp only [ordinalMk_type]
+  exact Cardinal.mk_ord_toType κ
+
+open Cardinal in
+@[simp] lemma mk_type_mk_eq' (κ : Cardinal) (H_inf : ℵ₀ < κ) :
+    Cardinal.mk (ordinalMk (Cardinal.ord κ)).Type = κ :=
+  mk_type_mk_eq _ H_inf.le
+
+open Cardinal in
+@[simp] lemma mk_type_mk_eq'' {κ : Cardinal} {H_inf : ℵ₀ ≤ κ} :
+    Cardinal.mk (card_ex κ).Type = κ :=
+  mk_type_mk_eq κ H_inf
+
+open Cardinal in
+@[simp] lemma mk_type_mk_eq''' {κ : Cardinal} {H_inf : ℵ₀ < κ} :
+    Cardinal.mk (card_ex κ).Type = κ :=
+  mk_type_mk_eq _ H_inf.le
+
+open Cardinal in
+@[simp] lemma mk_type_mk_eq'''' {k : Ordinal} :
+    Cardinal.mk (ordinalMk (Cardinal.aleph k).ord).Type = Cardinal.aleph k :=
+  mk_type_mk_eq _ (Cardinal.aleph0_le_aleph k)
+
+open Cardinal in
+@[simp] lemma mk_type_mk_eq''''' {k : Ordinal} :
+    Cardinal.mk (card_ex (Cardinal.aleph k)).Type = Cardinal.aleph k := by
+  simp [card_ex]
+
+open Cardinal in
+/-- The cardinality of `(ordinalMk η).Type` is `η.card`.
+    Port of `ordinal.mk_card` (src/pSet_ordinal.lean:645). -/
+lemma ordinalMk_card {η : Ordinal} : Cardinal.mk (ordinalMk η).Type = η.card := by
+  simp [ordinalMk_type, Cardinal.mk_toType]
+
+open Cardinal in
+lemma zero_aleph : ℵ₀ = Cardinal.aleph 0 := by simp
+
+open Cardinal in
+@[simp] lemma mk_type_omega_eq :
+    Cardinal.mk (ordinalMk (Cardinal.aleph0.ord)).Type = ℵ₀ :=
+  mk_type_mk_eq _ le_rfl
+
+open Cardinal in
+@[simp] lemma mk_omega_eq_mk_omega :
+    Cardinal.mk (PSet.omega).Type = ℵ₀ := by
+  simp only [PSet.omega]
+  rw [show (⟨ULift ℕ, fun n => PSet.ofNat n.down⟩ : PSet).Type = ULift ℕ from rfl]
+  simp [Cardinal.mk_uLift, Cardinal.mk_nat]
+
+/-! ### Ordinal arithmetic helpers (src lines 668-697) -/
+
+open Cardinal in
+lemma two_eq_succ_one : (2 : Ordinal) = Order.succ 1 := by
+  rw [Order.succ_eq_add_one]
+  norm_cast
+
+open Cardinal in
+lemma add_one_lt_add_one {a b : Ordinal} : a < b ↔ a + 1 < b + 1 := by
+  -- TODO: port from src/pSet_ordinal.lean:671; Ordinal addition is not comm
+  sorry
+
+open Cardinal in
+lemma one_lt_two : (1 : Ordinal) < 2 := _root_.one_lt_two
+
+open Cardinal in
+lemma aleph_two_eq_succ_aleph_one :
+    Cardinal.aleph 2 = Order.succ (Cardinal.aleph 1) := by
+  -- succ_aleph : Order.succ (aleph o) = aleph (o + 1)
+  -- so aleph (1 + 1) = aleph 2 and Order.succ (aleph 1) = aleph (1 + 1)
+  have h2 : (2 : Ordinal) = 1 + 1 := two_eq_succ_one ▸ (Order.succ_eq_add_one 1).symm
+  rw [h2, ← Cardinal.succ_aleph]
+
+open Cardinal in
+lemma aleph_one_eq_succ_aleph_zero :
+    Cardinal.aleph 1 = Order.succ ℵ₀ := by
+  exact Cardinal.succ_aleph0.symm
+
+open Cardinal in
+lemma is_regular_aleph_one : Cardinal.IsRegular (Cardinal.aleph 1) := by
+  rw [aleph_one_eq_succ_aleph_zero]
+  exact Cardinal.isRegular_succ le_rfl
+
+open Cardinal in
+lemma is_regular_aleph_two : Cardinal.IsRegular (Cardinal.aleph 2) := by
+  rw [aleph_two_eq_succ_aleph_one]
+  exact Cardinal.isRegular_succ (Cardinal.aleph0_le_aleph 1)
+
+open Cardinal in
+@[simp] lemma omega_lt_aleph_one : ℵ₀ < Cardinal.aleph 1 :=
+  Cardinal.aleph0_lt_aleph_one
+
+open Cardinal in
+@[simp] lemma aleph_one_lt_aleph_two : Cardinal.aleph 1 < Cardinal.aleph 2 :=
+  Cardinal.aleph_lt_aleph.mpr one_lt_two
+
+open Cardinal in
+@[simp] lemma omega_lt_aleph_two : ℵ₀ < Cardinal.aleph 2 :=
+  omega_lt_aleph_one.trans aleph_one_lt_aleph_two
+
+/-! ### Subset helpers (src lines 698-704) -/
+
+lemma subset_trans {x y z : PSet} : x ⊆ y → y ⊆ z → x ⊆ z := by
+  intro Hxy Hyz
+  apply subset_of_all_mem
+  intro w hw
+  exact all_mem_of_subset Hyz w (all_mem_of_subset Hxy w hw)
+
+@[simp] lemma subset_self {x : PSet} : x ⊆ x :=
+  subset_of_all_mem fun _ h => h
+
+/-! ### ofNat lemmas (src lines 706-768) -/
+-- In mathlib4, Lean 3's `of_nat` is `PSet.ofNat`.
+-- Lean 3 omega.type = ℕ-indexed; mathlib4 uses ULift ℕ.
+
+lemma ofNat_succ {k : ℕ} : PSet.ofNat (k + 1) = succ_ord (PSet.ofNat k) := by
+  simp [PSet.ofNat, succ_ord]
+
+lemma subset_of_le {k₁ k₂ : ℕ} (H : k₁ ≤ k₂) : PSet.ofNat k₁ ⊆ PSet.ofNat k₂ := by
+  induction H with
+  | refl => exact subset_self
+  | step _ ih =>
+    apply subset_trans ih
+    rw [ofNat_succ]
+    exact subset_of_all_mem fun z hz => PSet.mem_insert_iff.mpr (Or.inr hz)
+
+lemma false_of_subset_ofNat_ge {k₁ k₂ : ℕ} (H : k₁ < k₂) :
+    ¬ (PSet.ofNat k₂ ⊆ PSet.ofNat k₁) := by
+  intro H_sub
+  suffices h : PSet.ofNat k₁ ∈ PSet.ofNat k₁ from PSet.mem_irrefl _ h
+  suffices h2 : PSet.ofNat (k₁ + 1) ⊆ PSet.ofNat k₂ by
+    have h3 : PSet.ofNat k₁ ∈ PSet.ofNat (k₁ + 1) := by
+      rw [ofNat_succ]; exact PSet.mem_insert_iff.mpr (Or.inl (PSet.Equiv.refl _))
+    exact all_mem_of_subset (subset_trans h2 H_sub) _ h3
+  exact subset_of_le (Nat.succ_le_of_lt H)
+
+lemma le_of_subset_ofNat {k₁ k₂ : ℕ} (H : PSet.ofNat k₁ ⊆ PSet.ofNat k₂) : k₁ ≤ k₂ := by
+  by_contra h
+  push_neg at h
+  exact false_of_subset_ofNat_ge h H
+
+lemma ofNat_of_mem_ofNat {y : PSet.{u}} {k : ℕ}
+    (H_mem : y ∈ (PSet.ofNat k : PSet.{u})) :
+    ∃ j, Equiv y (PSet.ofNat j : PSet.{u}) := by
+  induction k with
+  | zero => exact absurd H_mem (PSet.notMem_empty _)
+  | succ k ih =>
+    rw [ofNat_succ, succ_ord] at H_mem
+    rcases PSet.mem_insert_iff.mp H_mem with heq | hin
+    · exact ⟨k, heq⟩
+    · exact ih hin
+
+lemma ofNat_is_transitive {k : ℕ} : is_transitive (PSet.ofNat k) := by
+  induction k with
+  | zero =>
+    intro y hy
+    exact absurd hy (PSet.notMem_empty _)
+  | succ k ih =>
+    intro y Hy
+    rw [ofNat_succ, succ_ord] at Hy
+    rcases PSet.mem_insert_iff.mp Hy with heq | hin
+    · -- y ≡ ofNat k; but this means y is ofNat k, so y ⊆ ofNat k ⊆ ofNat (k+1)
+      -- We need: y ∈ ofNat k → use ih applied to something in ofNat k
+      apply subset_of_all_mem; intro z Hz
+      rw [ofNat_succ, succ_ord]
+      apply PSet.mem_insert_iff.mpr; right
+      -- Hz : z ∈ y, heq : Equiv y (ofNat k)
+      -- z ∈ ofNat k by transitivity through equiv
+      have Hz' : z ∈ PSet.ofNat k := (PSet.Mem.congr_right heq).mp Hz
+      -- ofNat k is transitive... but we don't have y_hin for ih
+      -- Actually y ≡ ofNat k means ih applies to ofNat k directly
+      exact Hz'
+    · -- y ∈ ofNat k, by ih, y ⊆ ofNat k ⊆ ofNat(k+1)
+      apply subset_of_all_mem; intro z Hz
+      rw [ofNat_succ, succ_ord]
+      exact PSet.mem_insert_iff.mpr (Or.inr (all_mem_of_subset (ih y hin) z Hz))
+
+lemma ofNat_mem_of_lt {k₁ k₂ : ℕ} (H_lt : k₁ < k₂) :
+    (PSet.ofNat k₁ : PSet.{u}) ∈ (PSet.ofNat k₂ : PSet.{u}) := by
+  induction H_lt with
+  | refl =>
+    rw [ofNat_succ, succ_ord]
+    exact PSet.mem_insert_iff.mpr (Or.inl (PSet.Equiv.refl _))
+  | step _ ih =>
+    rw [ofNat_succ, succ_ord]
+    exact PSet.mem_insert_iff.mpr (Or.inr ih)
+
+lemma lt_of_ofNat_mem {k₁ k₂ : ℕ} (H_mem : PSet.ofNat k₁ ∈ PSet.ofNat k₂) : k₁ < k₂ := by
+  by_contra h
+  push_neg at h
+  have h_sub := subset_of_le h
+  have h_mem := all_mem_of_subset h_sub _ H_mem
+  exact PSet.mem_irrefl _ h_mem
+
+/-! ### Transitivity and well-orders for omega (src lines 770-800) -/
+
+lemma is_transitive_omega : is_transitive (PSet.omega : PSet.{u}) := by
+  intro z Hz
+  rw [PSet.mem_def] at Hz
+  obtain ⟨⟨k⟩, Hk⟩ := Hz
+  apply subset_of_all_mem; intro y Hy
+  rw [PSet.mem_def]
+  -- omega.Type = ULift ℕ; Func ⟨k⟩ = ofNat k
+  simp only [PSet.omega]
+  -- Hy : y ∈ z, Hk : Equiv z (ofNat k)
+  -- So y ∈ ofNat k; find j with y ≡ ofNat j
+  obtain ⟨j, hj⟩ := ofNat_of_mem_ofNat ((PSet.Mem.congr_right Hk).mp Hy)
+  exact ⟨⟨j⟩, hj⟩
+
+lemma is_ewo_omega : epsilon_well_orders (PSet.omega : PSet.{u}) := by
+  constructor
+  · -- trichotomy
+    intro y Hy z Hz
+    rw [PSet.mem_def] at Hy Hz
+    obtain ⟨⟨k₁⟩, Hk₁⟩ := Hy
+    obtain ⟨⟨k₂⟩, Hk₂⟩ := Hz
+    rcases lt_trichotomy k₁ k₂ with h | rfl | h
+    · right; left
+      rw [PSet.Mem.congr_left Hk₁, PSet.Mem.congr_right Hk₂]
+      exact ofNat_mem_of_lt h
+    · left; exact PSet.Equiv.trans Hk₁ Hk₂.symm
+    · right; right
+      rw [PSet.Mem.congr_left Hk₂, PSet.Mem.congr_right Hk₁]
+      exact ofNat_mem_of_lt h
+  · exact is_epsilon_well_founded _
+
+lemma Ord_omega : Ord (PSet.omega : PSet.{u}) := ⟨is_ewo_omega, is_transitive_omega⟩
+
+/-- Injectivity of `ofNat`.
+    Port of `of_nat_inj` (src/pSet_ordinal.lean:792). -/
+lemma ofNat_inj {n k : ℕ} (H_neq : n ≠ k) :
+    ¬ Equiv (PSet.ofNat n : PSet.{u}) (PSet.ofNat k : PSet.{u}) := by
+  intro H
+  rcases lt_trichotomy n k with h | rfl | h
+  · exact PSet.mem_irrefl (PSet.ofNat n)
+      ((PSet.Mem.congr_right H).mpr (ofNat_mem_of_lt h))
+  · exact H_neq rfl
+  · exact PSet.mem_irrefl (PSet.ofNat k)
+      ((PSet.Mem.congr_right H.symm).mpr (ofNat_mem_of_lt h))
+
+/-- The indexing function for omega is injective.
+    Port of `omega_inj` (src/pSet_ordinal.lean:798). -/
+lemma omega_inj {n k : PSet.omega.Type} :
+    Equiv (PSet.omega.Func n) (PSet.omega.Func k) → n = k := by
+  intro H
+  cases n with | up n => cases k with | up k =>
+  suffices h : n = k by subst h; rfl
+  by_contra H'
+  exact ofNat_inj H' H
+
+/-! ### Pair and product for pSets (src lines 945-984) -/
+
+/-- The ordered pair pSet `{{x}, {x, y}}`. -/
+def pSet_pair (x y : PSet.{u}) : PSet.{u} := {{x}, {x, y}}
+
+lemma pSet_pair_sound {x y : PSet.{u}} :
+    ZFSet.mk (pSet_pair x y) = ZFSet.pair (ZFSet.mk x) (ZFSet.mk y) := rfl
+
+lemma equiv_iff_eq_pSet_pair {x y x' y' : PSet.{u}} :
+    Equiv x x' ∧ Equiv y y' ↔ Equiv (pSet_pair x y) (pSet_pair x' y') := by
+  constructor
+  · rintro ⟨H₁, H₂⟩
+    apply ZFSet.exact
+    simp only [pSet_pair_sound]
+    rw [ZFSet.pair_inj]
+    exact ⟨ZFSet.sound H₁, ZFSet.sound H₂⟩
+  · intro H
+    have h : ZFSet.pair (ZFSet.mk x) (ZFSet.mk y) =
+             ZFSet.pair (ZFSet.mk x') (ZFSet.mk y') := by
+      rw [← pSet_pair_sound, ← pSet_pair_sound]; exact ZFSet.sound H
+    exact ⟨ZFSet.exact (ZFSet.pair_inj.mp h).1, ZFSet.exact (ZFSet.pair_inj.mp h).2⟩
+
+/-- The cartesian product pSet. -/
+def pSet_prod (x y : PSet.{u}) : PSet.{u} :=
+  ⟨x.Type × y.Type, fun pr => pSet_pair (x.Func pr.1) (y.Func pr.2)⟩
+
+lemma pSet_prod_sound {x y : PSet.{u}} :
+    ZFSet.mk (pSet_prod x y) = ZFSet.prod (ZFSet.mk x) (ZFSet.mk y) := by
+  -- TODO: port from src/pSet_ordinal.lean:960
+  sorry
+
+lemma mem_pSet_prod_iff {x y a b : PSet.{u}} :
+    pSet_pair a b ∈ pSet_prod x y ↔ a ∈ x ∧ b ∈ y := by
+  rw [mem_iff, pSet_pair_sound, pSet_prod_sound, ZFSet.pair_mem_prod, ← mem_iff, ← mem_iff]
+
+/-! ### Injection predicates (src lines 986-990) -/
+
+@[reducible] def is_inj (f : PSet.{u}) : Prop :=
+  ∀ w₁ w₂ v₁ v₂ : PSet.{u},
+    pSet_pair w₁ v₁ ∈ f ∧ pSet_pair w₂ v₂ ∈ f ∧ Equiv v₁ v₂ → Equiv w₁ w₂
+
+def is_injective_function (x y f : PSet.{u}) : Prop := is_func x y f ∧ is_inj f
+
+def injects_into (x y : PSet.{u}) : Prop := ∃ f, is_injective_function x y f
+
+/-! ### Subset characterization via ZFSet (src/pSet_ordinal.lean:994-1000) -/
+
+lemma subset_sound {x y : PSet.{u}} :
+    x ⊆ y ↔ ZFSet.mk x ⊆ ZFSet.mk y := by
+  rw [ZFSet.subset_iff]
+
 end PSet
 
 end -- noncomputable section
