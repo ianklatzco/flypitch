@@ -6,8 +6,6 @@ Authors: Jesse Han, Floris van Doorn
 -/
 /- Lean 4 port of src/to_mathlib.lean -/
 
-import Mathlib.Algebra.Order.Group.Defs
-import Mathlib.Order.Disjointed
 import Mathlib.Data.Set.Countable
 import Mathlib.SetTheory.Cardinal.Cofinality
 import Mathlib.SetTheory.Cardinal.Order
@@ -872,9 +870,11 @@ theorem iInf_sup_eq' {α ι : Type*} [CompleteDistribLattice α] {a : α} {s : �
     (⨅ (i : ι), s i) ⊔ a = ⨅ (i : ι), s i ⊔ a := by
   rw [sup_comm, sup_iInf_eq']; simp_rw [sup_comm]
 
-@[simp] theorem inf_self {α : Type*} [Lattice α] {a : α} : a ⊓ a = a := inf_idem a
+-- Aliases without `@[simp]`: mathlib4's `inf_idem`/`sup_idem` already carry `@[simp]`,
+-- so adding `@[simp]` here would create duplicate rewrite rules.
+theorem inf_self {α : Type*} [Lattice α] {a : α} : a ⊓ a = a := inf_idem a
 
-@[simp] theorem sup_self {α : Type*} [Lattice α] {a : α} : a ⊔ a = a := sup_idem a
+theorem sup_self {α : Type*} [Lattice α] {a : α} : a ⊔ a = a := sup_idem a
 
 -- Note: bot_lt_iff_not_le_bot and lt_top_iff_not_top_le already exist in mathlib4
 
@@ -986,11 +986,12 @@ theorem deduction_simp {α : Type*} [BooleanAlgebra α] {a b c : α} :
 theorem imp_top {α : Type*} [CompleteBooleanAlgebra α] (a : α) : a ≤ imp a ⊤ := by
   rw [← deduction]; simp
 
-@[simp] theorem supr_option {α β : Type*} [CompleteLattice β] {η : Option α → β} :
+-- Aliases without `@[simp]`: mathlib4's `iSup_option`/`iInf_option` already carry `@[simp]`.
+theorem supr_option {α β : Type*} [CompleteLattice β] {η : Option α → β} :
     (⨆ (x : Option α), η x) = η none ⊔ ⨆ (a : α), η (some a) :=
   iSup_option η
 
-@[simp] theorem infi_option {α β : Type*} [CompleteLattice β] {η : Option α → β} :
+theorem infi_option {α β : Type*} [CompleteLattice β] {η : Option α → β} :
     (⨅ (x : Option α), η x) = η none ⊓ ⨅ (a : α), η (some a) :=
   iInf_option η
 
