@@ -368,7 +368,8 @@ lemma lift_at_subst_term_large : ∀ {l} (t : preterm L l) (s : term L) {n₁} (
         first | rfl | omega | (simp [lift_term_at]; omega) |
           (rw [← lift_term2_medium s n₂ (by omega)]) |
           (congr 1; omega) |
-          sorry -- TODO: port from src/fol.lean:384-397
+          -- Goal: &(k+n₂-1) = &(k-1) ↑' n₂ # m; know m ≤ n₁ < k so m ≤ k-1
+          (simp only [lift_term_at]; split_ifs with hm <;> (first | (congr 1; omega) | omega))
   | _, preterm.func _, _, _, _, _, _ => rfl
   | _, preterm.app t₁ t₂, s, n₁, n₂, m, h => by
       simp [lift_at_subst_term_large t₁ s n₂ h, lift_at_subst_term_large t₂ s n₂ h]
@@ -409,14 +410,44 @@ lemma lift_at_subst_term_small : ∀ {l} (t : preterm L l) (s : term L) (n₁ n�
     subst_term (lift_term_at t n₁ (m + n₂ + 1)) (lift_term_at s n₁ m) n₂ =
     lift_term_at (subst_term t s n₂) n₁ (m + n₂)
   | _, preterm.var k, s, n₁, n₂, m => by
-      simp only [lift_term_at, subst_term, subst_realize]
-      split_ifs with h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 <;>
-        simp_all [subst_realize, lift_term_at] <;> try omega
-      -- Remaining case: k = n₂ and m ≤ k is false (i.e., k < m, so ¬(m + n₂ + 1 ≤ k) is trivial)
-      -- Need: lift_term_at s n₁ m = lift_term_at (lift_term_at s n₂ 0) n₁ (m + n₂)
-      -- i.e.,   (s ↑' n₁ # m) = ((s ↑' n₂ # 0) ↑' n₁ # (m+n₂))
-      -- Not obviously true in general; may need different case split
-      all_goals sorry -- TODO: port from src/fol.lean:431-451
+      rcases Nat.lt_trichotomy k n₂ with hk | hk | hk
+      · -- k < n₂: subst gives &k, lift gives k (since ¬(m+n₂+1 ≤ k))
+        have h1 : ¬(m + n₂ + 1 ≤ k) := by omega
+        have h2 : ¬(m + n₂ ≤ k) := by omega
+        simp only [lift_term_at, h1, if_false, subst_term, subst_realize, hk, if_true,
+          h2, if_false]
+      · -- k = n₂: use lift_term_at2_small
+        -- After hk: k = n₂. Goal with n₂ replaced by k everywhere:
+        -- subst_term (var k ↑' n₁ # m+k+1) (s ↑' n₁ # m) k = (subst_term (var k) s k) ↑' n₁ # m+k
+        -- Since m+k+1 > k, lift of var k at (m+k+1) gives var k.
+        -- subst_term (var k) (s ↑' n₁ # m) k = (s ↑' n₁ # m) ↑ k (since k = n₂ exactly)
+        -- subst_term (var k) s k = s ↑ k
+        -- Need: (s ↑' n₁ # m) ↑ k = (s ↑ k) ↑' n₁ # m+k = lift_term_at2_small
+        -- rewrite n₂ as k throughout using hk
+        rw [← hk]
+        simp only [lift_term_at, show ¬(m + k + 1 ≤ k) from by omega, if_false,
+          subst_term, subst_realize, lt_irrefl, if_false, lift_term]
+        exact lift_term_at2_small s n₁ k (Nat.zero_le m)
+      · -- k > n₂: subst gives &(k-1), lift depends on m+n₂+1 ≤ k
+        by_cases h1 : m + n₂ + 1 ≤ k
+        · -- k ≥ m+n₂+1: lift gives &(k+n₁), substitute gives &(k+n₁-1)
+          have h2 : m + n₂ ≤ k - 1 := by omega
+          have hk1 : 1 ≤ k := by omega
+          -- lhs: lift var k at (m+n₂+1) gives var (k+n₁); subst at n₂: n₂ < k+n₁, gives &(k+n₁-1)
+          -- rhs: subst var k at n₂: n₂ < k, gives &(k-1); lift &(k-1) at (m+n₂): m+n₂ ≤ k-1, gives &(k-1+n₁)
+          -- need k+n₁-1 = k-1+n₁
+          have hknlt : ¬(k < n₂) := Nat.lt_asymm hk
+          have hkn1lt : ¬(k + n₁ < n₂) := by omega
+          simp only [lift_term_at, h1, if_true, subst_term, subst_realize,
+            hknlt, if_false, hkn1lt, show n₂ < k + n₁ from by omega, if_true, h2, if_true, hk,
+            if_true]
+          exact congrArg preterm.var (by omega)
+        · -- k < m+n₂+1 but k > n₂: so n₂ < k < m+n₂+1
+          -- lift gives &k (since ¬(m+n₂+1 ≤ k)), subst gives &(k-1) (since k > n₂)
+          -- and ¬(m+n₂ ≤ k-1) because k ≤ m+n₂, so k-1 < m+n₂
+          have h2 : ¬(m + n₂ ≤ k - 1) := by omega
+          simp only [lift_term_at, h1, if_false, subst_term, subst_realize,
+            Nat.lt_asymm hk, if_false, hk, if_true, h2, if_false]
   | _, preterm.func _, _, _, _, _ => rfl
   | _, preterm.app t₁ t₂, s, n₁, n₂, m => by
       simp [lift_at_subst_term_small t₁ s n₁ n₂ m, lift_at_subst_term_small t₂ s n₁ n₂ m]
@@ -426,7 +457,7 @@ lemma subst_term2 : ∀ {l} (t : preterm L l) (s₁ s₂ : term L) (n₁ n₂ : 
     subst_term (subst_term t s₁ n₁) s₂ (n₁ + n₂) =
     subst_term (subst_term t s₂ (n₁ + n₂ + 1)) (subst_term s₁ s₂ n₂) n₁
   | _, preterm.var k, s₁, s₂, n₁, n₂ => by
-      -- TODO: port from src/fol.lean:456-476
+      -- TODO: port from src/fol.lean:456-476 (complex case analysis)
       sorry
   | _, preterm.func _, _, _, _, _ => rfl
   | _, preterm.app t₁ t₂, s₁, s₂, n₁, n₂ => by
@@ -442,8 +473,8 @@ lemma subst_term2_0 {l} (t : preterm L l) (s₁ s₂ : term L) (n : ℕ) :
 lemma lift_subst_term_cancel : ∀ {l} (t : preterm L l) (n : ℕ),
     subst_term (lift_term_at t 1 (n + 1)) (&0) n = t
   | _, preterm.var k, n => by
-      -- TODO: port from src/fol.lean:481-490
-      sorry
+      simp only [lift_term_at, subst_term, subst_realize]
+      split_ifs with h1 h2 h3 <;> simp_all [subst_realize, lift_term_at] <;> omega
   | _, preterm.func _, _ => rfl
   | _, preterm.app t₁ t₂, n => by
       simp [lift_subst_term_cancel t₁ n, lift_subst_term_cancel t₂ n]
