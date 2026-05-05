@@ -5,3 +5,4 @@ import Flypitch4.BvTauto
 import Flypitch4.Colimit
 import Flypitch4.Fol
 import Flypitch4.PSetOrdinal
+import Flypitch4.Bfol
