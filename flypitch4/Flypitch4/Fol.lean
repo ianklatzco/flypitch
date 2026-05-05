@@ -479,4 +479,432 @@ lemma lift_subst_term_cancel : ∀ {l} (t : preterm L l) (n : ℕ),
   | _, preterm.app t₁ t₂, n => by
       simp [lift_subst_term_cancel t₁ n, lift_subst_term_cancel t₂ n]
 
+/-! ## preformula and formula -/
+
+/-- `preformula L l` is a partially applied formula. If applied to `l` terms, it becomes a formula (l=0). -/
+inductive preformula : ℕ → Type u
+  | falsum : preformula 0
+  | equal (t₁ t₂ : term L) : preformula 0
+  | rel {l : ℕ} (R : L.relations l) : preformula l
+  | apprel {l : ℕ} (f : preformula (l + 1)) (t : term L) : preformula l
+  | imp (f₁ f₂ : preformula 0) : preformula 0
+  | all (f : preformula 0) : preformula 0
+
+-- Switch L back to explicit so that `preformula L l` works in type signatures.
+-- (After "variable {L}" at line 103, writing "preformula l" has ambiguous L in type positions.)
+variable (L)
+
+-- formula: formula L is the type of first-order formulas over language L.
+@[reducible] def formula (L : Language.{u}) : Type u := @preformula L 0
+
+variable {L}
+
+notation "⊥'" => Fol.preformula.falsum
+scoped infix:88 " ≃ " => Fol.preformula.equal
+scoped infixr:62 " ⟹ " => Fol.preformula.imp
+scoped prefix:110 "∀'" => Fol.preformula.all
+
+def not' (f : formula L) : formula L := preformula.imp f preformula.falsum
+scoped prefix:max "∼" => Fol.not'
+def and' (f₁ f₂ : formula L) : formula L := not' (preformula.imp f₁ (not' f₂))
+scoped infixr:69 " ⊓' " => Fol.and'
+def or' (f₁ f₂ : formula L) : formula L := preformula.imp (not' f₁) f₂
+scoped infixr:68 " ⊔' " => Fol.or'
+def biimp (f₁ f₂ : formula L) : formula L :=
+  and' (preformula.imp f₁ f₂) (preformula.imp f₂ f₁)
+scoped infix:61 " ⇔ " => Fol.biimp
+def ex' (f : formula L) : formula L := not' (preformula.all (not' f))
+scoped prefix:110 "∃'" => Fol.ex'
+
+@[simp] def apps_rel : ∀ {l}, @preformula L l → DVec (term L) l → formula L
+  | _, f, DVec.nil => f
+  | _, f, DVec.cons t ts => apps_rel (preformula.apprel f t) ts
+
+@[simp] lemma apps_rel_zero (f : formula L) (ts : DVec (term L) 0) :
+    apps_rel f ts = f := by
+  cases ts; rfl
+
+def formula_of_relation {l} (R : L.relations l) :
+    Arity' (term L) (formula L) l :=
+  Arity'.of_dvector_map (apps_rel (preformula.rel R))
+
+@[elab_as_elim] def formula.rec' {C : formula L → Sort v}
+    (hfalsum : C ⊥')
+    (hequal : ∀ (t₁ t₂ : term L), C (t₁ ≃ t₂))
+    (hrel : ∀ {{l}} (R : L.relations l) (ts : DVec (term L) l), C (apps_rel (preformula.rel R) ts))
+    (himp : ∀ {{f₁ f₂ : formula L}} (ih₁ : C f₁) (ih₂ : C f₂), C (f₁ ⟹ f₂))
+    (hall : ∀ {{f : formula L}} (ih : C f), C (∀' f)) :
+    ∀ {l} (f : @preformula L l) (ts : DVec (term L) l), C (apps_rel f ts)
+  | _, preformula.falsum, ts => by cases ts; exact hfalsum
+  | _, preformula.equal t₁ t₂, ts => by cases ts; exact hequal t₁ t₂
+  | _, preformula.rel R, ts => hrel R ts
+  | _, preformula.apprel f t, ts => formula.rec' hfalsum hequal hrel himp hall f (DVec.cons t ts)
+  | _, preformula.imp f₁ f₂, ts => by
+      cases ts
+      exact himp (formula.rec' hfalsum hequal hrel himp hall f₁ DVec.nil)
+                 (formula.rec' hfalsum hequal hrel himp hall f₂ DVec.nil)
+  | _, preformula.all f, ts => by
+      cases ts
+      exact hall (formula.rec' hfalsum hequal hrel himp hall f DVec.nil)
+
+@[elab_as_elim] def formula.rec {C : formula L → Sort v}
+    (hfalsum : C ⊥')
+    (hequal : ∀ (t₁ t₂ : term L), C (t₁ ≃ t₂))
+    (hrel : ∀ {{l}} (R : L.relations l) (ts : DVec (term L) l), C (apps_rel (preformula.rel R) ts))
+    (himp : ∀ {{f₁ f₂ : formula L}} (ih₁ : C f₁) (ih₂ : C f₂), C (f₁ ⟹ f₂))
+    (hall : ∀ {{f : formula L}} (ih : C f), C (∀' f)) :
+    ∀ f, C f :=
+  fun f =>
+    have h := @formula.rec' L C hfalsum hequal hrel himp hall 0 f DVec.nil
+    apps_rel_zero f DVec.nil ▸ h
+
+lemma formula.rec'_apps_rel {C : formula L → Sort v}
+    (hfalsum : C ⊥')
+    (hequal : ∀ (t₁ t₂ : term L), C (t₁ ≃ t₂))
+    (hrel : ∀ {{l}} (R : L.relations l) (ts : DVec (term L) l), C (apps_rel (preformula.rel R) ts))
+    (himp : ∀ {{f₁ f₂ : formula L}} (ih₁ : C f₁) (ih₂ : C f₂), C (f₁ ⟹ f₂))
+    (hall : ∀ {{f : formula L}} (ih : C f), C (∀' f))
+    {l} (f : @preformula L l) (ts : DVec (term L) l) :
+    @formula.rec' L C hfalsum hequal hrel himp hall 0 (apps_rel f ts) DVec.nil =
+    @formula.rec' L C hfalsum hequal hrel himp hall l f ts := by
+  induction ts with
+  | nil => rfl
+  | cons x xs ih => simp only [apps_rel]; exact ih (preformula.apprel f x)
+
+lemma formula.rec_apps_rel {C : formula L → Sort v}
+    (hfalsum : C ⊥')
+    (hequal : ∀ (t₁ t₂ : term L), C (t₁ ≃ t₂))
+    (hrel : ∀ {{l}} (R : L.relations l) (ts : DVec (term L) l), C (apps_rel (preformula.rel R) ts))
+    (himp : ∀ {{f₁ f₂ : formula L}} (ih₁ : C f₁) (ih₂ : C f₂), C (f₁ ⟹ f₂))
+    (hall : ∀ {{f : formula L}} (ih : C f), C (∀' f))
+    {l} (R : L.relations l) (ts : DVec (term L) l) :
+    @formula.rec L C hfalsum hequal hrel himp hall (apps_rel (preformula.rel R) ts) = hrel R ts := by
+  -- TODO: port from src/fol.lean:607-608
+  -- formula.rec unfolds via apps_rel_zero ▸; need to show this is hrel R ts via formula.rec'_apps_rel
+  sorry
+
+/-! ## lift_formula_at — lifting variables in formulas -/
+
+@[simp] def lift_formula_at : ∀ {l}, @preformula L l → ℕ → ℕ → @preformula L l
+  | _, preformula.falsum, _, _ => preformula.falsum
+  | _, preformula.equal t₁ t₂, n, m => preformula.equal (lift_term_at t₁ n m) (lift_term_at t₂ n m)
+  | _, preformula.rel R, _, _ => preformula.rel R
+  | _, preformula.apprel f t, n, m => preformula.apprel (lift_formula_at f n m) (lift_term_at t n m)
+  | _, preformula.imp f₁ f₂, n, m => preformula.imp (lift_formula_at f₁ n m) (lift_formula_at f₂ n m)
+  | _, preformula.all f, n, m => preformula.all (lift_formula_at f n (m + 1))
+
+notation:90 f " ↑f' " n " # " m => Fol.lift_formula_at f n m
+
+@[reducible] def lift_formula {l} (f : @preformula L l) (n : ℕ) : @preformula L l :=
+  lift_formula_at f n 0
+
+infixl:100 " ↑f " => Fol.lift_formula
+
+@[reducible, simp] def lift_formula1 {l} (f : @preformula L l) : @preformula L l := lift_formula f 1
+
+@[simp] lemma lift_formula_def {l} (f : @preformula L l) (n : ℕ) :
+    lift_formula_at f n 0 = lift_formula f n := rfl
+
+@[simp] lemma lift_formula1_not (n : ℕ) (f : formula L) : ∼f ↑f n = ∼(f ↑f n) := rfl
+
+lemma injective_lift_formula_at {l} {n : ℕ} {m : ℕ} :
+    Function.Injective (fun (f : @preformula L l) => lift_formula_at f n m) := by
+  intro f f' H
+  induction f generalizing m with
+  | falsum => cases f' <;> simp [lift_formula_at] at *
+  | equal t₁ t₂ =>
+    cases f' with
+    | equal t₁' t₂' =>
+      simp only [lift_formula_at] at H
+      obtain ⟨h1, h2⟩ := preformula.equal.inj H
+      exact congrArg₂ preformula.equal (injective_lift_term_at h1) (injective_lift_term_at h2)
+    | _ => simp [lift_formula_at] at H
+  | rel R =>
+    cases f' with
+    | rel R' => exact preformula.rel.inj H ▸ rfl
+    | _ => simp [lift_formula_at] at H
+  | apprel f t ih =>
+    cases f' with
+    | apprel f' t' =>
+      simp only [lift_formula_at] at H
+      obtain ⟨hf, ht⟩ := preformula.apprel.inj H
+      exact congrArg₂ preformula.apprel (ih hf) (injective_lift_term_at ht)
+    | _ => simp [lift_formula_at] at H
+  | imp f₁ f₂ ih₁ ih₂ =>
+    cases f' with
+    | imp f₁' f₂' =>
+      simp only [lift_formula_at] at H
+      obtain ⟨h1, h2⟩ := preformula.imp.inj H
+      exact congrArg₂ preformula.imp (ih₁ h1) (ih₂ h2)
+    | _ => simp [lift_formula_at] at H
+  | all f ih =>
+    cases f' with
+    | all f' =>
+      simp only [lift_formula_at] at H
+      exact congrArg preformula.all (ih (preformula.all.inj H))
+    | _ => simp [lift_formula_at] at H
+
+@[simp] lemma lift_formula_at_zero : ∀ {l} (f : @preformula L l) (m : ℕ), lift_formula_at f 0 m = f
+  | _, preformula.falsum, _ => rfl
+  | _, preformula.equal t₁ t₂, m => by simp [lift_formula_at]
+  | _, preformula.rel R, _ => rfl
+  | _, preformula.apprel f t, m => by
+      simp only [lift_formula_at, lift_formula_at_zero f m, lift_term_at_zero]
+  | _, preformula.imp f₁ f₂, m => by
+      simp only [lift_formula_at, lift_formula_at_zero f₁ m, lift_formula_at_zero f₂ m]
+  | _, preformula.all f, m => by
+      simp only [lift_formula_at, lift_formula_at_zero f (m + 1)]
+
+lemma lift_formula_at2_small : ∀ {l} (f : @preformula L l) (n n') {m m'}, m' ≤ m →
+    lift_formula_at (lift_formula_at f n m) n' m' =
+    lift_formula_at (lift_formula_at f n' m') n (m + n')
+  | _, preformula.falsum, _, _, _, _, _ => rfl
+  | _, preformula.equal t₁ t₂, n, n', m, m', H => by
+      simp [lift_formula_at, lift_term_at2_small, H]
+  | _, preformula.rel R, _, _, _, _, _ => rfl
+  | _, preformula.apprel f t, n, n', m, m', H => by
+      simp only [lift_formula_at, lift_term_at2_small t n n' H]
+      exact congrArg₂ preformula.apprel (lift_formula_at2_small f n n' H) rfl
+  | _, preformula.imp f₁ f₂, n, n', m, m', H => by
+      simp only [lift_formula_at]
+      exact congrArg₂ preformula.imp (lift_formula_at2_small f₁ n n' H) (lift_formula_at2_small f₂ n n' H)
+  | _, preformula.all f, n, n', m, m', H => by
+      simp only [lift_formula_at]
+      have := lift_formula_at2_small f n n' (Nat.add_le_add_right H 1)
+      rw [show m + 1 + n' = m + n' + 1 from by omega] at this
+      exact congrArg preformula.all this
+
+lemma lift_formula_at2_medium : ∀ {l} (f : @preformula L l) (n n') {m m'}, m ≤ m' → m' ≤ m + n →
+    lift_formula_at (lift_formula_at f n m) n' m' = lift_formula_at f (n + n') m
+  | _, preformula.falsum, _, _, _, _, _, _ => rfl
+  | _, preformula.equal t₁ t₂, n, n', m, m', H₁, H₂ => by
+      simp [lift_formula_at, lift_term_at2_medium, H₁, H₂]
+  | _, preformula.rel R, _, _, _, _, _, _ => rfl
+  | _, preformula.apprel f t, n, n', m, m', H₁, H₂ => by
+      simp only [lift_formula_at, lift_term_at2_medium t n' H₁ H₂]
+      exact congrArg₂ preformula.apprel (lift_formula_at2_medium f n n' H₁ H₂) rfl
+  | _, preformula.imp f₁ f₂, n, n', m, m', H₁, H₂ => by
+      simp only [lift_formula_at]
+      exact congrArg₂ preformula.imp
+        (lift_formula_at2_medium f₁ n n' H₁ H₂)
+        (lift_formula_at2_medium f₂ n n' H₁ H₂)
+  | _, preformula.all f, n, n', m, m', H₁, H₂ => by
+      simp only [lift_formula_at]
+      exact congrArg preformula.all
+        (lift_formula_at2_medium f n n' (Nat.add_le_add_right H₁ 1)
+          (by omega))
+
+lemma lift_formula_at2_eq {l} (f : @preformula L l) (n n' m : ℕ) :
+    lift_formula_at (lift_formula_at f n m) n' (m + n) = lift_formula_at f (n + n') m :=
+  lift_formula_at2_medium f n n' (Nat.le_add_right _ _) (le_refl _)
+
+lemma lift_formula_at2_large {l} (f : @preformula L l) (n n') {m m'} (H : m + n ≤ m') :
+    lift_formula_at (lift_formula_at f n m) n' m' =
+    lift_formula_at (lift_formula_at f n' (m' - n)) n m := by
+  have H₁ : n ≤ m' := Nat.le_trans (Nat.le_add_left _ _) H
+  have H₂ : m ≤ m' - n := by omega
+  rw [lift_formula_at2_small f n' n H₂, Nat.sub_add_cancel H₁]
+
+@[simp] lemma lift_formula_at_apps_rel {l} (f : @preformula L l) (ts : DVec (term L) l)
+    (n m : ℕ) : lift_formula_at (apps_rel f ts) n m =
+    apps_rel (lift_formula_at f n m) (ts.map (fun x => lift_term_at x n m)) := by
+  induction ts with
+  | nil => rfl
+  | cons x xs ih => simp only [apps_rel, DVec.map]; exact ih (preformula.apprel f x)
+
+@[simp] lemma lift_formula_apps_rel {l} (f : @preformula L l) (ts : DVec (term L) l) (n : ℕ) :
+    lift_formula (apps_rel f ts) n =
+    apps_rel (lift_formula f n) (ts.map (fun x => lift_term x n)) :=
+  lift_formula_at_apps_rel f ts n 0
+
+/-! ## subst_formula — substitution into formulas -/
+
+@[simp] def subst_formula : ∀ {l}, @preformula L l → term L → ℕ → @preformula L l
+  | _, preformula.falsum, _, _ => preformula.falsum
+  | _, preformula.equal t₁ t₂, s, n =>
+      preformula.equal (subst_term t₁ s n) (subst_term t₂ s n)
+  | _, preformula.rel R, _, _ => preformula.rel R
+  | _, preformula.apprel f t, s, n =>
+      preformula.apprel (subst_formula f s n) (subst_term t s n)
+  | _, preformula.imp f₁ f₂, s, n =>
+      preformula.imp (subst_formula f₁ s n) (subst_formula f₂ s n)
+  | _, preformula.all f, s, n => preformula.all (subst_formula f s (n + 1))
+
+notation:95 f " [" s " // " n "]f" => Fol.subst_formula f s n
+
+lemma subst_formula_equal (t₁ t₂ s : term L) (n : ℕ) :
+    subst_formula (preformula.equal t₁ t₂) s n =
+    preformula.equal (subst_term t₁ s n) (subst_term t₂ s n) := rfl
+
+@[simp] lemma subst_formula_biimp (f₁ f₂ : formula L) (s : term L) (n : ℕ) :
+    subst_formula (biimp f₁ f₂) s n = biimp (subst_formula f₁ s n) (subst_formula f₂ s n) := rfl
+
+lemma lift_at_subst_formula_large : ∀ {l} (f : @preformula L l) (s : term L) {n₁} (n₂) {m},
+    m ≤ n₁ → subst_formula (lift_formula_at f n₂ m) s (n₁ + n₂) =
+    lift_formula_at (subst_formula f s n₁) n₂ m
+  | _, preformula.falsum, _, _, _, _, _ => rfl
+  | _, preformula.equal t₁ t₂, s, n₁, n₂, m, h => by
+      simp [lift_formula_at, subst_formula, lift_at_subst_term_large _ s n₂ h]
+  | _, preformula.rel R, _, _, _, _, _ => rfl
+  | _, preformula.apprel f t, s, n₁, n₂, m, h => by
+      simp [lift_formula_at, subst_formula, lift_at_subst_term_large t s n₂ h,
+            lift_at_subst_formula_large f s n₂ h]
+  | _, preformula.imp f₁ f₂, s, n₁, n₂, m, h => by
+      simp [lift_formula_at, subst_formula,
+            lift_at_subst_formula_large f₁ s n₂ h,
+            lift_at_subst_formula_large f₂ s n₂ h]
+  | _, preformula.all f, s, n₁, n₂, m, h => by
+      simp only [lift_formula_at, subst_formula]
+      have := lift_at_subst_formula_large f s n₂ (Nat.add_le_add_right h 1)
+      rw [show n₁ + 1 + n₂ = n₁ + n₂ + 1 from by omega] at this
+      exact congrArg preformula.all this
+
+lemma lift_subst_formula_large {l} (f : @preformula L l) (s : term L) {n₁ n₂ : ℕ} :
+    subst_formula (lift_formula f n₂) s (n₁ + n₂) = lift_formula (subst_formula f s n₁) n₂ :=
+  lift_at_subst_formula_large f s n₂ (Nat.zero_le _)
+
+lemma lift_subst_formula_large' {l} (f : @preformula L l) (s : term L) {n₁ n₂ : ℕ} :
+    subst_formula (lift_formula f n₂) s (n₂ + n₁) = lift_formula (subst_formula f s n₁) n₂ := by
+  rw [Nat.add_comm]; exact lift_subst_formula_large f s
+
+lemma lift_at_subst_formula_medium : ∀ {l} (f : @preformula L l) (s : term L) {n₁ n₂ m},
+    m ≤ n₂ → n₂ ≤ m + n₁ →
+    subst_formula (lift_formula_at f (n₁ + 1) m) s n₂ = lift_formula_at f n₁ m
+  | _, preformula.falsum, _, _, _, _, _, _ => rfl
+  | _, preformula.equal t₁ t₂, s, n₁, n₂, m, h₁, h₂ => by
+      simp [lift_formula_at, subst_formula, lift_at_subst_term_medium _ s h₁ h₂]
+  | _, preformula.rel R, _, _, _, _, _, _ => rfl
+  | _, preformula.apprel f t, s, n₁, n₂, m, h₁, h₂ => by
+      simp [lift_formula_at, subst_formula,
+            lift_at_subst_term_medium t s h₁ h₂,
+            lift_at_subst_formula_medium f s h₁ h₂]
+  | _, preformula.imp f₁ f₂, s, n₁, n₂, m, h₁, h₂ => by
+      simp [lift_formula_at, subst_formula,
+            lift_at_subst_formula_medium f₁ s h₁ h₂,
+            lift_at_subst_formula_medium f₂ s h₁ h₂]
+  | _, preformula.all f, s, n₁, n₂, m, h₁, h₂ => by
+      simp only [lift_formula_at, subst_formula]
+      have h : n₂ + 1 ≤ (m + 1) + n₁ := by omega
+      exact congrArg preformula.all
+        (lift_at_subst_formula_medium f s (Nat.add_le_add_right h₁ 1) h)
+
+lemma lift_subst_formula_medium {l} (f : @preformula L l) (s : term L) (n₁ n₂ : ℕ) :
+    subst_formula (lift_formula f (n₁ + n₂ + 1)) s n₁ = lift_formula f (n₁ + n₂) :=
+  lift_at_subst_formula_medium f s (Nat.zero_le _) (by omega)
+
+lemma lift_at_subst_formula_eq {l} (f : @preformula L l) (s : term L) (n : ℕ) :
+    subst_formula (lift_formula_at f 1 n) s n = f := by
+  have h : (1 : ℕ) = 0 + 1 := rfl
+  rw [h, lift_at_subst_formula_medium f s (le_refl n) (le_refl n), lift_formula_at_zero]
+
+@[simp] lemma lift_formula1_subst {l} (f : @preformula L l) (s : term L) :
+    subst_formula (lift_formula f 1) s 0 = f :=
+  lift_at_subst_formula_eq f s 0
+
+lemma lift_at_subst_formula_small : ∀ {l} (f : @preformula L l) (s : term L) (n₁ n₂ m : ℕ),
+    subst_formula (lift_formula_at f n₁ (m + n₂ + 1)) (lift_term_at s n₁ m) n₂ =
+    lift_formula_at (subst_formula f s n₂) n₁ (m + n₂)
+  | _, preformula.falsum, _, _, _, _ => rfl
+  | _, preformula.equal t₁ t₂, s, n₁, n₂, m => by
+      simp only [lift_formula_at, subst_formula]
+      exact congrArg₂ preformula.equal
+        (lift_at_subst_term_small t₁ s n₁ n₂ m)
+        (lift_at_subst_term_small t₂ s n₁ n₂ m)
+  | _, preformula.rel R, _, _, _, _ => rfl
+  | _, preformula.apprel f t, s, n₁, n₂, m => by
+      simp only [lift_formula_at, subst_formula]
+      exact congrArg₂ preformula.apprel
+        (lift_at_subst_formula_small f s n₁ n₂ m)
+        (lift_at_subst_term_small t s n₁ n₂ m)
+  | _, preformula.imp f₁ f₂, s, n₁, n₂, m => by
+      simp only [lift_formula_at, subst_formula]
+      exact congrArg₂ preformula.imp
+        (lift_at_subst_formula_small f₁ s n₁ n₂ m)
+        (lift_at_subst_formula_small f₂ s n₁ n₂ m)
+  | _, preformula.all f, s, n₁, n₂, m => by
+      simp only [lift_formula_at, subst_formula]
+      have := lift_at_subst_formula_small f s n₁ (n₂ + 1) m
+      simp only [Nat.add_assoc, Nat.add_comm 1] at this
+      exact congrArg preformula.all this
+
+lemma lift_at_subst_formula_small0 {l} (f : @preformula L l) (s : term L) (n₁ m : ℕ) :
+    subst_formula (lift_formula_at f n₁ (m + 1)) (lift_term_at s n₁ m) 0 =
+    lift_formula_at (subst_formula f s 0) n₁ m :=
+  lift_at_subst_formula_small f s n₁ 0 m
+
+lemma subst_formula2 : ∀ {l} (f : @preformula L l) (s₁ s₂ : term L) (n₁ n₂ : ℕ),
+    subst_formula (subst_formula f s₁ n₁) s₂ (n₁ + n₂) =
+    subst_formula (subst_formula f s₂ (n₁ + n₂ + 1)) (subst_term s₁ s₂ n₂) n₁
+  | _, preformula.falsum, _, _, _, _ => rfl
+  | _, preformula.equal t₁ t₂, s₁, s₂, n₁, n₂ => by
+      simp [subst_formula, subst_term2]
+  | _, preformula.rel R, _, _, _, _ => rfl
+  | _, preformula.apprel f t, s₁, s₂, n₁, n₂ => by
+      simp [subst_formula, subst_term2, subst_formula2 f s₁ s₂ n₁ n₂]
+  | _, preformula.imp f₁ f₂, s₁, s₂, n₁, n₂ => by
+      simp [subst_formula, subst_formula2 f₁ s₁ s₂ n₁ n₂, subst_formula2 f₂ s₁ s₂ n₁ n₂]
+  | _, preformula.all f, s₁, s₂, n₁, n₂ => by
+      simp only [subst_formula]
+      have h := subst_formula2 f s₁ s₂ (n₁ + 1) n₂
+      simp only [show n₁ + 1 + n₂ = n₁ + n₂ + 1 from by omega,
+                 show n₁ + 1 + n₂ + 1 = n₁ + n₂ + 1 + 1 from by omega] at h
+      exact congrArg preformula.all h
+
+lemma subst_formula2_zero {l} (f : @preformula L l) (s₁ s₂ : term L) (n : ℕ) :
+    subst_formula (subst_formula f s₁ 0) s₂ n =
+    subst_formula (subst_formula f s₂ (n + 1)) (subst_term s₁ s₂ n) 0 := by
+  have h := subst_formula2 f s₁ s₂ 0 n
+  simp only [Nat.zero_add] at h
+  exact h
+
+lemma lift_subst_formula_cancel : ∀ {l} (f : @preformula L l) (n : ℕ),
+    subst_formula (lift_formula_at f 1 (n + 1)) (&0) n = f
+  | _, preformula.falsum, _ => rfl
+  | _, preformula.equal t₁ t₂, n => by
+      simp [lift_formula_at, subst_formula, lift_subst_term_cancel]
+  | _, preformula.rel R, _ => rfl
+  | _, preformula.apprel f t, n => by
+      simp [lift_formula_at, subst_formula, lift_subst_term_cancel t n,
+            lift_subst_formula_cancel f n]
+  | _, preformula.imp f₁ f₂, n => by
+      simp [lift_formula_at, subst_formula,
+            lift_subst_formula_cancel f₁ n, lift_subst_formula_cancel f₂ n]
+  | _, preformula.all f, n => by
+      simp only [lift_formula_at, subst_formula]
+      exact congrArg preformula.all (lift_subst_formula_cancel f (n + 1))
+
+@[simp] lemma subst_formula_apps_rel {l} (f : @preformula L l) (ts : DVec (term L) l)
+    (s : term L) (n : ℕ) :
+    subst_formula (apps_rel f ts) s n =
+    apps_rel (subst_formula f s n) (ts.map (fun x => subst_term x s n)) := by
+  induction ts with
+  | nil => rfl
+  | cons x xs ih => simp only [apps_rel, DVec.map]; exact ih (preformula.apprel f x)
+
+/-! ## count_quantifiers and quantifier_free -/
+
+@[simp] def count_quantifiers : ∀ {l}, @preformula L l → ℕ
+  | _, preformula.falsum => 0
+  | _, preformula.equal _ _ => 0
+  | _, preformula.rel _ => 0
+  | _, preformula.apprel _ _ => 0
+  | _, preformula.imp f₁ f₂ => count_quantifiers f₁ + count_quantifiers f₂
+  | _, preformula.all f => count_quantifiers f + 1
+
+@[simp] def count_quantifiers_succ {l} (f : @preformula L (l + 1)) : count_quantifiers f = 0 := by
+  cases f <;> rfl
+
+@[simp] lemma count_quantifiers_subst : ∀ {l} (f : @preformula L l) (s : term L) (n : ℕ),
+    count_quantifiers (subst_formula f s n) = count_quantifiers f
+  | _, preformula.falsum, _, _ => rfl
+  | _, preformula.equal _ _, _, _ => rfl
+  | _, preformula.rel _, _, _ => rfl
+  | _, preformula.apprel _ _, _, _ => rfl
+  | _, preformula.imp f₁ f₂, s, n => by
+      simp [count_quantifiers_subst f₁ s n, count_quantifiers_subst f₂ s n]
+  | _, preformula.all f, s, n => by
+      simp [count_quantifiers_subst f s (n + 1)]
+
+def quantifier_free {l} : @preformula L l → Prop := fun f => count_quantifiers f = 0
+
 end Fol
