@@ -2302,8 +2302,23 @@ private def realize_bounded_formula_iff_aux {S : Structure L} :
       exact Iff.imp (realize_bounded_formula_iff_aux f₁ v₁ v₂ hv xs)
                     (realize_bounded_formula_iff_aux f₂ v₁ v₂ hv xs)
   | n, _, bd_all f, v₁, v₂, hv, _ => by
-      -- TODO: port from src/fol.lean:1866-1877 (bd_all case, valuation equivalence)
-      sorry
+      simp only [realize_bounded_formula, bounded_preformula.fst, realize_formula]
+      apply forall_congr'
+      intro x
+      have hv' : ∀ k (hk : k < n + 1), (DVec.cons x v₁).nth k hk = subst_realize v₂ x 0 k := by
+        intro k hk
+        cases k with
+        | zero => simp [DVec.nth, subst_realize]
+        | succ k =>
+          have hk' : k < n := Nat.lt_of_succ_lt_succ hk
+          simp only [DVec.nth, subst_realize, Nat.zero_lt_succ, ↓reduceIte, Nat.succ_ne_zero,
+                     if_false, Nat.add_sub_cancel]
+          exact hv k hk'
+      -- f : bounded_preformula L (n+1) 0; DVec.cons x v₁ : DVec S (n+1)
+      -- goal: realize_bounded_formula (DVec.cons x v₁) f x✝ ↔ realize_formula (subst_realize v₂ x 0) f.fst DVec.nil
+      -- x✝ : DVec S 0, so x✝ = DVec.nil
+      simp only [DVec.zero_eq]
+      exact realize_bounded_formula_iff_aux f (DVec.cons x v₁) (subst_realize v₂ x 0) hv' DVec.nil
 
 lemma realize_bounded_formula_iff {S : Structure L} {n} {v₁ : DVec S n} {v₂ : ℕ → S}
     (hv : ∀ k (hk : k < n), v₁.nth k hk = v₂ k)
