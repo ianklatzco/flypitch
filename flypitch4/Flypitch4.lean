@@ -7,3 +7,4 @@ import Flypitch4.Fol
 import Flypitch4.PSetOrdinal
 import Flypitch4.Bfol
 import Flypitch4.Compactness
+import Flypitch4.RegularOpenAlgebra
