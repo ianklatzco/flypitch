@@ -846,6 +846,416 @@ lemma subset_sound {x y : PSet.{u}} :
     x ⊆ y ↔ ZFSet.mk x ⊆ ZFSet.mk y := by
   rw [ZFSet.subset_iff]
 
+-- ============================================================
+-- Task 6c additions: lines 1000-1391 of src/pSet_ordinal.lean
+-- ============================================================
+
+/-! ### is_func characterization (src lines 1002-1045) -/
+
+/-- `is_func x y f` iff `f ⊆ pSet_prod x y` and for every `z ∈ x` there exists a unique `w`
+    with `pSet_pair z w ∈ f`.
+    Port of `is_func_iff` (src/pSet_ordinal.lean:1002). -/
+lemma is_func_iff {x y f : PSet.{u}} :
+    is_func x y f ↔ f ⊆ pSet_prod x y ∧ ∀ z, z ∈ x →
+      (∃ w, pSet_pair z w ∈ f ∧ ∀ v, pSet_pair z v ∈ f → Equiv v w) := by
+  -- TODO: port from src/pSet_ordinal.lean:1002
+  -- The proof requires pSet_prod_sound which is sorry'd; use sorry to avoid cascading errors
+  sorry
+
+lemma subset_prod_of_is_func {x y f : PSet.{u}} (H_func : is_func x y f) : f ⊆ pSet_prod x y := by
+  rw [is_func_iff] at H_func
+  exact H_func.left
+
+def is_total (x y f : PSet.{u}) : Prop := ∀ z ∈ x, ∃ w, w ∈ y ∧ pSet_pair z w ∈ f
+
+lemma is_total_of_is_func {x y f : PSet.{u}} (H_func : is_func x y f) : is_total x y f := by
+  intro z Hz
+  rw [is_func_iff] at H_func
+  obtain ⟨H_sub, H_uniq⟩ := H_func
+  obtain ⟨w, Hw₁, _⟩ := H_uniq z Hz
+  exact ⟨w, (mem_pSet_prod_iff.mp (all_mem_of_subset H_sub _ Hw₁)).2, Hw₁⟩
+
+/-! ### powerset_sound (src line 1047) -/
+
+lemma powerset_sound {x : PSet.{u}} : ZFSet.mk (PSet.powerset x) = ZFSet.powerset (ZFSet.mk x) :=
+  rfl
+
+/-! ### set_of_indicator, functions, mem_functions_iff (src lines 1049-1067) -/
+
+def set_of_indicator {x : PSet.{u}} (χ : x.Type → Prop) : PSet.{u} :=
+  ⟨{i // χ i}, fun p => x.Func p.1⟩
+
+/-- The set of all functions from x to y (as a pSet).
+    Port of `functions` (src/pSet_ordinal.lean:1052). -/
+def functions (x y : PSet.{u}) : PSet.{u} :=
+  @set_of_indicator (PSet.powerset (pSet_prod x y))
+    (fun i_S => is_func x y ((PSet.powerset (pSet_prod x y)).Func i_S))
+
+lemma mem_functions_iff {x y : PSet.{u}} (z : PSet.{u}) : z ∈ functions x y ↔ is_func x y z := by
+  constructor
+  · intro H
+    rw [mem_unfold] at H
+    obtain ⟨⟨j, Hj_prop⟩, Hj_eq⟩ := H
+    -- Hj_prop : is_func x y ((powerset (pSet_prod x y)).Func j)
+    -- Hj_eq : Equiv z ((powerset (pSet_prod x y)).Func j)
+    unfold is_func ZFSet.IsFunc at Hj_prop ⊢
+    rw [equiv_iff_eq] at Hj_eq
+    rw [Hj_eq]
+    exact Hj_prop
+  · intro H
+    -- H : is_func x y z
+    -- z is a subset of pSet_prod x y (from H), so z ∈ powerset(pSet_prod x y)
+    have H_sub : z ⊆ pSet_prod x y := subset_prod_of_is_func H
+    have H_pow : z ∈ PSet.powerset (pSet_prod x y) := PSet.mem_powerset.mpr H_sub
+    rw [mem_unfold] at H_pow
+    obtain ⟨j, Hj⟩ := H_pow
+    rw [mem_unfold]
+    refine ⟨⟨j, ?_⟩, Hj⟩
+    -- need: is_func x y ((powerset (pSet_prod x y)).Func j)
+    unfold is_func ZFSet.IsFunc at H ⊢
+    rw [equiv_iff_eq] at Hj
+    rw [← Hj]
+    exact H
+
+/-! ### card_ex_aleph_exists_mem (src line 1071) -/
+
+open Cardinal in
+@[simp] lemma card_ex_aleph_exists_mem {n : ℕ} : ∃ z, z ∈ card_ex (Cardinal.aleph n) := by
+  refine ⟨card_ex 0, mk_mem_mk_of_lt ?_⟩
+  -- ord 0 < ord (aleph n): since aleph 0 = ℵ₀ > 0, ord is strictly monotone
+  apply Cardinal.ord_lt_ord.mpr
+  induction n with
+  | zero => exact Cardinal.aleph_pos 0
+  | succ n ih => exact ih.trans (Cardinal.aleph_lt_aleph.mpr (by exact_mod_cast Nat.lt_succ_self n))
+
+/-! ### function.mk and related (src lines 1080-1132) -/
+
+namespace function_mk
+
+/-- Build a pSet function graph from a family `ψ : x.Type → PSet`.
+    Port of `pSet.function.mk` (src/pSet_ordinal.lean:1080). -/
+def mk {x : PSet.{u}} (ψ : x.Type → PSet.{u})
+    (H_ext : ∀ i j, Equiv (x.Func i) (x.Func j) → Equiv (ψ i) (ψ j)) : PSet.{u} :=
+  ⟨x.Type, fun i => pSet_pair (x.Func i) (ψ i)⟩
+
+lemma mk_mem {x : PSet.{u}} {ψ : x.Type → PSet.{u}}
+    {H_ext : ∀ i j, Equiv (x.Func i) (x.Func j) → Equiv (ψ i) (ψ j)}
+    {i : x.Type} : pSet_pair (x.Func i) (ψ i) ∈ mk ψ H_ext :=
+  PSet.func_mem (mk ψ H_ext) i
+
+lemma mk_is_func {x y : PSet.{u}} (ψ : x.Type → PSet.{u})
+    {H_ext : ∀ i j, Equiv (x.Func i) (x.Func j) → Equiv (ψ i) (ψ j)}
+    (H_im : ∀ i, ψ i ∈ y) : is_func x y (mk ψ H_ext) := by
+  -- TODO: port from src/pSet_ordinal.lean:1089
+  sorry
+
+lemma mk_inj_of_inj {x : PSet.{u}} (ψ : x.Type → PSet.{u})
+    (H_ext : ∀ i j, Equiv (x.Func i) (x.Func j) → Equiv (ψ i) (ψ j))
+    (H_inj : ∀ i₁ i₂, Equiv (ψ i₁) (ψ i₂) → Equiv (x.Func i₁) (x.Func i₂)) :
+    is_inj (mk ψ H_ext) := by
+  -- TODO: port from src/pSet_ordinal.lean:1125
+  sorry
+
+end function_mk
+
+/-! ### P_ext predicate (src lines 1144-1161) -/
+
+def P_ext : (PSet → Prop) → Prop := fun χ => ∀ x y, Equiv x y → χ x → χ y
+
+@[simp] lemma P_ext_mem_left {y : PSet} : P_ext (fun x => x ∈ y) :=
+  fun _ _ H_eq H_mem => (PSet.Mem.congr_left H_eq).mp H_mem
+
+@[simp] lemma P_ext_mem_right {x : PSet} : P_ext (fun y => x ∈ y) :=
+  fun _ _ H_eq H_mem => (PSet.Mem.congr_right H_eq).mp H_mem
+
+@[simp] lemma P_ext_neg {χ : PSet → Prop} (H : P_ext χ) : P_ext (fun z => ¬ χ z) := by
+  intro x y H_eq H'
+  intro Hy
+  exact H' (H y x H_eq.symm Hy)
+
+@[simp] lemma P_ext_injects_into_left {y : PSet.{u}} : P_ext (fun x => injects_into x y) := by
+  intro x₁ x₂ H_eq ⟨f, Hf₁, Hf₂⟩
+  refine ⟨f, ?_, Hf₂⟩
+  -- is_func x₂ y f given is_func x₁ y f and x₁ ≡ x₂
+  -- TODO: port from src/pSet_ordinal.lean:1157
+  sorry
+
+/-! ### mem_sep_iff (src line 1163) -/
+
+-- PSet.sep for P_ext-respecting predicates
+-- Note: must use `PSet.sep p x` explicitly (not `{z ∈ x | p z}` which resolves to Set.sep)
+lemma mem_sep_iff {p : PSet → Prop} {x w : PSet} (H_congr : P_ext p) :
+    w ∈ PSet.sep p x ↔ w ∈ x ∧ p w :=
+  PSet.mem_sep (fun a b hab hpa => H_congr a b hab hpa)
+
+/-! ### sep_subset (src line 1134) -/
+
+@[simp] lemma sep_subset {p : PSet → Prop} {x : PSet} (Hp : P_ext p) : PSet.sep p x ⊆ x := by
+  apply subset_of_all_mem
+  intro w Hw
+  exact ((mem_sep_iff Hp).mp Hw).1
+
+/-! ### sep_equiv_iff (src line 1179) -/
+
+lemma sep_equiv_iff {p₁ p₂ : PSet → Prop} {x : PSet}
+    (H_congr₁ : P_ext p₁) (H_congr₂ : P_ext p₂) :
+    Equiv (PSet.sep p₁ x) (PSet.sep p₂ x) ↔ ∀ z, z ∈ x ∧ p₁ z ↔ z ∈ x ∧ p₂ z := by
+  constructor
+  · intro H z
+    rw [← mem_sep_iff H_congr₁, ← mem_sep_iff H_congr₂]
+    exact PSet.Mem.congr_right H
+  · intro H
+    apply PSet.Mem.ext; intro z
+    rw [mem_sep_iff H_congr₁, mem_sep_iff H_congr₂]
+    exact H z
+
+/-! ### mem_two (src line 1186) -/
+
+lemma mem_two {x : PSet.{u}} (H : x ∈ (PSet.ofNat 2 : PSet.{u})) :
+    Equiv x (PSet.ofNat 0 : PSet.{u}) ∨ Equiv x (PSet.ofNat 1 : PSet.{u}) := by
+  -- ofNat 2 = insert (ofNat 1) (insert (ofNat 0) (insert (ofNat 0) ∅))
+  -- membership means x ≡ ofNat 1 or x ∈ ofNat 1
+  -- ofNat 1 = insert (ofNat 0) ∅, membership means x ≡ ofNat 0
+  rcases PSet.mem_insert_iff.mp H with heq | hin
+  · -- x ≡ ofNat 1
+    right; exact heq
+  · -- x ∈ ofNat 1 = insert (ofNat 0) ∅
+    rcases PSet.mem_insert_iff.mp hin with heq | hin'
+    · left; exact heq
+    · -- x ∈ ofNat 0 = ∅, impossible
+      exact absurd hin' (PSet.notMem_empty _)
+
+/-! ### pair_mem.congr_right/left (src lines 1194-1215) -/
+
+lemma pSet_pair_mem_congr_right {p q r s : PSet.{u}} (H : Equiv q r) :
+    pSet_pair p q ∈ s ↔ pSet_pair p r ∈ s := by
+  rw [mem_iff, mem_iff, pSet_pair_sound, pSet_pair_sound]
+  constructor
+  · intro h; rwa [show ZFSet.pair (ZFSet.mk p) (ZFSet.mk q) = ZFSet.pair (ZFSet.mk p) (ZFSet.mk r) from
+      by rw [ZFSet.pair_inj]; exact ⟨rfl, ZFSet.sound H⟩] at h
+  · intro h; rwa [show ZFSet.pair (ZFSet.mk p) (ZFSet.mk r) = ZFSet.pair (ZFSet.mk p) (ZFSet.mk q) from
+      by rw [ZFSet.pair_inj]; exact ⟨rfl, ZFSet.sound H.symm⟩] at h
+
+lemma pSet_pair_mem_congr_left {p q r s : PSet.{u}} (H : Equiv q r) :
+    pSet_pair q p ∈ s ↔ pSet_pair r p ∈ s := by
+  rw [mem_iff, mem_iff, pSet_pair_sound, pSet_pair_sound]
+  constructor
+  · intro h; rwa [show ZFSet.pair (ZFSet.mk q) (ZFSet.mk p) = ZFSet.pair (ZFSet.mk r) (ZFSet.mk p) from
+      by rw [ZFSet.pair_inj]; exact ⟨ZFSet.sound H, rfl⟩] at h
+  · intro h; rwa [show ZFSet.pair (ZFSet.mk r) (ZFSet.mk p) = ZFSet.pair (ZFSet.mk q) (ZFSet.mk p) from
+      by rw [ZFSet.pair_inj]; exact ⟨ZFSet.sound H.symm, rfl⟩] at h
+
+@[simp] lemma P_ext_pair_mem_right {b c : PSet} : P_ext (fun w => pSet_pair b w ∈ c) :=
+  fun _ _ H Hx => (pSet_pair_mem_congr_right H).mp Hx
+
+@[simp] lemma P_ext_pair_mem_left {b c : PSet} : P_ext (fun w => pSet_pair w b ∈ c) :=
+  fun _ _ H Hx => (pSet_pair_mem_congr_left H).mp Hx
+
+/-! ### section injects_powerset (src lines 1218-1369) -/
+
+section injects_powerset
+
+variable {x : PSet.{u}}
+
+-- Abbreviation for functions x {0,1}
+private abbrev fx2 (x : PSet.{u}) : PSet.{u} := functions x (PSet.ofNat 2 : PSet.{u})
+
+-- Predicate: "z maps to 0 under χ"
+private def preimage0 (x : PSet.{u}) (χ : (fx2 x).Type) : PSet → Prop :=
+  fun z => pSet_pair z (PSet.ofNat 0 : PSet.{u}) ∈ (fx2 x).Func χ
+
+-- For each function χ in fx2, the "preimage of 0" subset of x
+private def f2ip_F (x : PSet.{u}) : (fx2 x).Type → PSet.{u} :=
+  fun χ => PSet.sep (preimage0 x χ) x
+
+lemma f2ip_P_ext {x : PSet.{u}} {χ : (fx2 x).Type} {b : PSet} :
+    P_ext (fun z => pSet_pair z b ∈ (fx2 x).Func χ) :=
+  P_ext_pair_mem_left
+
+lemma mem_f2ip_F_iff {x : PSet.{u}} {χ : (fx2 x).Type} {w : PSet} :
+    w ∈ f2ip_F x χ ↔ w ∈ x ∧ pSet_pair w (PSet.ofNat 0 : PSet.{u}) ∈ (fx2 x).Func χ :=
+  mem_sep_iff f2ip_P_ext
+
+lemma f2ip_F_ext (x : PSet.{u}) :
+    ∀ i j, Equiv ((fx2 x).Func i) ((fx2 x).Func j) → Equiv (f2ip_F x i) (f2ip_F x j) := by
+  intro χ₁ χ₂ H_eqv
+  -- f2ip_F x χ = PSet.sep (preimage0 x χ) x
+  show Equiv (PSet.sep (preimage0 x χ₁) x) (PSet.sep (preimage0 x χ₂) x)
+  apply (sep_equiv_iff (f2ip_P_ext (χ := χ₁)) (f2ip_P_ext (χ := χ₂))).mpr
+  intro z
+  constructor
+  · rintro ⟨Hz, Hpr⟩
+    refine ⟨Hz, ?_⟩
+    rw [mem_iff, pSet_pair_sound] at Hpr ⊢
+    rwa [← equiv_iff_eq.mp H_eqv]
+  · rintro ⟨Hz, Hpr⟩
+    refine ⟨Hz, ?_⟩
+    rw [mem_iff, pSet_pair_sound] at Hpr ⊢
+    rwa [equiv_iff_eq.mp H_eqv]
+
+def f2ip (x : PSet.{u}) : PSet.{u} := function_mk.mk (f2ip_F x) (f2ip_F_ext x)
+
+lemma mem_f2ip_iff {x a b : PSet.{u}} :
+    pSet_pair a b ∈ f2ip x ↔
+    a ∈ fx2 x ∧ b ∈ PSet.powerset x ∧
+    Equiv b (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0 : PSet.{u}) ∈ a) x) := by
+  -- TODO: port from src/pSet_ordinal.lean:1245
+  sorry
+
+lemma rel_eq_iff {x y f g : PSet.{u}} (H₁ : f ⊆ pSet_prod x y) (H₂ : g ⊆ pSet_prod x y) :
+    Equiv f g ↔ ∀ a ∈ x, ∀ b ∈ y, pSet_pair a b ∈ f ↔ pSet_pair a b ∈ g := by
+  constructor
+  · intro H a _Ha b _Hb
+    exact PSet.Mem.congr_right H
+  · intro H
+    -- TODO: port from src/pSet_ordinal.lean:1272
+    sorry
+
+lemma false_of_zero_eq_one (H : Equiv (PSet.ofNat 0 : PSet.{u}) (PSet.ofNat 1 : PSet.{u})) :
+    False := ofNat_inj (Nat.zero_ne_one) H
+
+lemma function_to_2_eq_aux₂ {w : PSet} (Hfunc : is_func x (PSet.ofNat 2) w) {a} :
+    pSet_pair a (PSet.ofNat 0) ∈ w → pSet_pair a (PSet.ofNat 1) ∈ w → False := by
+  intro H₁ H₂
+  rw [is_func_iff] at Hfunc
+  obtain ⟨_H_sub, H⟩ := Hfunc
+  have Ha : a ∈ x := (mem_pSet_prod_iff.mp (all_mem_of_subset _H_sub _ H₁)).1
+  obtain ⟨_w', _Hw'₁, Hw'₂⟩ := H a Ha
+  have h1 := Hw'₂ (PSet.ofNat 0) H₁
+  have h2 := Hw'₂ (PSet.ofNat 1) H₂
+  -- h1 : Equiv (ofNat 0) _w', h2 : Equiv (ofNat 1) _w'
+  exact false_of_zero_eq_one (h1.trans h2.symm)
+
+-- Auxiliary: sep for predicate "pair z k ∈ w" is P_ext-respecting
+private lemma P_ext_pair_in_w {k w : PSet} : P_ext (fun z => pSet_pair z k ∈ w) :=
+  P_ext_pair_mem_left
+
+lemma function_to_2_eq_aux {w₁ w₂ : PSet}
+    (Hfunc₁ : is_func x (PSet.ofNat 2) w₁)
+    (Hfunc₂ : is_func x (PSet.ofNat 2) w₂)
+    (H_eq : Equiv (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₁) x)
+                  (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₂) x)) :
+    Equiv (PSet.sep (fun z => pSet_pair z (PSet.ofNat 1) ∈ w₁) x)
+          (PSet.sep (fun z => pSet_pair z (PSet.ofNat 1) ∈ w₂) x) := by
+  apply PSet.Mem.ext; intro w
+  constructor
+  · intro Hmem
+    rw [mem_sep_iff P_ext_pair_in_w] at Hmem ⊢
+    obtain ⟨Hx, H1⟩ := Hmem
+    refine ⟨Hx, ?_⟩
+    by_contra Hcontra
+    obtain ⟨k, Hk₁, Hk₂⟩ := is_total_of_is_func Hfunc₂ w Hx
+    rcases mem_two Hk₁ with H_zero | H_one
+    · have H0 : pSet_pair w (PSet.ofNat 0) ∈ w₂ := (pSet_pair_mem_congr_right H_zero).mp Hk₂
+      have Hmem2 : w ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₂) x :=
+        (mem_sep_iff P_ext_pair_in_w).mpr ⟨Hx, H0⟩
+      have Hmem1 : w ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₁) x :=
+        (PSet.Mem.congr_right H_eq.symm).mp Hmem2
+      exact function_to_2_eq_aux₂ Hfunc₁ ((mem_sep_iff P_ext_pair_in_w).mp Hmem1).2 H1
+    · exact Hcontra ((pSet_pair_mem_congr_right H_one).mp Hk₂)
+  · intro Hmem
+    rw [mem_sep_iff P_ext_pair_in_w] at Hmem ⊢
+    obtain ⟨Hx, H1⟩ := Hmem
+    refine ⟨Hx, ?_⟩
+    by_contra Hcontra
+    obtain ⟨k, Hk₁, Hk₂⟩ := is_total_of_is_func Hfunc₁ w Hx
+    rcases mem_two Hk₁ with H_zero | H_one
+    · have H0 : pSet_pair w (PSet.ofNat 0) ∈ w₁ := (pSet_pair_mem_congr_right H_zero).mp Hk₂
+      have Hmem1 : w ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₁) x :=
+        (mem_sep_iff P_ext_pair_in_w).mpr ⟨Hx, H0⟩
+      have Hmem2 : w ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₂) x :=
+        (PSet.Mem.congr_right H_eq).mp Hmem1
+      exact function_to_2_eq_aux₂ Hfunc₂ ((mem_sep_iff P_ext_pair_in_w).mp Hmem2).2 H1
+    · exact Hcontra ((pSet_pair_mem_congr_right H_one).mp Hk₂)
+
+lemma functions_to_2_eq {w₁ w₂ : PSet}
+    (H_eq : Equiv (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₁) x)
+                  (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₂) x))
+    (H₁₁ : w₁ ∈ functions x (PSet.ofNat 2))
+    (H₂₁ : w₂ ∈ functions x (PSet.ofNat 2)) : Equiv w₁ w₂ := by
+  have H'₁₁ := H₁₁
+  have H'₂₁ := H₂₁
+  rw [mem_functions_iff] at H₁₁ H₂₁
+  rw [is_func_iff] at H₁₁ H₂₁
+  obtain ⟨H₁_sub, H₁⟩ := H₁₁
+  obtain ⟨H₂_sub, _H₂⟩ := H₂₁
+  rw [rel_eq_iff H₁_sub H₂_sub]
+  intro a Ha b Hb
+  constructor
+  · -- w₁ → w₂ direction: use H_eq to move from sep_w₁ to sep_w₂
+    intro H
+    rcases mem_two Hb with H_zero | H_one
+    · rw [pSet_pair_mem_congr_right H_zero] at H ⊢
+      -- H : pair a 0 ∈ w₁; want: pair a 0 ∈ w₂
+      have Hmem : a ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₁) x :=
+        (mem_sep_iff P_ext_pair_in_w).mpr ⟨Ha, H⟩
+      exact ((mem_sep_iff P_ext_pair_in_w).mp ((PSet.Mem.congr_right H_eq).mp Hmem)).2
+    · replace H_eq := function_to_2_eq_aux (mem_functions_iff _ |>.mp H'₁₁)
+        (mem_functions_iff _ |>.mp H'₂₁) H_eq
+      rw [pSet_pair_mem_congr_right H_one] at H ⊢
+      have Hmem : a ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 1) ∈ w₁) x :=
+        (mem_sep_iff P_ext_pair_in_w).mpr ⟨Ha, H⟩
+      exact ((mem_sep_iff P_ext_pair_in_w).mp ((PSet.Mem.congr_right H_eq).mp Hmem)).2
+  · -- w₂ → w₁ direction: use H_eq.symm
+    intro H
+    rcases mem_two Hb with H_zero | H_one
+    · rw [pSet_pair_mem_congr_right H_zero] at H ⊢
+      have Hmem : a ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₂) x :=
+        (mem_sep_iff P_ext_pair_in_w).mpr ⟨Ha, H⟩
+      exact ((mem_sep_iff P_ext_pair_in_w).mp ((PSet.Mem.congr_right H_eq.symm).mp Hmem)).2
+    · replace H_eq := function_to_2_eq_aux (mem_functions_iff _ |>.mp H'₁₁)
+        (mem_functions_iff _ |>.mp H'₂₁) H_eq
+      rw [pSet_pair_mem_congr_right H_one] at H ⊢
+      have Hmem : a ∈ PSet.sep (fun z => pSet_pair z (PSet.ofNat 1) ∈ w₂) x :=
+        (mem_sep_iff P_ext_pair_in_w).mpr ⟨Ha, H⟩
+      exact ((mem_sep_iff P_ext_pair_in_w).mp ((PSet.Mem.congr_right H_eq.symm).mp Hmem)).2
+
+lemma functions_2_injects_into_powerset (x : PSet.{u}) :
+    ∃ (f : PSet.{u}), is_injective_function
+      (functions x (PSet.ofNat 2) : PSet.{u}) (PSet.powerset x : PSet.{u}) f := by
+  refine ⟨f2ip x, ?_, ?_⟩
+  · -- is_func (functions x 2) (powerset x) (f2ip x)
+    -- TODO: port from src/pSet_ordinal.lean:1355-1366
+    sorry
+  · -- is_inj (f2ip x): follows from functions_to_2_eq via mem_f2ip_iff
+    intro w₁ w₂ v₁ v₂ ⟨H₁, H₂, H_eq⟩
+    rw [mem_f2ip_iff] at H₁ H₂
+    obtain ⟨H₁₁, _H₁₂, H₁₃⟩ := H₁
+    obtain ⟨H₂₁, _H₂₂, H₂₃⟩ := H₂
+    have : Equiv (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₁) x)
+                 (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0) ∈ w₂) x) := by
+      -- H₁₃ : Equiv v₁ (sep ... w₁), H₂₃ : Equiv v₂ (sep ... w₂), H_eq : Equiv v₁ v₂
+      exact H₁₃.symm.trans (H_eq.trans H₂₃)
+    exact functions_to_2_eq this H₁₁ H₂₁
+
+end injects_powerset
+
+/-! ### eq_of_is_func_of_eq (src line 1372) -/
+
+lemma eq_of_is_func_of_eq {a b c d : PSet.{u}} {x y f : PSet.{u}}
+    (H_func : is_func x y f) (H₁ : pSet_pair a c ∈ f) (H₂ : pSet_pair b d ∈ f)
+    (H_eq : Equiv a b) : Equiv c d := by
+  rw [is_func_iff] at H_func
+  obtain ⟨H_sub, H⟩ := H_func
+  have Ha : a ∈ x := (mem_pSet_prod_iff.mp (all_mem_of_subset H_sub _ H₁)).1
+  obtain ⟨_w, _Hw₁, Hw₂⟩ := H a Ha
+  have h1 : Equiv c _w := Hw₂ c H₁
+  have h2 : Equiv d _w := by
+    apply Hw₂
+    exact (pSet_pair_mem_congr_left H_eq).mpr H₂
+  exact PSet.Equiv.trans h1 h2.symm
+
+/-! ### exists_mem_of_nonzero, exists_mem_of_regular (src lines 1384-1388) -/
+
+lemma exists_mem_of_nonzero {η : Ordinal} (H_nonzero : 0 < η) :
+    ∃ z : PSet, z ∈ ordinalMk η :=
+  ⟨ordinalMk 0, mk_mem_mk_of_lt H_nonzero⟩
+
+open Cardinal in
+lemma exists_mem_of_regular {κ : Cardinal} (H_reg : Cardinal.IsRegular κ) :
+    ∃ z : PSet, z ∈ card_ex κ :=
+  exists_mem_of_nonzero H_reg.ord_pos
+
 end PSet
 
 end -- noncomputable section
