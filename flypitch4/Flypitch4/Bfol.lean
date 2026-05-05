@@ -897,6 +897,69 @@ lemma boolean_realize_sentence_bd_alls {n} {f : bounded_formula L n} :
       intro x
       exact iInf_le _ (DVec.cons x xs)
 
+/-! ## consis_of_exists_bmodel — src/bfol.lean:785-793 -/
+
+/-- If there is a nontrivial boolean model satisfying all sentences in T,
+    then T is consistent. -/
+lemma consis_of_exists_bmodel [NontrivialCompleteBooleanAlgebra β] {T : SentTheory L}
+    {S : bStructure L β} [H_nonempty : Nonempty S] (H : ⊤ ⊩ₜ[S] T) :
+    T.is_consistent := by
+  -- TODO: port from src/bfol.lean:785-793
+  -- Logic: boolean_soundness H_inconsis gives T ⊨[β] bd_falsum;
+  -- instantiate at S and use inf_axioms_top_of_models to get ⊤ ≤ ⟦bd_falsum⟧[S] = ⊥;
+  -- this contradicts NontrivialCompleteBooleanAlgebra.bot_lt_top.
+  -- Instance diamond: section variable [CompleteBooleanAlgebra β] vs
+  -- NontrivialCompleteBooleanAlgebra.toCompleteBooleanAlgebra prevents proof.
+  sorry
+
+/-! ## subst0_bounded_formula_not — src/bfol.lean:799-801 -/
+
+@[simp] lemma subst0_bounded_formula_not {n} (f : bounded_formula L (n + 1))
+    (s : bounded_term L n) :
+    subst0_bounded_formula (bd_not f) s = bd_not (subst0_bounded_formula f s) := by
+  apply bounded_preformula.eq
+  simp [bd_not, subst0_bounded_formula_fst]
+
+/-! ## subst0_bounded_formula_and — src/bfol.lean:803-805 -/
+
+@[simp] lemma subst0_bounded_formula_and {n} (f g : bounded_formula L (n + 1))
+    (s : bounded_term L n) :
+    subst0_bounded_formula (bd_and f g) s =
+    bd_and (subst0_bounded_formula f s) (subst0_bounded_formula g s) := by
+  apply bounded_preformula.eq
+  simp [bd_and, bd_not, subst0_bounded_formula_fst]
+
+/-! ## boolean_realize_bounded_formula_insert_lift — src/bfol.lean:854-872 -/
+
+lemma boolean_realize_bounded_formula_insert_lift {n l} (v : DVec S n) (x : S) (m : ℕ) (hm : m ≤ n)
+    (f : bounded_preformula L n l) (xs : DVec S l) :
+    boolean_realize_bounded_formula (v.insert x m) (f ↑ᶠᵇ' 1 # m) xs =
+    boolean_realize_bounded_formula v f xs := by
+  -- TODO: port from src/bfol.lean:854-872
+  -- depends on boolean_realize_formula_subst_lift (currently sorry-stubbed)
+  sorry
+
+/-! ## boolean_realize_formula_insert_lift2 — src/bfol.lean:874-879 -/
+
+@[simp] lemma boolean_realize_formula_insert_lift2 {n} (v : DVec S n) (x y z : S)
+    (f : bounded_formula L (n + 2)) :
+    boolean_realize_bounded_formula (DVec.cons x (DVec.cons y (DVec.cons z v)))
+      (f ↑ᶠᵇ' 1 # 2) DVec.nil =
+    boolean_realize_bounded_formula (DVec.cons x (DVec.cons y v)) f DVec.nil := by
+  -- TODO: port from src/bfol.lean:874-879
+  sorry
+
+/-! ## boolean_realize_subst_formula0 — src/bfol.lean:881-897 -/
+
+lemma boolean_realize_subst_formula0 {n} (S : bStructure L β) [Nonempty S]
+    (f : bounded_formula L (n + 1)) (t : bounded_term L n) (v : DVec S n) :
+    boolean_realize_bounded_formula v (subst0_bounded_formula f t) DVec.nil =
+    boolean_realize_bounded_formula
+      (DVec.cons (boolean_realize_bounded_term v t DVec.nil) v) f DVec.nil := by
+  -- TODO: port from src/bfol.lean:881-897
+  -- depends on boolean_realize_formula_subst0 (currently sorry-stubbed)
+  sorry
+
 end bfol
 
 end Fol
