@@ -1545,4 +1545,447 @@ lemma formula_soundness {Γ : Set (formula L)} {A : formula L} (H : Γ ⊢ A) : 
     rw [← realize_formula_subst0, ← h', realize_formula_subst0]
     exact ih₂ v hΓ
 
+/-! ## bounded_preterm, bounded_term, closed_preterm (src/fol.lean lines 1265-1660) -/
+
+-- Bring L back to explicit so that bounded_preterm's constructors can refer to the
+-- inductive type unambiguously (same pattern as Structure and formula above).
+variable (L)
+
+/-- A bounded preterm: `bounded_preterm L n l` is a partially applied term with at most `n`
+    free de Bruijn variables (indexed by `Fin n`) needing `l` more arguments. -/
+inductive bounded_preterm (L : Language.{u}) (n : ℕ) : ℕ → Type u
+  | bd_var : ∀ (k : Fin n), bounded_preterm L n 0
+  | bd_func : ∀ {l : ℕ} (f : L.functions l), bounded_preterm L n l
+  | bd_app : ∀ {l : ℕ} (t : bounded_preterm L n (l + 1)) (s : bounded_preterm L n 0),
+      bounded_preterm L n l
+
+export bounded_preterm (bd_var bd_func bd_app)
+
+/-- A fully applied bounded term with at most `n` free variables. -/
+def bounded_term (n : ℕ) := bounded_preterm L n 0
+
+/-- A closed preterm (no free variables), needing `l` more arguments. -/
+def closed_preterm (l : ℕ) := bounded_preterm L 0 l
+
+/-- A closed term: no free variables and fully applied. -/
+def closed_term := closed_preterm L 0
+
+variable {L}
+
+prefix:max "&ᵇ" => @bd_var _ _
+
+def bd_const {n} (c : L.constants) : bounded_term L n := bd_func c
+
+/-- Apply a bounded preterm of level `l + m` to `m` bounded terms to get level `l`. -/
+@[simp] def bd_apps' {n} : ∀ {l m : ℕ}, bounded_preterm L n (l + m) →
+    DVec (bounded_term L n) m → bounded_preterm L n l
+  | _, 0, t, DVec.nil => t
+  | l, m + 1, t, DVec.cons x xs => bd_apps' (bd_app t x) xs
+
+/-- Apply a bounded preterm of level `l` to `l` bounded terms to get a bounded term. -/
+@[simp] def bd_apps {n} : ∀ {l}, bounded_preterm L n l → DVec (bounded_term L n) l →
+    bounded_term L n
+  | _, t, DVec.nil => t
+  | _, t, DVec.cons t' ts => bd_apps (bd_app t t') ts
+
+namespace bounded_preterm
+
+/-- Forget boundedness: map a bounded preterm to an ordinary preterm. -/
+@[simp] protected def fst {n} : ∀ {l}, bounded_preterm L n l → preterm L l
+  | _, bd_var k => &k.1
+  | _, bd_func f => preterm.func f
+  | _, bd_app t s => preterm.app (bounded_preterm.fst t) (bounded_preterm.fst s)
+
+/-- Equality of bounded preterms is determined by their underlying preterms. -/
+@[ext] protected theorem eq {n} : ∀ {l} {t₁ t₂ : bounded_preterm L n l},
+    t₁.fst = t₂.fst → t₁ = t₂
+  | _, bd_var k, bd_var k', h => by
+      simp [bounded_preterm.fst] at h
+      congr 1; exact Fin.ext h
+  | _, bd_var _, bd_func _, h => by simp [bounded_preterm.fst] at h
+  | _, bd_var _, bd_app _ _, h => by simp [bounded_preterm.fst] at h
+  | _, bd_func _, bd_var _, h => by simp [bounded_preterm.fst] at h
+  | _, bd_func f, bd_func f', h => by
+      simp [bounded_preterm.fst] at h; exact congrArg bd_func h
+  | _, bd_func _, bd_app _ _, h => by simp [bounded_preterm.fst] at h
+  | _, bd_app _ _, bd_var _, h => by simp [bounded_preterm.fst] at h
+  | _, bd_app _ _, bd_func _, h => by simp [bounded_preterm.fst] at h
+  | _, bd_app t₁ t₂, bd_app t₁' t₂', h => by
+      simp only [bounded_preterm.fst, preterm.app.injEq] at h
+      exact congrArg₂ bd_app (bounded_preterm.eq h.1) (bounded_preterm.eq h.2)
+
+/-- Cast a bounded_preterm L n l to one with a larger bound m ≥ n. -/
+@[simp] protected def cast {n m} (h : n ≤ m) : ∀ {l}, bounded_preterm L n l →
+    bounded_preterm L m l
+  | _, bd_var k => bd_var ⟨k.1, Nat.lt_of_lt_of_le k.2 h⟩
+  | _, bd_func f => bd_func f
+  | _, bd_app t s => bd_app (t.cast h) (s.cast h)
+
+@[simp] lemma cast_bd_app {n m} (h : n ≤ m) {l} {t : bounded_preterm L n (l + 1)}
+    {s : bounded_preterm L n 0} : (bd_app t s).cast h = bd_app (t.cast h) (s.cast h) := rfl
+
+@[simp] lemma cast_bd_apps {n m} (h : n ≤ m) {l} {t : bounded_preterm L n l}
+    {ts : DVec (bounded_term L n) l} :
+    (bd_apps t ts).cast h = bd_apps (t.cast h) (ts.map (fun x => x.cast h)) := by
+  induction ts with
+  | nil => rfl
+  | cons x xs ih => simp only [bd_apps, DVec.map]; exact ih
+
+@[simp] lemma cast_irrel {n m} {h h' : n ≤ m} : ∀ {l} (t : bounded_preterm L n l),
+    t.cast h = t.cast h' := by
+  intros l t; induction t with
+  | bd_var k => simp [bounded_preterm.cast]
+  | bd_func f => rfl
+  | bd_app t s iht ihs => simp [bounded_preterm.cast, iht, ihs]
+
+@[simp] lemma cast_rfl {n} {h : n ≤ n} : ∀ {l} (t : bounded_preterm L n l), t.cast h = t := by
+  intros l t; induction t with
+  | bd_var k => simp [bounded_preterm.cast, Fin.ext_iff]
+  | bd_func => rfl
+  | bd_app _ _ iht ihs => simp [bounded_preterm.cast, iht, ihs]
+
+protected def cast_eq {n m l} (h : n = m) (t : bounded_preterm L n l) : bounded_preterm L m l :=
+  t.cast (Nat.le_of_eq h)
+
+protected def cast1 {n l} (t : bounded_preterm L n l) : bounded_preterm L (n + 1) l :=
+  t.cast (Nat.le_add_right n 1)
+
+@[simp] lemma cast_fst {n m} (h : n ≤ m) : ∀ {l} (t : bounded_preterm L n l),
+    (t.cast h).fst = t.fst
+  | _, bd_var k => rfl
+  | _, bd_func f => rfl
+  | _, bd_app t s => by simp [bounded_preterm.cast, cast_fst h t, cast_fst h s]
+
+@[simp] lemma cast_eq_fst {n m l} (h : n = m) (t : bounded_preterm L n l) :
+    (t.cast_eq h).fst = t.fst := cast_fst _ t
+
+@[simp] lemma cast1_fst {n l} (t : bounded_preterm L n l) : t.cast1.fst = t.fst := cast_fst _ t
+
+@[simp] lemma cast_eq_rfl {n m l} (h : n = m) (t : bounded_preterm L n l) :
+    (t.cast_eq h).cast_eq h.symm = t := by
+  apply bounded_preterm.eq; simp [cast_eq_fst]
+
+@[simp] lemma cast_eq_irrel {n m l} (h h' : n = m) (t : bounded_preterm L n l) :
+    t.cast_eq h = t.cast_eq h' := rfl
+
+@[simp] lemma cast_eq_bd_app {n m} (h : n = m) {l} {t : bounded_preterm L n (l + 1)}
+    {s : bounded_preterm L n 0} :
+    (bd_app t s).cast_eq h = bd_app (t.cast_eq h) (s.cast_eq h) := rfl
+
+@[simp] lemma cast_eq_bd_apps {n m} (h : n = m) {l} {t : bounded_preterm L n l}
+    {ts : DVec (bounded_term L n) l} :
+    (bd_apps t ts).cast_eq h = bd_apps (t.cast_eq h) (ts.map (fun x => x.cast_eq h)) := by
+  simp [bounded_preterm.cast_eq, cast_bd_apps]
+
+end bounded_preterm
+
+namespace closed_preterm
+
+@[reducible] protected def cast0 (n : ℕ) {l} (t : closed_preterm L l) : bounded_preterm L n l :=
+  t.cast (Nat.zero_le n)
+
+@[simp] lemma cast0_fst {n l : ℕ} (t : closed_preterm L l) :
+    (t.cast0 n).fst = t.fst :=
+  bounded_preterm.cast_fst _ t
+
+@[simp] lemma cast_of_cast0 {n} {l} {t : closed_preterm L l} :
+    t.cast0 n = t.cast (Nat.zero_le n) := rfl
+
+end closed_preterm
+
+/-! ### bounded_term.rec — custom recursion principle -/
+
+/-- Custom recursion principle for bounded terms, analogous to `term.rec`. -/
+def bounded_term.rec {n} {C : bounded_term L n → Sort v}
+    (hvar : ∀ (k : Fin n), C (bd_var k))
+    (hfunc : ∀ {l} (f : L.functions l) (ts : DVec (bounded_term L n) l)
+      (ih_ts : ∀ t, DVec.pmem t ts → C t), C (bd_apps (bd_func f) ts)) :
+    ∀ (t : bounded_term L n), C t :=
+  let rec go : ∀ {l} (t : bounded_preterm L n l) (ts : DVec (bounded_term L n) l)
+      (ih_ts : ∀ s, DVec.pmem s ts → C s), C (bd_apps t ts)
+    | _, bd_var k, ts, _ => by rw [DVec.zero_eq ts]; exact hvar k
+    | _, bd_func f, ts, ih_ts => hfunc f ts ih_ts
+    | _, bd_app t₁ t₂, ts, ih_ts =>
+        go t₁ (DVec.cons t₂ ts) fun t ht => by
+          cases ht with
+          | inl h => exact h ▸ go t₂ DVec.nil (fun s hs => hs.elim)
+          | inr h => exact ih_ts t h
+  fun t => go t DVec.nil (fun s hs => hs.elim)
+
+/-- Version of `bounded_term.rec` specialized to `n + 1`. -/
+def bounded_term.rec1 {n} {C : bounded_term L (n + 1) → Sort v}
+    (hvar : ∀ (k : Fin (n + 1)), C (bd_var k))
+    (hfunc : ∀ {l} (f : L.functions l) (ts : DVec (bounded_term L (n + 1)) l)
+      (ih_ts : ∀ t, DVec.pmem t ts → C t), C (bd_apps (bd_func f) ts)) :
+    ∀ (t : bounded_term L (n + 1)), C t :=
+  bounded_term.rec hvar hfunc
+
+/-! ### Lift and substitution — irrel lemmas -/
+
+lemma lift_bounded_term_irrel {n : ℕ} : ∀ {l} (t : bounded_preterm L n l) (n') {m : ℕ}
+    (h : n ≤ m), (t.fst ↑' n' # m) = t.fst
+  | _, bd_var k, n', m, h =>
+      have h' : ¬(m ≤ k.1) := Nat.not_le.mpr (Nat.lt_of_lt_of_le k.2 h)
+      by simp [h']
+  | _, bd_func _, _, _, _ => rfl
+  | _, bd_app t s, n', m, h => by
+      simp [lift_bounded_term_irrel t n' h, lift_bounded_term_irrel s n' h]
+
+lemma subst_bounded_term_irrel {n : ℕ} : ∀ {l} (t : bounded_preterm L n l) {n'} (s : term L)
+    (h : n ≤ n'), subst_term t.fst s n' = t.fst
+  | _, bd_var k, n', s, h => by simp [Nat.lt_of_lt_of_le k.2 h]
+  | _, bd_func _, _, _, _ => rfl
+  | _, bd_app t₁ t₂, n', s, h => by simp [subst_bounded_term_irrel t₁ s h,
+                                           subst_bounded_term_irrel t₂ s h]
+
+/-! ### realize_bounded_term -/
+
+/-- Realize a bounded preterm given a valuation vector `v : DVec S n` and extra args `xs : DVec S l`. -/
+@[simp] def realize_bounded_term {S : Structure L} {n} (v : DVec S n) :
+    ∀ {l} (t : bounded_preterm L n l) (xs : DVec S l), S.carrier
+  | _, bd_var k, _ => v.nth k.1 k.2
+  | _, bd_func f, xs => S.fun_map f xs
+  | _, bd_app t₁ t₂, xs =>
+      realize_bounded_term v t₁ (DVec.cons (realize_bounded_term v t₂ DVec.nil) xs)
+
+/-- Notation for realizing a bounded term with an empty extra argument list. -/
+notation:0 S "[" t " ;;; " v "]" => @realize_bounded_term _ S _ v 0 t DVec.nil
+
+notation:0 S "[" t " ;;; " v " ;;; " xs "]" => @realize_bounded_term _ S _ v _ t xs
+
+@[reducible] def realize_closed_term (S : Structure L) (t : closed_term L) : S.carrier :=
+  realize_bounded_term DVec.nil t DVec.nil
+
+lemma realize_bounded_term_eq {S : Structure L} {n} {v₁ : DVec S n} {v₂ : ℕ → S}
+    (hv : ∀ k (hk : k < n), v₁.nth k hk = v₂ k) :
+    ∀ {l} (t : bounded_preterm L n l) (xs : DVec S l),
+    realize_bounded_term v₁ t xs = realize_term v₂ t.fst xs
+  | _, bd_var k, _ => hv k.1 k.2
+  | _, bd_func f, xs => rfl
+  | _, bd_app t₁ t₂, xs => by
+      simp only [realize_bounded_term, bounded_preterm.fst, realize_term]
+      rw [realize_bounded_term_eq hv t₂ DVec.nil, realize_bounded_term_eq hv t₁]
+
+lemma realize_bounded_term_irrel' {S : Structure L} {n n'} {v₁ : DVec S n} {v₂ : DVec S n'}
+    (h : ∀ m (hn : m < n) (hn' : m < n'), v₁.nth m hn = v₂.nth m hn')
+    {l} (t : bounded_preterm L n l) (t' : bounded_preterm L n' l)
+    (ht : t.fst = t'.fst) (xs : DVec S l) :
+    realize_bounded_term v₁ t xs = realize_bounded_term v₂ t' xs := by
+  induction t generalizing n' with
+  | bd_var k =>
+    cases t' with
+    | bd_var k' =>
+      simp only [bounded_preterm.fst, preterm.var.injEq] at ht
+      simp only [realize_bounded_term]
+      have hk : k.1 = k'.1 := ht
+      calc v₁.nth k.1 k.2 = v₂.nth k.1 (hk ▸ k'.2) := h k.1 k.2 (hk ▸ k'.2)
+        _ = v₂.nth k'.1 k'.2 := by congr 1
+    | bd_func => simp [bounded_preterm.fst] at ht
+    | bd_app => simp [bounded_preterm.fst] at ht
+  | bd_func f =>
+    cases t' with
+    | bd_var => simp [bounded_preterm.fst] at ht
+    | bd_func f' =>
+      simp only [bounded_preterm.fst, preterm.func.injEq] at ht
+      simp [realize_bounded_term, ht]
+    | bd_app => simp [bounded_preterm.fst] at ht
+  | bd_app t₁ t₂ iht ihs =>
+    cases t' with
+    | bd_var => simp [bounded_preterm.fst] at ht
+    | bd_func => simp [bounded_preterm.fst] at ht
+    | bd_app t₁' t₂' =>
+      simp only [bounded_preterm.fst, preterm.app.injEq] at ht
+      simp only [realize_bounded_term]
+      rw [ihs h t₂' ht.2 DVec.nil, iht h t₁' ht.1]
+
+lemma realize_bounded_term_irrel {S : Structure L} {n} {v₁ : DVec S n}
+    (t : bounded_term L n) (t' : closed_term L) (ht : t.fst = t'.fst) :
+    realize_bounded_term v₁ t DVec.nil = realize_closed_term S t' :=
+  realize_bounded_term_irrel'
+    (fun m hm hm' => absurd hm' (Nat.not_lt_zero m)) t t' ht DVec.nil
+
+@[simp] lemma realize_bounded_term_cast_eq_irrel {S : Structure L} {n m l} {h : n = m}
+    {v : DVec S m} {t : bounded_preterm L n l} (xs : DVec S l) :
+    realize_bounded_term v (t.cast_eq h) xs = realize_bounded_term (v.cast h.symm) t xs := by
+  subst h
+  simp only [bounded_preterm.cast_eq, Nat.le_refl, bounded_preterm.cast_rfl, DVec.cast, eq_mpr_eq_cast,
+             cast_eq]
+
+@[simp] lemma realize_bounded_term_dvector_cast_irrel {S : Structure L} {n m l} {h : n = m}
+    {v : DVec S n} {t : bounded_preterm L n l} {xs : DVec S l} :
+    realize_bounded_term (v.cast h) (t.cast (Nat.le_of_eq h)) xs = realize_bounded_term v t xs := by
+  subst h
+  simp only [bounded_preterm.cast_rfl, DVec.cast]
+
+/-! ### lift_bounded_term_at — lifting bounded terms -/
+
+/-- Lift a bounded term by inserting `n'` new variables at position `m`. -/
+@[simp] def lift_bounded_term_at {n} : ∀ {l} (t : bounded_preterm L n l) (n' m : ℕ),
+    bounded_preterm L (n + n') l
+  | _, bd_var k, n', m =>
+      if m ≤ k.1 then bd_var ⟨k.1 + n', by omega⟩
+      else bd_var ⟨k.1, by omega⟩
+  | _, bd_func f, _, _ => bd_func f
+  | _, bd_app t₁ t₂, n', m => bd_app (lift_bounded_term_at t₁ n' m) (lift_bounded_term_at t₂ n' m)
+
+notation:90 t " ↑ᵇ' " n " # " m => Fol.lift_bounded_term_at t n m
+
+@[reducible] def lift_bounded_term {n l} (t : bounded_preterm L n l) (n' : ℕ) :
+    bounded_preterm L (n + n') l := lift_bounded_term_at t n' 0
+
+infixl:100 " ↑ᵇ " => Fol.lift_bounded_term
+
+@[reducible, simp] def lift_bounded_term1 {n' l} (t : bounded_preterm L n' l) :
+    bounded_preterm L (n' + 1) l := t ↑ᵇ 1
+
+@[simp] lemma lift_bounded_term_fst {n} : ∀ {l} (t : bounded_preterm L n l) (n' m : ℕ),
+    (lift_bounded_term_at t n' m).fst = t.fst ↑' n' # m
+  | _, bd_var k, n', m => by
+      simp only [lift_bounded_term_at, bounded_preterm.fst, lift_term_at]
+      split_ifs with h <;> simp [h]
+  | _, bd_func _, _, _ => rfl
+  | _, bd_app t₁ t₂, n', m => by
+      simp [lift_bounded_term_fst t₁ n' m, lift_bounded_term_fst t₂ n' m]
+
+/-! ### subst_bounded_term — substitution in bounded terms -/
+
+/-- Substitute the variable at position `n` (within the bound `n + n' + 1`) with a bounded term `s`. -/
+def subst_bounded_term {n n'} : ∀ {l} (t : bounded_preterm L (n + n' + 1) l)
+    (s : bounded_term L n'), bounded_preterm L (n + n') l
+  | _, bd_var k, s =>
+      if h : k.1 < n then bd_var ⟨k.1, Nat.lt_of_lt_of_le h (Nat.le_add_right n n')⟩
+      else if h' : n < k.1 then
+        bd_var ⟨k.1 - 1, by omega⟩
+      else
+        (s ↑ᵇ n).cast (Nat.le_of_eq (Nat.add_comm n' n))
+  | _, bd_func f, _ => bd_func f
+  | _, bd_app t₁ t₂, s => bd_app (subst_bounded_term t₁ s) (subst_bounded_term t₂ s)
+
+notation:0 t "[" s " /// " n "]" => @subst_bounded_term _ n _ _ t s
+
+@[simp] lemma subst_bounded_term_var_lt {n n'} (s : bounded_term L n') (k : Fin (n + n' + 1))
+    (h : k.1 < n) : (subst_bounded_term (bd_var k) s).fst = &k.1 := by
+  simp [subst_bounded_term, h]
+
+@[simp] lemma subst_bounded_term_var_gt {n n'} (s : bounded_term L n') (k : Fin (n + n' + 1))
+    (h : n < k.1) : (subst_bounded_term (bd_var k) s).fst = &(k.1 - 1) := by
+  have h' : ¬(k.1 < n) := Nat.not_lt.mpr (Nat.le_of_lt h)
+  simp [subst_bounded_term, h', h]
+
+@[simp] lemma subst_bounded_term_var_eq {n n'} (s : bounded_term L n') (k : Fin (n + n' + 1))
+    (h : k.1 = n) : (subst_bounded_term (bd_var k) s).fst = s.fst ↑' n # 0 := by
+  have h₂ : ¬(k.1 < n) := by omega
+  have h₃ : ¬(n < k.1) := by omega
+  simp only [subst_bounded_term, h₂, h₃, dite_false, if_false, bounded_preterm.cast_fst,
+             lift_bounded_term_fst]
+
+@[simp] lemma subst_bounded_term_bd_app {n n' l} (t₁ : bounded_preterm L (n + n' + 1) (l + 1))
+    (t₂ : bounded_term L (n + n' + 1)) (s : bounded_term L n') :
+    subst_bounded_term (bd_app t₁ t₂) s = bd_app (subst_bounded_term t₁ s) (subst_bounded_term t₂ s) := rfl
+
+@[simp] lemma subst_bounded_term_fst {n n'} : ∀ {l} (t : bounded_preterm L (n + n' + 1) l)
+    (s : bounded_term L n'), (subst_bounded_term t s).fst = subst_term t.fst s.fst n
+  | _, bd_var k, s => by
+      rcases Nat.lt_trichotomy k.1 n with h | h | h
+      · simp [h, subst_bounded_term]
+      · simp only [subst_bounded_term, show ¬(k.1 < n) from by omega,
+              show ¬(n < k.1) from by omega, dite_false, if_false,
+              bounded_preterm.cast_fst, lift_bounded_term_fst]
+        simp [subst_term, subst_realize, h]
+      · simp [subst_bounded_term, h, Nat.not_lt.mpr (Nat.le_of_lt h), subst_term, subst_realize,
+              Nat.lt_asymm h]
+  | _, bd_func f, _ => rfl
+  | _, bd_app t₁ t₂, s => by
+      simp [subst_bounded_term_fst t₁ s, subst_bounded_term_fst t₂ s]
+
+/-- Substitute the last (max) variable with a closed term. -/
+def subst0_bounded_term {n l} (t : bounded_preterm L (n + 1) l) (s : bounded_term L n) :
+    bounded_preterm L n l :=
+  (subst_bounded_term (t.cast_eq (n + 1).zero_add.symm) s).cast_eq n.zero_add
+
+@[simp] lemma subst0_bounded_term_fst {n l} (t : bounded_preterm L (n + 1) l)
+    (s : bounded_term L n) : (subst0_bounded_term t s).fst = subst_term t.fst s.fst 0 := by
+  simp [subst0_bounded_term, subst_bounded_term_fst]
+
+/-- Substitute the last (max) variable with a closed term. -/
+def substmax_bounded_term {n l} (t : bounded_preterm L (n + 1) l) (s : closed_term L) :
+    bounded_preterm L n l :=
+  subst_bounded_term t s
+
+@[simp] lemma substmax_bounded_term_bd_app {n l} (t₁ : bounded_preterm L (n + 1) (l + 1))
+    (t₂ : bounded_term L (n + 1)) (s : closed_term L) :
+    substmax_bounded_term (bd_app t₁ t₂) s =
+    bd_app (substmax_bounded_term t₁ s) (substmax_bounded_term t₂ s) := rfl
+
+def substmax_eq_subst0_term {l} (t : bounded_preterm L 1 l) (s : closed_term L) :
+    subst0_bounded_term t s = substmax_bounded_term t s := by
+  apply bounded_preterm.eq; simp [substmax_bounded_term]
+
+def substmax_var_lt {n} (k : Fin (n + 1)) (s : closed_term L) (h : k.1 < n) :
+    substmax_bounded_term (bd_var k : bounded_preterm L (n + 1) 0) s =
+    bd_var ⟨k.1, h⟩ := by
+  apply bounded_preterm.eq; simp [substmax_bounded_term, h]
+
+def substmax_var_eq {n} (k : Fin (n + 1)) (s : closed_term L) (h : k.1 = n) :
+    substmax_bounded_term (bd_var k : bounded_preterm L (n + 1) 0) s = s.cast0 n := by
+  apply bounded_preterm.eq
+  simp only [substmax_bounded_term, closed_preterm.cast0, bounded_preterm.cast_fst]
+  simp only [subst_bounded_term, show ¬(k.1 < n) from by omega, show ¬(n < k.1) from by omega,
+        dite_false, bounded_preterm.cast_fst, lift_bounded_term_fst]
+  -- Goal: s.fst ↑' n # 0 = s.fst
+  -- s : closed_term L = bounded_preterm L 0 0, so bound is 0 ≤ 0 (lift at position 0)
+  exact lift_bounded_term_irrel s n (Nat.zero_le 0)
+
+def bounded_term_of_function {l n} (f : L.functions l) :
+    Arity' (bounded_term L n) (bounded_term L n) l :=
+  Arity'.of_dvector_map (bd_apps (bd_func f))
+
+/-! ### realize_bounded_term lemmas -/
+
+@[simp] lemma realize_bounded_term_bd_app {S : Structure L}
+    {n l} (t : bounded_preterm L n (l + 1)) (s : bounded_term L n) (xs : DVec S n)
+    (xs' : DVec S l) :
+    realize_bounded_term xs (bd_app t s) xs' =
+    realize_bounded_term xs t (DVec.cons (realize_bounded_term xs s DVec.nil) xs') := rfl
+
+@[simp] lemma realize_closed_term_bd_apps {S : Structure L}
+    {l} (t : closed_preterm L l) (ts : DVec (closed_term L) l) :
+    realize_closed_term S (bd_apps t ts) =
+    realize_bounded_term DVec.nil t (ts.map (fun t' => realize_bounded_term DVec.nil t' DVec.nil)) := by
+  induction ts with
+  | nil => rfl
+  | cons x xs ih => exact ih (bd_app t x)
+
+lemma realize_bounded_term_bd_apps {S : Structure L}
+    {n l} (xs : DVec S n) (t : bounded_preterm L n l) (ts : DVec (bounded_term L n) l) :
+    realize_bounded_term xs (bd_apps t ts) DVec.nil =
+    realize_bounded_term xs t (ts.map (fun t => realize_bounded_term xs t DVec.nil)) := by
+  induction ts with
+  | nil => rfl
+  | cons x xs' ih => exact ih (bd_app t x)
+
+@[simp] lemma realize_cast_bounded_term {S : Structure L} {n m} {h : n ≤ m} {t : bounded_term L n}
+    {v : DVec S m} :
+    realize_bounded_term v (t.cast h) DVec.nil =
+    realize_bounded_term (v.trunc n h) t DVec.nil := by
+  revert t
+  apply bounded_term.rec
+  · intro k
+    simp only [bounded_preterm.cast, realize_bounded_term, DVec.trunc_nth]
+  · intro l f ts ih_ts
+    simp only [bounded_preterm.cast_bd_apps, realize_bounded_term_bd_apps]
+    apply congrArg
+    -- goal: map (realize v ·) (map (cast h) ts) = map (realize (trunc h v) ·) ts
+    trans DVec.map (fun x => realize_bounded_term v (bounded_preterm.cast h x) DVec.nil) ts
+    · exact DVec.map_map _ _ ts
+    · apply DVec.map_congr_pmem
+      intro x hx
+      exact ih_ts x hx
+
+/-- When realizing a closed term, the realizing dvector is irrelevant. -/
+@[simp] lemma realize_closed_term_v_irrel {S : Structure L} {n} {v : DVec S n}
+    {t : bounded_term L 0} :
+    realize_bounded_term v (t.cast (Nat.zero_le n)) DVec.nil = realize_closed_term S t := by
+  simp [realize_cast_bounded_term]
+
 end Fol
