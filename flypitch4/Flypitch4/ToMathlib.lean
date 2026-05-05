@@ -201,7 +201,7 @@ protected theorem insert_cons {n k} {x y : α} {v : DVec α n} :
     DVec.trunc n h v = v := by
   induction v with
   | nil => rfl
-  | cons x xs ih => sorry -- TODO: port from src/to_mathlib.lean:172
+  | cons x xs ih => simp [DVec.trunc, ih]
 
 @[simp] protected theorem trunc_0_n {n : ℕ} {h : 0 ≤ n} {v : DVec α n} :
     DVec.trunc 0 h v = DVec.nil := by cases v <;> rfl
@@ -390,18 +390,34 @@ protected theorem rel_trans {α : Type u} [Setoid α] {n} {xs₁ xs₂ xs₃ : D
 instance setoidInst {α : Type u} [Setoid α] {n : ℕ} : Setoid (DVec α n) :=
   ⟨DVecRel, DVec.rel_refl, DVec.rel_symm, DVec.rel_trans⟩
 
--- TODO: port from src/to_mathlib.lean:321-336 -- quotient_lift and quotient_beta
--- These require careful handling of DVecRel and Setoid instances
 noncomputable def quotient_lift {α : Type u} {β : Sort v} {R : Setoid α} :
     ∀ {n} (f : DVec α n → β)
-    (h : ∀ {xs xs' : DVec α n}, xs ≈ xs' → f xs = f xs')
-    (qs : DVec (Quotient R) n), β := by
-  intro n f h qs; exact sorry
+    (_h : ∀ {xs xs' : DVec α n}, xs ≈ xs' → f xs = f xs')
+    (qs : DVec (Quotient R) n), β
+  | 0, f, _, DVec.nil => f DVec.nil
+  | n + 1, f, h, DVec.cons q qs =>
+    Quotient.lift
+      (fun x => DVec.quotient_lift
+        (fun xs => f (DVec.cons x xs))
+        (fun hxs => h (DVecRel.rcons (Setoid.refl x) hxs))
+        qs)
+      (fun x x' hx => by
+        simp only
+        congr 1; apply funext; intro xs
+        apply h; exact DVecRel.rcons hx (DVec.rel_refl xs))
+      q
 
-theorem quotient_beta {α : Type u} {β : Sort v} {R : Setoid α} {n} (f : DVec α n → β)
-    (h : ∀ {xs xs' : DVec α n}, xs ≈ xs' → f xs = f xs') (xs : DVec α n) :
-    DVec.quotient_lift f h (DVec.map Quotient.mk'' xs) = f xs := by
-  sorry
+theorem quotient_beta {α : Type u} {β : Sort v} {R : Setoid α} :
+    ∀ {n} (f : DVec α n → β)
+    (h : ∀ {xs xs' : DVec α n}, xs ≈ xs' → f xs = f xs') (xs : DVec α n),
+    DVec.quotient_lift f h (DVec.map Quotient.mk'' xs) = f xs
+  | 0, f, h, DVec.nil => rfl
+  | n + 1, f, h, DVec.cons x xs => by
+    simp only [DVec.map, DVec.quotient_lift, Quotient.lift_mk]
+    exact quotient_beta
+      (fun xs' => f (DVec.cons x xs'))
+      (fun hxs => h (DVecRel.rcons (Setoid.refl x) hxs))
+      xs
 
 end DVec
 
@@ -416,7 +432,16 @@ theorem disjoint_iff_eq_empty {α} {s t : Set α} : Disjoint s t ↔ s ∩ t = �
   rw [Set.nonempty_coe_sort, Set.not_nonempty_iff_eq_empty]
 
 theorem neq_neg_of_nonempty {α : Type*} {P : Set α} (H_nonempty : Nonempty α) : P ≠ Pᶜ := by
-  sorry -- TODO: port from src/to_mathlib.lean:346
+  intro H_eq
+  obtain ⟨a⟩ := H_nonempty
+  by_cases HP : a ∈ P
+  · -- a ∈ P, so by H_eq, a ∈ Pᶜ, i.e., a ∉ P — contradiction
+    have : a ∈ Pᶜ := H_eq ▸ HP
+    exact this HP
+  · -- a ∉ P, so a ∈ Pᶜ, so by H_eq, a ∈ P — contradiction
+    have : a ∈ Pᶜ := HP
+    rw [← H_eq] at this
+    exact HP this
 
 @[simp] theorem subset_biInter_iff {α β} {s : Set α} {t : Set β} {u : α → Set β} :
     t ⊆ ⋂ x ∈ s, u x ↔ ∀ x ∈ s, t ⊆ u x :=
@@ -576,7 +601,18 @@ theorem exists_of_toSet_subset_image {α : Type u} {β : Type v} {f : α → β}
   induction l with
   | nil => exact ⟨[], by simp [List.toSet], rfl⟩
   | cons hd tl ih =>
-    sorry -- TODO: port from src/to_mathlib.lean:543
+    have h_hd : hd ∈ f '' t := h (by simp [List.toSet])
+    obtain ⟨x, hx, rfl⟩ := h_hd
+    have h_tl : ∀ y ∈ tl.toSet, y ∈ f '' t := fun y hy => h (by
+      simp only [List.toSet, Set.mem_setOf_eq, List.mem_cons]
+      exact Or.inr (hy))
+    obtain ⟨xs, hxs, hxs'⟩ := ih (fun y hy => h_tl y hy)
+    exact ⟨x :: xs, fun y hy => by
+      simp [List.toSet] at hy
+      cases hy with
+      | inl h => exact h ▸ hx
+      | inr h => exact hxs h,
+      by simp [hxs']⟩
 
 end List
 
@@ -864,8 +900,8 @@ theorem neg_le_neg' {α : Type*} [BooleanAlgebra α] {a b : α} : b ≤ aᶜ →
 
 theorem inf_imp_eq {α : Type*} [BooleanAlgebra α] {a b c : α} :
     a ⊓ imp b c = imp (imp a b) (a ⊓ c) := by
-  simp only [imp]
-  sorry -- TODO: port from src/to_mathlib.lean:917
+  unfold imp
+  simp only [compl_sup, compl_compl, inf_sup_left]
 
 @[simp] theorem imp_bot {α : Type*} [BooleanAlgebra α] {a : α} : imp a ⊥ = aᶜ := by simp [imp]
 
@@ -885,7 +921,8 @@ theorem imp_inf_le {α : Type*} [BooleanAlgebra α] (a b : α) : imp a b ⊓ a �
   unfold imp; rw [inf_sup_right]; simp
 
 theorem le_of_sub_eq_bot {α : Type*} [BooleanAlgebra α] {a b : α} (h : bᶜ ⊓ a = ⊥) : a ≤ b := by
-  sorry -- TODO: port from src/to_mathlib.lean:935
+  rw [inf_comm] at h
+  exact disjoint_compl_right_iff.mp (disjoint_iff.mpr h)
 
 theorem le_neg_of_inf_eq_bot {α : Type*} [BooleanAlgebra α] {a b : α} (h : b ⊓ a = ⊥) :
     a ≤ bᶜ := by
@@ -1012,7 +1049,9 @@ theorem inf_sup_right_left_eq {β} [DistribLattice β] {a b c d : β} :
 
 theorem eq_neg_of_partition {β} [BooleanAlgebra β] {a₁ a₂ : β}
     (h_anti : a₁ ⊓ a₂ = ⊥) (h_partition : a₁ ⊔ a₂ = ⊤) : a₂ = a₁ᶜ := by
-  sorry -- TODO: port from src/to_mathlib.lean:1092
+  have hd : Disjoint a₁ a₂ := disjoint_iff.mpr h_anti
+  have hc : Codisjoint a₁ a₂ := codisjoint_iff.mpr h_partition
+  exact (IsCompl.compl_eq ⟨hd, hc⟩).symm
 
 theorem le_trans_inf {β} [Lattice β] {a₁ a₂ a₃ : β} (h₁ : a₁ ≤ a₂) {h₂ : a₁ ⊓ a₂ ≤ a₃} :
     a₁ ≤ a₃ :=
