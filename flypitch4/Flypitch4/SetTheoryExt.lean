@@ -52,11 +52,15 @@ arithmetic tactics. See `src/set_theory.lean:92-327`.
 
 The `pi` section proofs are also sorry-deferred. See `src/set_theory.lean:442-713`.
 
-`countable_chain_condition_of_separable_space` is sorry-deferred due to API changes in
-how dense sets are accessed. See `src/set_theory.lean:416`.
-
 `countable_chain_condition_of_topological_basis` is sorry-deferred due to complex
 injection argument. See `src/set_theory.lean:389`.
+
+### Completed (no sorry)
+
+`countable_chain_condition_of_separable_space`: uses `Set.PairwiseDisjoint.countable_of_isOpen`
+from `Mathlib.Topology.Bases` directly, which is a clean replacement for the Lean 3 proof.
+
+`countable_chain_condition_of_nonempty`, all `IsDeltaSystem` lemmas, `Set.EqOn'` utilities.
 -/
 
 universe u v w w'
@@ -243,12 +247,30 @@ lemma countable_chain_condition_of_topological_basis (B : Set (Set α))
   sorry -- TODO: port from src/set_theory.lean:389
 
 /-- In a separable space, the CCC holds.
-    Proof sketch: use dense countable set D to pick one d ∈ D ∩ o for each open nonempty o ∈ s,
-    giving an injection s \ {∅} ↪ D. Full port is TODO.
+    Uses `Set.PairwiseDisjoint.countable_of_isOpen` from mathlib4 (Mathlib.Topology.Bases).
     See src/set_theory.lean:416. -/
 lemma countable_chain_condition_of_separable_space [SeparableSpace α] :
     countable_chain_condition α := by
-  sorry -- TODO: port from src/set_theory.lean:416
+  intro s open_s hs
+  -- Split off the empty set: s \ {∅} is countable, then add back ∅
+  suffices h : (s \ {(∅ : Set α)}).Countable by
+    have hsub : s ⊆ insert (∅ : Set α) (s \ {∅}) := by
+      intro o ho
+      rcases eq_or_ne o ∅ with rfl | hne
+      · exact Set.mem_insert _ _
+      · exact Set.mem_insert_iff.mpr (Or.inr ⟨ho, fun h => hne (Set.mem_singleton_iff.mp h)⟩)
+    exact (h.insert ∅).mono hsub
+  -- Apply PairwiseDisjoint.countable_of_isOpen for the nonempty subset
+  -- Here ι = Set α, a = s \ {∅ : Set α}, the family f = id
+  apply Set.PairwiseDisjoint.countable_of_isOpen (s := id) (a := s \ {(∅ : Set α)})
+  · -- PairwiseDisjoint
+    intro o ⟨ho, _⟩ o' ⟨ho', _⟩ hne
+    exact hs ho ho' hne
+  · -- Open
+    intro o ⟨ho, _⟩; exact open_s ho
+  · -- Nonempty
+    intro o ⟨_, hne⟩
+    exact Set.nonempty_iff_ne_empty.mpr (fun h => hne (Set.mem_singleton_iff.mpr h))
 
 lemma countable_chain_condition_of_countable (h : #α ≤ ℵ₀) : countable_chain_condition α := by
   haveI : Countable α := Cardinal.mk_le_aleph0_iff.mp h
