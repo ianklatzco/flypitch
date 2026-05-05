@@ -20,6 +20,40 @@ import Mathlib.SetTheory.Ordinal.Basic
 
 universe u v w w'
 
+/-! ## Lean 3 → Lean 4 Port: Renames and Drops
+
+### Renames (for downstream file porters, search counts in src/)
+
+1. `imp_self` → `ba_imp_self` (renamed to avoid collision with Lean 4 core `imp_self`)
+   - Call sites: `src/henkin.lean:210`, `src/fol.lean:2097` (2 sites)
+
+2. `le_trans'` → `le_trans_inf` (renamed to avoid collision with mathlib4 `ge_trans` alias and
+   Lean 4 core `le_trans'` for lists)
+   - Call sites: `src/bfol.lean:706`, `src/bvm.lean:64`, `:2475`, `:2481`,
+   `src/bvm_extras.lean:2121`, `:2124` (6 sites)
+
+3. `mk_union_le` → `mk_union_le_impl` (kept as wrapper; mathlib4 has `Cardinal.mk_union_le`)
+   - Call site: `src/collapse.lean:570` — when collapse is ported, prefer
+   `Cardinal.mk_union_le` over our wrapper
+
+4. `nontrivial.bot_lt_top` → `nontrivial_bot_lt_top` (flattened from sub-namespace dot notation;
+   class accessor pattern changes in Lean 4)
+   - Call sites: `src/bfol.lean:790`, `src/bvm.lean:1596`, `src/zfc.lean:519`, `:534` (4 sites)
+
+### Drops (declarations removed because they exist in mathlib4)
+
+1. `congr1` and `rexact` tactics (src/to_mathlib.lean:492-510)
+   - `congr1` was a custom tactic used in ~10 downstream Lean 3 proof sites
+   - In Lean 4, `congr 1` (with a space) is a built-in tactic
+   - When porting `fol`, `henkin`, `language_extension`, etc., translate `congr1` (no space) to
+   `congr 1` (with space) inline rather than re-implementing
+
+2. `complete_degenerate_boolean_algebra` (src/to_mathlib.lean:756)
+   - Replaced by mathlib4's `PUnit.instCompleteBooleanAlgebra` in
+   `Mathlib/Order/CompleteBooleanAlgebra.lean`
+   - No downstream `src/` file uses this directly
+-/
+
 /-!
 ## function namespace
 
@@ -1209,7 +1243,12 @@ theorem bv_by_contra {𝔹} [BooleanAlgebra 𝔹] {Γ b : 𝔹} (H : Γ ≤ imp 
   a complete rewrite for Lean 4's macro/elab system.
 
   These are deferred until downstream files actually need them.
-  See src/to_mathlib.lean:1252-1684 for the original definitions.
+  - Main block: See src/to_mathlib.lean:1252-1684 for the original definitions.
+  - Early block also deferred: src/to_mathlib.lean:492-510 contained `congr1` and `rexact`
+    tactics. `congr1` is used in roughly 10 downstream Lean 3 proof sites. In Lean 4,
+    `congr 1` (with a space) is a built-in tactic, so when porting `fol`, `henkin`,
+    `language_extension`, etc., translate `congr1` (no space) to `congr 1` (with space)
+    inline rather than re-implementing the tactic.
 -/
 
 -- with_h_asms helper definition
