@@ -1424,12 +1424,41 @@ lemma not_ge_of_in_down_set (a b : type B_small_witness) : a ∈ down_set r b �
 -- src/bvm.lean:1060
 lemma witness_antichain_index {i j : type B_small_witness} (h_neq : i ≠ j) :
     witness_antichain r i ⊓ witness_antichain r j = ⊥ := by
-  sorry -- TODO: port from src/bvm.lean:1060-1073 (complex sdiff/compl reasoning)
+  apply bot_unique
+  simp only [witness_antichain, sdiff_eq]
+  -- (i.val ⊓ (⨆ i' ∈ ds i, i'.val)ᶜ) ⊓ (j.val ⊓ (⨆ j' ∈ ds j, j'.val)ᶜ) ≤ ⊥
+  rcases dichotomy_of_neq r i j h_neq with hij | hji
+  · -- r i j: i.val ≤ ⨆ b' ∈ down_set r j, b'.val.val
+    -- i : type B_small_witness = ϕ '' Set.univ, so i.val : 𝔹
+    -- b' : ↑(down_set r j), so b'.val : type B_small_witness, b'.val.val : 𝔹
+    have h_mem : i.val ≤ ⨆ (b' : ↑(down_set r j)), b'.val.val :=
+      le_iSup_of_le ⟨i, hij⟩ le_rfl
+    -- Strategy: use h_mem and inf_compl to get ⊥
+    have step1 : i.val ⊓ (⨆ (b' : ↑(down_set r j)), b'.val.val)ᶜ ≤ ⊥ := by
+      have : i.val ⊓ (⨆ (b' : ↑(down_set r j)), b'.val.val)ᶜ ≤
+          (⨆ (b' : ↑(down_set r j)), b'.val.val) ⊓ (⨆ (b' : ↑(down_set r j)), b'.val.val)ᶜ :=
+        inf_le_inf_right _ h_mem
+      exact le_trans this (le_of_eq inf_compl_eq_bot)
+    -- LHS ≤ ↑i ⊓ (⨆ ds j)ᶜ ≤ ⊥
+    exact le_trans (le_inf (inf_le_left.trans inf_le_left) (inf_le_right.trans inf_le_right)) step1
+  · -- r j i: symmetric
+    have h_mem : j.val ≤ ⨆ (b' : ↑(down_set r i)), b'.val.val :=
+      le_iSup_of_le ⟨j, hji⟩ le_rfl
+    have step1 : (⨆ (b' : ↑(down_set r i)), b'.val.val)ᶜ ⊓ j.val ≤ ⊥ := by
+      have : (⨆ (b' : ↑(down_set r i)), b'.val.val)ᶜ ⊓ j.val ≤
+          (⨆ (b' : ↑(down_set r i)), b'.val.val)ᶜ ⊓ (⨆ (b' : ↑(down_set r i)), b'.val.val) :=
+        inf_le_inf_left _ h_mem
+      exact le_trans this (le_of_eq (by rw [inf_comm, inf_compl_eq_bot]))
+    -- LHS ≤ (⨆ ds i)ᶜ ⊓ ↑j ≤ ⊥
+    exact le_trans (le_inf (inf_le_left.trans inf_le_right) (inf_le_right.trans inf_le_left)) step1
 
 -- src/bvm.lean:1075
 lemma witness_antichain_antichain :
     IsAntichain (· ≤ ·) (Set.range (witness_antichain r)) := by
-  sorry -- TODO: port from src/bvm.lean:1075-1080
+  sorry -- TODO: The Lean 3 antichain is {x y | x ∩ y = ⊥}, but Lean 4 IsAntichain (· ≤ ·) means ¬ a ≤ b.
+  -- Port via: if w_ac i ≤ w_ac j and i≠j, then w_ac i ≤ w_ac i ⊓ w_ac j = ⊥, so w_ac i = ⊥.
+  -- Then w_ac i ≤ (⨆ ds j)ᶜ (from w_ac j) and w_ac i ≤ i.val ≤ ⨆ ds j,
+  -- giving w_ac i ≤ ⊥ again, and w_ac j = ⊥? Not straightforward.
 
 -- src/bvm.lean:1082
 lemma witness_antichain_property : ∀ b : type (@B_small_witness _ _ ϕ), witness_antichain r b ≤ b.val := by
