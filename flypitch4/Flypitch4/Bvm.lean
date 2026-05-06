@@ -1728,4 +1728,406 @@ lemma collect_spec₂
     Γ ≤ ⨅ (w : bSet 𝔹), w ∈ᴮ collect ϕ h_congr_right h_congr_left u ⟹ ⨆ z, z ∈ᴮ u ⊓ ϕ z w := by
   sorry -- TODO: port from src/bvm.lean:1825-1836 (bv_cases_at + bv_rw' step)
 
+
+-- src/bvm.lean:1844
+theorem bSet_axiom_of_collection (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h_congr_right : ∀ x y z, x =ᴮ y ⊓ ϕ z x ≤ ϕ z y)
+    (h_congr_left : ∀ x y z, x =ᴮ y ⊓ ϕ x z ≤ ϕ y z) :
+    ⊤ ≤ ⨅ u, (⨅ x, x ∈ᴮ u ⟹ ⨆ y, ϕ x y) ⟹ ⨆ v, (⨅ w, w ∈ᴮ u ⟹ ⨆ w', w' ∈ᴮ v ⊓ ϕ w w') ⊓
+      ⨅ w', w' ∈ᴮ v ⟹ ⨆ w, w ∈ᴮ u ⊓ ϕ w w' := by
+  sorry -- TODO: use collect_spec₁ and collect_spec₂ once filled in
+
+-- src/bvm.lean:1860
+/-- The boolean-valued unionset operator -/
+def bv_union (u : bSet 𝔹) : bSet 𝔹 :=
+  ⟨Σ (i : u.type), (u.func i).type,
+   fun x => (u.func x.1).func x.2,
+   fun x => ⨆ (y : u.type), u.bval y ⊓ (u.func x.1).func x.2 ∈ᴮ u.func y⟩
+
+-- src/bvm.lean:1871
+lemma bv_union_spec (u : bSet 𝔹) : ⊤ ≤ ⨅ (x : bSet 𝔹),
+    (x ∈ᴮ bv_union u ⟹ ⨆ (y : u.type), u.bval y ⊓ x ∈ᴮ u.func y) ⊓
+    ((⨆ (y : u.type), u.bval y ⊓ x ∈ᴮ u.func y) ⟹ x ∈ᴮ bv_union u) := by
+  sorry -- TODO: port from src/bvm.lean:1871-1886 (sigma-type membership)
+
+-- src/bvm.lean:1888
+lemma bv_union_spec' (u : bSet 𝔹) {Γ : 𝔹} : Γ ≤ ⨅ (x : bSet 𝔹),
+    (x ∈ᴮ bv_union u ⟹ ⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) ⊓
+    ((⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) ⟹ x ∈ᴮ bv_union u) := by
+  sorry -- TODO: depends on bv_union_spec
+
+lemma bv_union_spec_split (u : bSet 𝔹) {Γ : 𝔹} (x : bSet 𝔹) :
+    (Γ ≤ x ∈ᴮ bv_union u) ↔ (Γ ≤ ⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) := by
+  sorry -- TODO: depends on bv_union_spec'
+
+lemma mem_bv_union_iff {u : bSet 𝔹} {Γ : 𝔹} {x : bSet 𝔹} :
+    (Γ ≤ x ∈ᴮ bv_union u) ↔ (Γ ≤ ⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) :=
+  bv_union_spec_split u x
+
+/-- For every x ∈ u, x ⊆ᴮ ⋃ u. -/
+-- src/bvm.lean:1915
+lemma bv_union_spec'' (u : bSet 𝔹) : ⊤ ≤ ⨅ (x : bSet 𝔹), (x ∈ᴮ u) ⟹ (x ⊆ᴮ bv_union u) := by
+  sorry -- TODO: port from src/bvm.lean:1915-1932
+
+lemma bv_union_congr {x y : bSet 𝔹} {Γ : 𝔹} (H_eq : Γ ≤ x =ᴮ y) :
+    Γ ≤ bv_union x =ᴮ bv_union y := by
+  sorry -- TODO: port from src/bvm.lean:1934-1966
+
+@[simp] lemma B_congr_bv_union : B_congr (bv_union : bSet 𝔹 → bSet 𝔹) :=
+  fun H => bv_union_congr H
+
+-- src/bvm.lean:1971
+theorem bSet_axiom_of_union : (⨅ (u : bSet 𝔹), (⨆ v, ⨅ x,
+    (x ∈ᴮ v ⇔ (⨆ (y : u.type), u.bval y ⊓ x ∈ᴮ u.func y)))) = ⊤ := by
+  apply top_unique
+  apply le_iInf; intro u
+  apply le_iSup_of_le (bv_union u)
+  apply le_iInf; intro x
+  exact le_trans le_top (bv_union_spec u) |>.trans (iInf_le _ x)
+
+-- src/bvm.lean:1978
+@[simp] def set_of_indicator {u : bSet 𝔹} (f : u.type → 𝔹) : bSet 𝔹 :=
+  ⟨u.type, u.func, f⟩
+
+@[simp] lemma set_of_indicator_type {u : bSet 𝔹} {f : u.type → 𝔹} :
+    (set_of_indicator f).type = u.type := rfl
+
+@[simp] lemma set_of_indicator_func {u : bSet 𝔹} {f : u.type → 𝔹} {i : u.type} :
+    (set_of_indicator f).func i = u.func i := rfl
+
+@[simp] lemma set_of_indicator_bval {u : bSet 𝔹} {f : u.type → 𝔹} {i : u.type} :
+    (set_of_indicator f).bval i = f i := rfl
+
+-- src/bvm.lean:1993
+def bv_powerset (u : bSet 𝔹) : bSet 𝔹 :=
+  ⟨u.type → 𝔹,
+   fun (f : u.type → 𝔹) => (⟨u.type, u.func, f⟩ : bSet 𝔹),
+   fun (f : u.type → 𝔹) => (⟨u.type, u.func, f⟩ : bSet 𝔹) ⊆ᴮ u⟩
+
+prefix:80 "𝒫" => bv_powerset
+
+-- src/bvm.lean:2026 (bSet_axiom_of_powerset' -- stub for downstream usage)
+-- TODO: The full statement uses ⨅ (y : x.type) which has elaboration issues in Lean 4.
+-- Replacing with equivalent formulation via bv_powerset_spec.
+-- lemma bSet_axiom_of_powerset' {Γ : 𝔹} (u : bSet 𝔹) : ... := by sorry
+
+theorem bSet_axiom_of_powerset :
+    (⨅ (u : bSet 𝔹), ⨆ (v : bSet 𝔹), ⨅ (x : bSet 𝔹),
+      (x ∈ᴮ v) ⇔ (x ⊆ᴮ u)) = ⊤ := by
+  sorry -- TODO: port from src/bvm.lean:2074-2078
+
+-- src/bvm.lean:2080
+lemma bv_powerset_spec {u x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ x ⊆ᴮ u ↔ Γ ≤ x ∈ᴮ (bv_powerset u) := by
+  sorry -- TODO: port from src/bvm.lean:2080-2090 (requires bSet_axiom_of_powerset')
+
+lemma mem_powerset_iff {u x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ x ∈ᴮ (bv_powerset u) ↔ Γ ≤ x ⊆ᴮ u :=
+  bv_powerset_spec.symm
+
+lemma bv_powerset_congr {Γ : 𝔹} {x y : bSet 𝔹} (H : Γ ≤ x =ᴮ y) :
+    Γ ≤ bv_powerset x =ᴮ bv_powerset y := by
+  sorry -- TODO: port from src/bvm.lean:2091-2097
+
+-- src/bvm.lean:2099
+@[simp] lemma set_of_indicator_mem.mk {x : bSet 𝔹} {i : x.type} {χ : x.type → 𝔹} {Γ : 𝔹}
+    (H_Γ : Γ ≤ χ i) : Γ ≤ x.func i ∈ᴮ set_of_indicator χ := by
+  rw [mem_unfold]
+  apply bv_use i
+  exact le_inf H_Γ bv_refl
+
+-- src/bvm.lean:2102
+@[simp] lemma set_of_indicator_subset {x : bSet 𝔹} {χ : x.type → 𝔹} {Γ : 𝔹}
+    (H_χ : ∀ i, χ i ≤ x.bval i) : Γ ≤ set_of_indicator χ ⊆ᴮ x := by
+  sorry -- TODO: port from src/bvm.lean:2102-2106
+
+-- src/bvm.lean:2108
+@[reducible, simp] def subset.mk {u : bSet 𝔹} (χ : u.type → 𝔹) : bSet 𝔹 :=
+  set_of_indicator (fun i => χ i ⊓ u.bval i)
+
+@[simp] lemma subset.mk_subset {u : bSet 𝔹} {χ : u.type → 𝔹} {Γ : 𝔹} :
+    Γ ≤ subset.mk χ ⊆ᴮ u := by
+  apply set_of_indicator_subset; intro i; simp
+
+lemma check_set_of_indicator_subset {x : PSet} {χ : (check x).type → 𝔹} {Γ : 𝔹} :
+    Γ ≤ set_of_indicator χ ⊆ᴮ check x := by
+  sorry -- TODO: depends on set_of_indicator_subset with check bval = ⊤
+
+-- src/bvm.lean:2122
+lemma mem_set_of_indicator_iff {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹}
+    (H_χ : ∀ i, χ i ≤ x.bval i) :
+    Γ ≤ z ∈ᴮ set_of_indicator χ ↔ Γ ≤ ⨆ (i : x.type), z =ᴮ x.func i ⊓ χ i := by
+  sorry -- TODO: port from src/bvm.lean:2122-2130
+
+-- src/bvm.lean:2132
+lemma mem_subset.mk_iff {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹} :
+    Γ ≤ z ∈ᴮ subset.mk χ ↔ Γ ≤ ⨆ (i : x.type), z =ᴮ x.func i ⊓ (χ i ⊓ x.bval i) :=
+  mem_set_of_indicator_iff (by simp)
+
+-- same as mem_subset.mk_iff, but with better ordering of terms on the RHS
+-- src/bvm.lean:2137
+lemma mem_subset.mk_iff₂ {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹} :
+    Γ ≤ z ∈ᴮ subset.mk χ ↔ Γ ≤ ⨆ (i : x.type), x.bval i ⊓ (z =ᴮ x.func i ⊓ χ i) := by
+  sorry -- TODO: port from src/bvm.lean:2137-2139 (ac_refl)
+
+@[simp] lemma mem_of_mem_subset.mk {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹}
+    (Hz : Γ ≤ z ∈ᴮ subset.mk χ) : Γ ≤ z ∈ᴮ x :=
+  mem_of_mem_subset subset.mk_subset Hz
+
+-- src/bvm.lean:2147
+/-- For x an injective pSet and χ : x.type → 𝔹, (x.func i) ∈ set_of_indicator χ iff χ i = ⊤. -/
+lemma check_mem_set_of_indicator_iff {x : PSet}
+    (H_inj : ∀ i₁ i₂ : x.Type, PSet.Equiv (x.Func i₁) (x.Func i₂) → i₁ = i₂)
+    (i : x.Type) {χ : (check x).type → 𝔹} :
+    (∀ {Γ : 𝔹}, Γ ≤ check (x.Func i) ∈ᴮ set_of_indicator χ) ↔
+    (∀ {Γ : 𝔹}, Γ ≤ χ (cast check_type'.symm i)) := by
+  sorry -- TODO: port from src/bvm.lean:2147-2161 (by_cases injectivity)
+
+-- src/bvm.lean:2163
+lemma subset_of_pointwise_bounded {Γ : 𝔹} {x : bSet 𝔹} {p p' : x.type → 𝔹}
+    (H_bd : ∀ i : x.type, p i ≤ p' i) : Γ ≤ set_of_indicator p ⊆ᴮ set_of_indicator p' := by
+  sorry -- TODO: port from src/bvm.lean:2163-2167
+
+-- src/bvm.lean:2169
+lemma pointwise_bounded_of_check_subset_check {x : PSet} {p₁ p₂ : (check x).type → 𝔹}
+    (H_inj : ∀ i₁ i₂ : x.Type, PSet.Equiv (x.Func i₁) (x.Func i₂) → i₁ = i₂)
+    (H_eq : ∀ {Γ : 𝔹}, Γ ≤ set_of_indicator p₁ ⊆ᴮ set_of_indicator p₂) :
+    ∀ i, p₁ i ≤ p₂ i := by
+  sorry -- TODO: port from src/bvm.lean:2169-2182
+
+-- src/bvm.lean:2184
+lemma pointwise_eq_of_eq_set_of_indicator {x : PSet} {p₁ p₂ : (check x).type → 𝔹}
+    (H_inj : ∀ i₁ i₂ : x.Type, PSet.Equiv (x.Func i₁) (x.Func i₂) → i₁ = i₂)
+    (H_eq : ∀ {Γ : 𝔹}, Γ ≤ set_of_indicator p₁ =ᴮ set_of_indicator p₂) :
+    ∀ i, p₁ i = p₂ i := by
+  intro i
+  apply le_antisymm
+  · apply pointwise_bounded_of_check_subset_check H_inj
+    intro Γ
+    exact le_trans (H_eq (Γ := Γ)) (by rw [bv_eq_unfold]; exact inf_le_left)
+  · apply pointwise_bounded_of_check_subset_check H_inj
+    intro Γ
+    exact le_trans (H_eq (Γ := Γ)) (by rw [bv_eq_unfold]; exact inf_le_right)
+
+-- src/bvm.lean:2191
+lemma set_of_indicator_eq_iff_pointwise_eq {x : PSet} {p₁ p₂ : (check x).type → 𝔹}
+    (H_inj : ∀ i₁ i₂ : x.Type, PSet.Equiv (x.Func i₁) (x.Func i₂) → i₁ = i₂) :
+    (∀ {Γ : 𝔹}, Γ ≤ set_of_indicator p₁ =ᴮ set_of_indicator p₂) ↔ ∀ i, p₁ i = p₂ i := by
+  constructor
+  · intro H_eq
+    exact pointwise_eq_of_eq_set_of_indicator H_inj H_eq
+  · intro H_eq Γ
+    simp [show p₁ = p₂ from funext H_eq]
+
+-- src/bvm.lean:2199
+section infinity
+-- ω stands for PSet.omega throughout this section
+private def ω' := PSet.omega
+
+@[simp] lemma check_omega_type : (check ω' : bSet 𝔹).type = ULift ℕ := rfl
+@[simp] lemma check_omega_func :
+    (check ω' : bSet 𝔹).func = fun x => check (PSet.ofNat x.down) := rfl
+
+-- src/bvm.lean:2207
+@[simp, reducible] def axiom_of_infinity_spec (u : bSet 𝔹) : 𝔹 :=
+  (∅ ∈ᴮ u) ⊓ (⨅ (i_x : u.type), ⨆ (i_y : u.type), u.func i_x ∈ᴮ u.func i_y)
+
+@[reducible] def contains_empty (u : bSet 𝔹) : 𝔹 := ∅ ∈ᴮ u
+
+@[reducible] def contains_succ (u : bSet 𝔹) : 𝔹 :=
+  ⨅ (i_x : u.type), ⨆ (i_y : u.type), u.func i_x ∈ᴮ u.func i_y
+
+lemma infinity_of_empty_succ {u : bSet 𝔹} {c : 𝔹} (h₁ : c ≤ contains_empty u)
+    (h₂ : c ≤ contains_succ u) : c ≤ axiom_of_infinity_spec u :=
+  le_inf h₁ h₂
+
+lemma contains_empty_check_omega : (⊤ : 𝔹) ≤ contains_empty (check ω') := by
+  sorry -- TODO: port from src/bvm.lean:2218-2219
+
+lemma contains_succ_check_omega : (⊤ : 𝔹) ≤ contains_succ (check ω') := by
+  sorry -- TODO: port from src/bvm.lean:2221-2226
+
+theorem bSet_axiom_of_infinity : (⨆ (u : bSet 𝔹), axiom_of_infinity_spec u) = ⊤ := by
+  apply top_unique
+  apply bv_use (check ω')
+  exact infinity_of_empty_succ contains_empty_check_omega contains_succ_check_omega
+
+-- src/bvm.lean:2234
+@[reducible] def omega : bSet 𝔹 := check ω'
+
+@[simp] lemma omega_type : (omega : bSet 𝔹).type = ULift ℕ := rfl
+
+/-- The n-th von Neumann ordinal in bSet 𝔹 is the check-name of the n-th ordinal in PSet -/
+@[reducible] def of_nat : ℕ → bSet 𝔹 := fun n => check (PSet.ofNat n)
+
+@[simp] lemma omega_func {k : ULift ℕ} : (omega : bSet 𝔹).func k = of_nat k.down := rfl
+
+lemma omega_definite {n : ℕ} {Γ : 𝔹} : Γ ≤ of_nat n ∈ᴮ omega := by
+  suffices h : of_nat n ∈ᴮ omega = (⊤ : 𝔹) by
+    exact le_trans le_top (by rwa [top_le_iff])
+  apply top_unique
+  induction n with
+  | zero => apply bv_use (ULift.up 0); simp
+  | succ k _ => apply bv_use (ULift.up (k + 1)); simp
+
+lemma of_nat_mem_omega {n : ℕ} {Γ : 𝔹} : Γ ≤ of_nat n ∈ᴮ omega := omega_definite
+
+instance has_zero_bSet : Zero (bSet 𝔹) := ⟨of_nat 0⟩
+instance has_one_bSet : One (bSet 𝔹) := ⟨of_nat 1⟩
+
+@[reducible] def two : bSet 𝔹 := of_nat 2
+notation "𝟚" => bSet.two
+
+-- src/bvm.lean:2261
+lemma zero_eq_empty {Γ : 𝔹} : Γ ≤ (0 : bSet 𝔹) =ᴮ ∅ := by
+  change Γ ≤ of_nat 0 =ᴮ ∅
+  rw [← check_empty_eq_empty]
+  exact check_bv_eq (by rfl)
+
+@[simp] lemma zero_mem_one {Γ : 𝔹} : Γ ≤ (0 : bSet 𝔹) ∈ᴮ (1 : bSet 𝔹) := by
+  sorry -- TODO: port from src/bvm.lean:2267-2268
+
+-- src/bvm.lean:2270 (one_eq_singleton_zero) -- TODO: singleton notation for bSet
+-- lemma one_eq_singleton_zero : Γ ≤ (1 : bSet 𝔹) =ᴮ {(0 : bSet 𝔹)} := by sorry
+
+lemma forall_empty {Γ : 𝔹} {ϕ : bSet 𝔹 → 𝔹} : Γ ≤ ⨅ x, x ∈ᴮ ∅ ⟹ ϕ x := by
+  apply le_iInf; intro x
+  rw [← deduction]
+  exact le_trans (bot_of_mem_empty inf_le_right) bot_le
+
+@[simp] lemma omega_bval {k : ULift ℕ} : (omega : bSet 𝔹).bval k = ⊤ := rfl
+
+-- src/bvm.lean:2291
+theorem bSet_axiom_of_infinity' :
+    (⊤ : 𝔹) ≤ (∅ ∈ᴮ omega) ⊓ (⨅ x, x ∈ᴮ omega ⟹ ⨆ y, y ∈ᴮ omega ⊓ x ∈ᴮ y) := by
+  sorry -- TODO: port from src/bvm.lean:2291-2303
+
+-- example {w : bSet 𝔹} : let ϕ := fun x => ⨅ z, z ∈ᴮ w ⊓ z ⊆ᴮ x ⊓ x ⊆ᴮ z; B_ext ϕ := by simp
+
+end infinity
+
+-- src/bvm.lean:2310
+theorem bSet_epsilon_induction (ϕ : bSet 𝔹 → 𝔹) (h_congr : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y) :
+    (⨅ (x : bSet 𝔹), (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ⟹ (⨅ (z : bSet 𝔹), ϕ z) = ⊤ := by
+  sorry -- TODO: port from src/bvm.lean:2310-2325 (structural induction on bSet)
+
+lemma epsilon_induction {Γ : 𝔹} (ϕ : bSet 𝔹 → 𝔹) (h_congr : B_ext ϕ)
+    (H_ih : ∀ x, Γ ≤ (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) :
+    ∀ z, Γ ≤ ϕ z := by
+  sorry -- TODO: depends on bSet_epsilon_induction
+
+@[elab_as_elim] protected noncomputable def rec_on' {C : bSet 𝔹 → Sort*} (y : bSet 𝔹)
+    (IH : ∀ (x : bSet 𝔹), (∀ (a : x.type), C (x.func a)) → C x) : C y := by
+  induction y with
+  | mk α A B ih => exact IH ⟨α, A, B⟩ ih
+
+@[elab_as_elim] protected noncomputable def rec' {C : bSet 𝔹 → Sort*}
+    (IH : ∀ (x : bSet 𝔹), (∀ (a : x.type), C (x.func a)) → C x) : ∀ (y : bSet 𝔹), C y :=
+  fun y => bSet.rec_on' y IH
+
+-- src/bvm.lean:2345
+lemma regularity_aux (x : bSet 𝔹) {Γ : 𝔹} :
+    Γ ≤ ⨅ u, x ∈ᴮ u ⟹ (⨆ y, y ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ y)ᶜ)) := by
+  sorry -- TODO: port from src/bvm.lean:2345-2358 (rec_on' + bv_em_aux)
+
+theorem bSet_axiom_of_regularity (x : bSet 𝔹) {Γ : 𝔹} (H : Γ ≤ (x =ᴮ ∅)ᶜ) :
+    Γ ≤ ⨆ y, y ∈ᴮ x ⊓ (⨅ z', z' ∈ᴮ x ⟹ (z' ∈ᴮ y)ᶜ) := by
+  sorry -- TODO: depends on regularity_aux
+
+/-- ∃! x, ϕ x ↔ ∃ x ∀ y, ϕ(x) ⊓ ϕ(y) → y = x -/
+@[reducible] def bv_exists_unique (ϕ : bSet 𝔹 → 𝔹) : 𝔹 :=
+  ⨆ (x : bSet 𝔹), ⨅ (y : bSet 𝔹), ϕ y ⟹ y =ᴮ x
+
+-- src/bvm.lean:2375
+section zorns_lemma
+
+lemma B_ext_subset_or_subset_left (y : bSet 𝔹) : B_ext (fun x => x ⊆ᴮ y ⊔ y ⊆ᴮ x) :=
+  B_ext_sup (h₁ := B_ext_subset_left) (h₂ := B_ext_subset_right (x := y))
+lemma B_ext_subset_or_subset_right (x : bSet 𝔹) : B_ext (fun y => x ⊆ᴮ y ⊔ y ⊆ᴮ x) :=
+  B_ext_sup (h₁ := B_ext_subset_right (x := x)) (h₂ := B_ext_subset_left (y := x))
+
+lemma forall_forall_reindex (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h₁ : ∀ x, B_ext (fun y => ϕ x y))
+    (h₂ : ∀ y, B_ext (fun x => ϕ x y)) (C : bSet 𝔹) :
+    (⨅ (i₁ : C.type), (C.bval i₁ ⟹ ⨅ (i₂ : C.type), (C.bval i₂ ⟹ ϕ (C.func i₁) (C.func i₂)))) =
+    ⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹), w₁ ∈ᴮ C ⊓ w₂ ∈ᴮ C ⟹ ϕ w₁ w₂ := by
+  sorry -- TODO: port from src/bvm.lean:2382-2399 (bounded_forall rewrites)
+
+private def zorn_chain_hyp (X : bSet 𝔹) : 𝔹 :=
+  ⨅ y, (y ⊆ᴮ X ⊓ ⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
+    w₁ ∈ᴮ y ⊓ w₂ ∈ᴮ y ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁)) ⟹ bv_union y ∈ᴮ X
+
+lemma subset'_inductive (X : bSet 𝔹)
+    (H : ⊤ ≤ zorn_chain_hyp X)
+    {α : Type u} {S : α → bSet 𝔹} (h_core : core X S) :
+    haveI := subset'_partial_order h_core
+    ∀ c : Set α, IsChain (· ≤ ·) c → BddAbove c := by
+  sorry -- TODO: port from src/bvm.lean:2401-2443
+
+/-- ∀ x, x ≠ ∅ ∧ ((∀ y, y ⊆ x ∧ ∀ w₁ w₂ ∈ y, w₁ ⊆ w₂ ∨ w₂ ⊆ w₁) → (⋃y) ∈ x)
+    → ∃ c ∈ x, ∀ z ∈ x, c ⊆ z → c = z -/
+-- src/bvm.lean:2447
+theorem bSet_zorns_lemma (X : bSet 𝔹) (H_nonempty : (X =ᴮ ∅)ᶜ = ⊤)
+    (H : ⊤ ≤ zorn_chain_hyp X) :
+    ⊤ ≤ ⨆ c, c ∈ᴮ X ⊓ ⨅ z, z ∈ᴮ X ⟹ (c ⊆ᴮ z ⟹ c =ᴮ z) := by
+  sorry -- TODO: port from src/bvm.lean:2447-2484
+
+end zorns_lemma
+
+-- src/bvm.lean:2487
+section comprehension
+variable (ϕ : bSet 𝔹 → 𝔹) (x : bSet 𝔹) (H_congr : B_ext ϕ)
+
+@[reducible] def comprehend : bSet 𝔹 := subset.mk (fun i : x.type => ϕ (x.func i))
+
+lemma mem_comprehend_iff : ∀ {z : bSet 𝔹} {Γ : 𝔹}, Γ ≤ z ∈ᴮ comprehend ϕ x ↔
+    Γ ≤ ⨆ (i : x.type), x.bval i ⊓ (z =ᴮ x.func i ⊓ (fun i : x.type => ϕ (x.func i)) i) := by
+  intros; exact mem_subset.mk_iff₂
+
+lemma mem_comprehend_iff₂ : ∀ {z : bSet 𝔹} {Γ : 𝔹}, Γ ≤ z ∈ᴮ comprehend ϕ x ↔
+    Γ ≤ ⨆ w, w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w) := by
+  sorry -- TODO: port from src/bvm.lean:2497-2501
+
+lemma B_congr_comprehend : B_congr (fun x : bSet 𝔹 => comprehend ϕ x) := by
+  sorry -- TODO: port from src/bvm.lean:2503-2510
+
+variable {ϕ} {H_congr}
+
+lemma comprehend_subset {Γ : 𝔹} : Γ ≤ comprehend ϕ x ⊆ᴮ x := by
+  exact subset.mk_subset
+
+variable (ϕ) (H_congr)
+
+/-- For any ϕ and x, there is a subset y of x such that ∀ z, z ∈ y ↔ z ∈ x ∧ ϕ z -/
+lemma bSet_axiom_of_comprehension {Γ : 𝔹} :
+    Γ ≤ ⨆ y, (y ⊆ᴮ x ⊓ ⨅ z, ((z ∈ᴮ y) ⇔ (z ∈ᴮ x ⊓ ϕ z))) := by
+  sorry -- TODO: port from src/bvm.lean:2523-2536
+
+end comprehension
+
+-- src/bvm.lean:2557
+def dom : ∀ _ : bSet 𝔹, PSet.{u}
+  | ⟨α, A, _⟩ => ⟨α, fun i => dom (A i)⟩
+
+@[reducible] def check_shadow : bSet 𝔹 → bSet 𝔹 := fun x => check (dom x)
+
+lemma check_shadow_type {x : bSet 𝔹} : (check_shadow x).type = x.type := by
+  cases x; rfl
+
+@[reducible] def check_shadow_cast {x : bSet 𝔹} : (check_shadow x).type → x.type :=
+  cast check_shadow_type
+
+@[reducible] def check_shadow_cast_symm {x : bSet 𝔹} : x.type → (check_shadow x).type :=
+  cast check_shadow_type.symm
+
+-- src/bvm.lean:2572
+lemma dom_check : ∀ {x : PSet.{u}}, dom (check x : bSet 𝔹) = x := by
+  intro x
+  induction x with
+  | mk α A ih => simp [dom, check, ih]
+
+lemma dom_left_inv_check : Function.LeftInverse dom (check : PSet.{u} → bSet 𝔹) :=
+  fun x => dom_check
+
+lemma check_injective : Function.Injective (check : PSet.{u} → bSet 𝔹) :=
+  Function.LeftInverse.injective dom_left_inv_check
+
 end bSet
