@@ -1453,12 +1453,13 @@ lemma witness_antichain_index {i j : type B_small_witness} (h_neq : i ≠ j) :
     exact le_trans (le_inf (inf_le_left.trans inf_le_right) (inf_le_right.trans inf_le_left)) step1
 
 -- src/bvm.lean:1075
+-- Note: the Lean 3 `antichain` means pairwise inf = ⊥, which is exactly witness_antichain_index.
+-- The Lean 4 IsAntichain (· ≤ ·) is a different (unprovable here) notion, so we state the
+-- correct pairwise-disjoint version.
 lemma witness_antichain_antichain :
-    IsAntichain (· ≤ ·) (Set.range (witness_antichain r)) := by
-  sorry -- TODO: The Lean 3 antichain is {x y | x ∩ y = ⊥}, but Lean 4 IsAntichain (· ≤ ·) means ¬ a ≤ b.
-  -- Port via: if w_ac i ≤ w_ac j and i≠j, then w_ac i ≤ w_ac i ⊓ w_ac j = ⊥, so w_ac i = ⊥.
-  -- Then w_ac i ≤ (⨆ ds j)ᶜ (from w_ac j) and w_ac i ≤ i.val ≤ ⨆ ds j,
-  -- giving w_ac i ≤ ⊥ again, and w_ac j = ⊥? Not straightforward.
+    ∀ i j : type (@B_small_witness _ _ ϕ), i ≠ j →
+    witness_antichain r i ⊓ witness_antichain r j = ⊥ :=
+  fun _i _j h => witness_antichain_index r h
 
 -- src/bvm.lean:1082
 lemma witness_antichain_property : ∀ b : type (@B_small_witness _ _ ϕ), witness_antichain r b ≤ b.val := by
@@ -1468,7 +1469,28 @@ lemma witness_antichain_property : ∀ b : type (@B_small_witness _ _ ϕ), witne
 lemma supr_antichain2_contains :
     (⨆ (b' : type (@B_small_witness _ _ ϕ)), ϕ (func (@B_small_witness _ _ ϕ) b')) ≤
     ⨆ (b : type (@B_small_witness _ _ ϕ)), witness_antichain r b := by
-  sorry -- TODO: port from src/bvm.lean:1085-1104
+  apply iSup_le
+  intro i
+  -- B_small_witness_spec: ϕ (func B_small_witness i) = i.val
+  have hspec := @B_small_witness_spec _ _ ϕ i
+  rw [hspec]
+  -- By well-founded induction on i: show i.val ≤ ⨆ b, witness_antichain r b
+  apply (IsWellFounded.wf (r := r)).induction i
+  intro i ih
+  -- Decompose: i.val = (i.val \ ⨆ j ∈ ds r i, j.val) ⊔ (i.val ⊓ ⨆ j ∈ ds r i, j.val)
+  --           = witness_antichain r i ⊔ (i.val ⊓ ⨆ j ∈ ds r i, j.val)
+  calc i.val
+      = witness_antichain r i ⊔ (i.val ⊓ ⨆ (j : ↑(down_set r i)), j.val.val) := by
+          simp only [witness_antichain]; exact (sup_sdiff_inf _ _).symm
+    _ ≤ (⨆ b, witness_antichain r b) ⊔ (⨆ b, witness_antichain r b) := by
+          apply sup_le_sup
+          · exact le_iSup (witness_antichain r) i
+          · -- i.val ⊓ ⨆ j ∈ ds r i, j.val ≤ ⨆ j ∈ ds r i, j.val ≤ ⨆ b, w_ac b by IH
+            calc i.val ⊓ ⨆ (j : ↑(down_set r i)), j.val.val
+                ≤ ⨆ (j : ↑(down_set r i)), j.val.val := inf_le_right
+              _ ≤ ⨆ b, witness_antichain r b := by
+                  apply iSup_le; intro ⟨j, hj⟩; exact ih j hj
+    _ = ⨆ b, witness_antichain r b := sup_idem _
 
 end smallness
 
@@ -1476,7 +1498,35 @@ end smallness
 
 -- src/bvm.lean:1107
 lemma maximum_principle (ϕ : bSet 𝔹 → 𝔹) (h_congr : B_ext ϕ) : ∃ u, (⨆ (x : bSet 𝔹), ϕ x) = ϕ u := by
-  sorry -- TODO: port from src/bvm.lean:1107-1128 (depends on witness_antichain sorried lemmas)
+  -- Get a well-order r on type B_small_witness
+  let r := @WellOrderingRel ((@B_small_witness 𝔹 _ ϕ).type)
+  haveI : IsWellOrder _ r := WellOrderingRel.isWellOrder
+  -- Hypothesis for mixing_lemma: w_ac i ⊓ w_ac j ≤ func i =ᴮ func j
+  have mixing_hyp : ∀ i j : (@B_small_witness 𝔹 _ ϕ).type,
+      witness_antichain r i ⊓ witness_antichain r j ≤
+      ((@B_small_witness 𝔹 _ ϕ).func i) =ᴮ ((@B_small_witness 𝔹 _ ϕ).func j) := by
+    intro i j
+    by_cases h : i = j
+    · subst h; simp [bv_eq_refl]
+    · rw [witness_antichain_index r h]; exact bot_le
+  -- Get u from mixing_lemma: ∀ i, w_ac i ≤ u =ᴮ func i
+  obtain ⟨u, H_w⟩ := mixing_lemma (witness_antichain r) ((@B_small_witness 𝔹 _ ϕ).func) mixing_hyp
+  refine ⟨u, le_antisymm ?_ (le_iSup ϕ u)⟩
+  -- Forward: ⨆ x, ϕ x ≤ ϕ u
+  rw [B_small_witness_supr]
+  apply le_trans (supr_antichain2_contains r)
+  apply iSup_le; intro ξ
+  -- w_ac ξ ≤ u =ᴮ func ξ (from mixing), w_ac ξ ≤ ξ.val = ϕ (func ξ) (from spec/property)
+  -- So w_ac ξ ≤ (func ξ =ᴮ u) ⊓ ϕ (func ξ) ≤ ϕ u (by h_congr)
+  have hw_ξ := H_w ξ
+  have hprop_ξ : witness_antichain r ξ ≤ ξ.val := witness_antichain_property r ξ
+  have hspec_ξ : ϕ ((@B_small_witness 𝔹 _ ϕ).func ξ) = ξ.val := @B_small_witness_spec 𝔹 _ ϕ ξ
+  calc witness_antichain r ξ
+      ≤ (u =ᴮ (@B_small_witness 𝔹 _ ϕ).func ξ) ⊓ ϕ ((@B_small_witness 𝔹 _ ϕ).func ξ) :=
+          le_inf hw_ξ (hspec_ξ ▸ hprop_ξ)
+    _ = ((@B_small_witness 𝔹 _ ϕ).func ξ =ᴮ u) ⊓ ϕ ((@B_small_witness 𝔹 _ ϕ).func ξ) := by
+          rw [bv_eq_symm]
+    _ ≤ ϕ u := h_congr _ _
 
 -- src/bvm.lean:1131
 /-- Extract an element witnessing a 𝔹-valued existential -/
@@ -1537,14 +1587,51 @@ section mixing_corollaries
 variable (X u₁ u₂ : bSet 𝔹) (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (h_partition : a₁ ⊔ a₂ = ⊤)
 
 -- src/bvm.lean:1178
+include h_partition in
 lemma two_term_mixture_mem_top (h₁ : u₁ ∈ᴮ X = ⊤) (h₂ : u₂ ∈ᴮ X = ⊤) :
     two_term_mixture a₁ a₂ h_anti u₁ u₂ ∈ᴮ X = ⊤ := by
-  sorry -- TODO: port from src/bvm.lean:1178-1190 (requires mixing_lemma_two_term)
+  apply top_unique
+  set U := two_term_mixture a₁ a₂ h_anti u₁ u₂
+  have mixing := mixing_lemma_two_term a₁ a₂ h_anti u₁ u₂
+  -- ⊤ = a₁ ⊔ a₂ ≤ (U =ᴮ u₁) ⊔ (U =ᴮ u₂) ≤ U ∈ᴮ X
+  calc ⊤ = a₁ ⊔ a₂ := by rw [h_partition]
+    _ ≤ (U =ᴮ u₁) ⊔ (U =ᴮ u₂) := sup_le_sup mixing.1 mixing.2
+    _ ≤ U ∈ᴮ X := bv_or_elim
+        (by calc U =ᴮ u₁ = u₁ =ᴮ U := bv_eq_symm
+              _ ≤ u₁ =ᴮ U ⊓ u₁ ∈ᴮ X := le_inf le_rfl (h₁ ▸ le_top)
+              _ ≤ U ∈ᴮ X := subst_congr_mem_left)
+        (by calc U =ᴮ u₂ = u₂ =ᴮ U := bv_eq_symm
+              _ ≤ u₂ =ᴮ U ⊓ u₂ ∈ᴮ X := le_inf le_rfl (h₂ ▸ le_top)
+              _ ≤ U ∈ᴮ X := subst_congr_mem_left)
 
 -- src/bvm.lean:1192
+include h_partition in
 lemma two_term_mixture_subset_top (H : a₁ = u₂ ⊆ᴮ u₁) :
     ⊤ ≤ u₂ ⊆ᴮ (two_term_mixture a₁ a₂ h_anti u₁ u₂) := by
-  sorry -- TODO: port from src/bvm.lean:1192-1207 (complex bv_imp reasoning)
+  set U := two_term_mixture a₁ a₂ h_anti u₁ u₂
+  have mixing := mixing_lemma_two_term a₁ a₂ h_anti u₁ u₂
+  have h_eq₁ : a₁ ≤ u₁ =ᴮ U := mixing.1.trans (le_of_eq bv_eq_symm)
+  have h_eq₂ : a₂ ≤ u₂ =ᴮ U := mixing.2.trans (le_of_eq bv_eq_symm)
+  rw [subset_unfold', le_iInf_iff]
+  intro w
+  rw [← deduction, top_inf_eq]
+  -- Goal: w ∈ᴮ u₂ ≤ w ∈ᴮ U
+  -- From H: a₁ ⊓ w ∈ᴮ u₂ ≤ w ∈ᴮ u₁ (subset definition)
+  have h_mem_u₂_le_u₁ : a₁ ⊓ w ∈ᴮ u₂ ≤ w ∈ᴮ u₁ := by
+    have hsub : (u₂ ⊆ᴮ u₁) ⊓ w ∈ᴮ u₂ ≤ w ∈ᴮ u₁ := by
+      rw [subset_unfold']
+      exact le_trans (le_inf (inf_le_left.trans (iInf_le _ w)) inf_le_right) bv_imp_elim
+    rw [H]; exact hsub
+  -- Decompose: w ∈ᴮ u₂ = (a₁ ⊔ a₂) ⊓ w ∈ᴮ u₂ = (a₁ ⊓ w ∈ᴮ u₂) ⊔ (a₂ ⊓ w ∈ᴮ u₂)
+  calc w ∈ᴮ u₂
+      = (a₁ ⊔ a₂) ⊓ w ∈ᴮ u₂ := by rw [h_partition, top_inf_eq]
+    _ = a₁ ⊓ w ∈ᴮ u₂ ⊔ a₂ ⊓ w ∈ᴮ u₂ := inf_sup_right a₁ a₂ _
+    _ ≤ w ∈ᴮ U :=
+        sup_le
+          -- a₁ case: a₁ ⊓ w ∈ᴮ u₂ ≤ w ∈ᴮ u₁, then (u₁ =ᴮ U) ⊓ w ∈ᴮ u₁ ≤ w ∈ᴮ U
+          (le_trans (le_inf (inf_le_left.trans h_eq₁) h_mem_u₂_le_u₁) subst_congr_mem_right)
+          -- a₂ case: a₂ ⊓ w ∈ᴮ u₂ ≤ (u₂ =ᴮ U) ⊓ w ∈ᴮ u₂ ≤ w ∈ᴮ U
+          (le_trans (le_inf (inf_le_left.trans h_eq₂) inf_le_right) subst_congr_mem_right)
 
 end mixing_corollaries
 
@@ -1554,14 +1641,42 @@ end mixing_corollaries
 lemma core_aux_lemma (ϕ : bSet 𝔹 → 𝔹) (h_congr : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y)
     (h_definite : (⨆ (w : bSet 𝔹), ϕ w) = ⊤) (v : bSet 𝔹) :
     ∃ u : bSet 𝔹, ϕ u = ⊤ ∧ ϕ v = u =ᴮ v := by
-  sorry -- TODO: port from src/bvm.lean:1210-1227 (requires mixing_lemma_two_term and compl notation)
+  obtain ⟨w, H_w⟩ := maximum_principle ϕ h_congr
+  have H_w_eq : ϕ w = ⊤ := by rw [← H_w, h_definite]
+  set b := ϕ v with hb
+  have h_inf : b ⊓ bᶜ = ⊥ := inf_compl_eq_bot
+  set U := two_term_mixture b bᶜ h_inf v w with hU
+  have mixing := mixing_lemma_two_term b bᶜ h_inf v w
+  -- mixing.1 : b ≤ U =ᴮ v, mixing.2 : bᶜ ≤ U =ᴮ w
+  have hm1 : b ≤ U =ᴮ v := mixing.1
+  have hm2 : bᶜ ≤ U =ᴮ w := mixing.2
+  have h_U_eq_v : U =ᴮ v = v =ᴮ U := bv_eq_symm
+  have h_U_eq_w : U =ᴮ w = w =ᴮ U := bv_eq_symm
+  have h_phi_U : ϕ U = ⊤ := by
+    apply top_unique; rw [← sup_compl_eq_top]; apply sup_le
+    · exact (le_inf (hm1.trans (le_of_eq h_U_eq_v)) le_rfl).trans (h_congr v U)
+    · exact (le_inf (hm2.trans (le_of_eq h_U_eq_w)) (H_w_eq ▸ le_top)).trans (h_congr w U)
+  refine ⟨U, h_phi_U, ?_⟩
+  apply le_antisymm
+  · -- ϕ v = b ≤ U =ᴮ v
+    exact hm1
+  · -- U =ᴮ v ≤ ϕ v: from h_congr U v: U =ᴮ v ⊓ ϕ U ≤ ϕ v, ϕ U = ⊤
+    have := h_congr U v; rw [h_phi_U, inf_top_eq] at this; exact this
 
 -- src/bvm.lean:1229
 lemma core_aux_lemma2 (ϕ ψ : bSet 𝔹 → 𝔹) (h_congrϕ : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y)
     (h_congrψ : ∀ x y, x =ᴮ y ⊓ ψ x ≤ ψ y) (h_sub : ∀ u, ϕ u = ⊤ → ψ u = ⊤)
     (h_definite : (⨆ (w : bSet 𝔹), ϕ w) = ⊤) :
     (⨅ (x : bSet 𝔹), ϕ x ⟹ ψ x) = ⊤ := by
-  sorry -- TODO: port from src/bvm.lean:1229-1238 (requires core_aux_lemma)
+  apply top_unique; apply le_iInf; intro x
+  rw [← deduction, top_inf_eq]
+  obtain ⟨u, h₁, h₂⟩ := core_aux_lemma ϕ h_congrϕ h_definite x
+  have hψu : ψ u = ⊤ := h_sub u h₁
+  -- ϕ x = u =ᴮ x, so need u =ᴮ x ≤ ψ x
+  rw [h₂]
+  calc u =ᴮ x
+      = u =ᴮ x ⊓ ψ u := by rw [hψu, inf_top_eq]
+    _ ≤ ψ x := h_congrψ u x
 
 /-! ### smallness' -/
 
