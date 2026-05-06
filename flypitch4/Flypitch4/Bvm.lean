@@ -280,7 +280,7 @@ noncomputable instance decidable_eq_𝔹 : DecidableEq 𝔹 :=
 
 -- src/bvm.lean:221
 def empty : bSet 𝔹 :=
-  ⟨ULift Empty, (ULift.down · |>.elim), (ULift.down · |>.elim)⟩
+  ⟨PEmpty, PEmpty.elim, PEmpty.elim⟩
 
 instance nonempty_bSet : Nonempty (@bSet 𝔹 _) := ⟨empty⟩
 
@@ -288,11 +288,11 @@ instance has_empty_bSet : EmptyCollection (bSet 𝔹) := ⟨empty⟩
 
 -- src/bvm.lean:229
 @[simp] lemma forall_over_empty (ϕ : (empty : bSet 𝔹).type → 𝔹) : (⨅ a, ϕ a) = ⊤ := by
-  apply top_unique; apply le_iInf; intro a; exact a.down.elim
+  apply top_unique; apply le_iInf; intro a; exact a.elim
 
 -- src/bvm.lean:232
 @[simp] lemma exists_over_empty (ϕ : (empty : bSet 𝔹).type → 𝔹) : (⨆ a, ϕ a) = ⊥ := by
-  apply bot_unique; apply iSup_le; intro i; exact i.down.elim
+  apply bot_unique; apply iSup_le; intro i; exact i.elim
 
 -- src/bvm.lean:238
 /-- Two Boolean-valued pre-sets are extensionally equivalent if every
@@ -1043,13 +1043,13 @@ lemma eq_empty {u : bSet 𝔹} : u =ᴮ ∅ = (⨆ i, u.bval i)ᶜ := by
       have : u.func j ∈ᴮ ∅ = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
       rw [this, imp_bot]
       exact compl_le_compl (le_iSup _ j)
-    · apply le_iInf; intro j; exact j.down.elim
+    · apply le_iInf; intro j; exact j.elim
 
 -- src/bvm.lean:825
 @[simp] lemma empty_subset {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ ∅ ⊆ᴮ x := by
   rw [subset_unfold]
   apply le_iInf; intro i
-  exact i.down.elim
+  exact i.elim
 
 -- src/bvm.lean:828
 lemma empty_spec {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ (x ∈ᴮ ∅)ᶜ := by
@@ -1191,25 +1191,25 @@ lemma singleton_unfold {x : bSet 𝔹} : (insert x (∅ : bSet 𝔹)) = bSet.ins
 
 -- src/bvm.lean:879
 @[simp] lemma singleton_type {x : bSet 𝔹} :
-    (type (bSet.insert1 x ∅)) = Option (ULift Empty) := by
+    (type (bSet.insert1 x ∅)) = Option PEmpty := by
   simp only [bSet.insert1, bSet.insert, bSet.type, empty, bSet.mk.injEq]
   rfl
 
 -- src/bvm.lean:881
-@[simp] lemma singleton_func {x : bSet 𝔹} {o : Option (ULift Empty)} :
-    func (bSet.insert1 x ∅) o = Option.casesOn o x (fun e => e.down.elim) := by
+@[simp] lemma singleton_func {x : bSet 𝔹} {o : Option PEmpty} :
+    func (bSet.insert1 x ∅) o = Option.casesOn o x (fun e => e.elim) := by
   simp only [bSet.insert1, bSet.insert]
   cases o with
   | none => rfl
-  | some e => exact (e.down.elim)
+  | some e => exact (e.elim)
 
 -- src/bvm.lean:883
-@[simp] lemma singleton_bval {x : bSet 𝔹} {o : Option (ULift Empty)} :
-    bval (bSet.insert1 x ∅) o = Option.casesOn o ⊤ (fun e => e.down.elim) := by
+@[simp] lemma singleton_bval {x : bSet 𝔹} {o : Option PEmpty} :
+    bval (bSet.insert1 x ∅) o = Option.casesOn o ⊤ (fun e => e.elim) := by
   simp only [bSet.insert1, bSet.insert]
   cases o with
   | none => rfl
-  | some e => exact (e.down.elim)
+  | some e => exact (e.elim)
 
 -- src/bvm.lean:885
 @[simp] lemma singleton_bval_none {x : bSet 𝔹} : bval (bSet.insert1 x ∅) none = ⊤ := by
@@ -1977,7 +1977,13 @@ lemma check_unfold {x : PSet.{u}} :
 
 -- src/bvm.lean:1523
 @[simp] lemma check_empty_eq_empty : check (∅ : PSet) = (∅ : bSet 𝔹) := by
-  sorry -- TODO: not definitionally equal (bval component ⊤ vs PEmpty.elim)
+  -- (∅ : PSet) = PSet.mk PEmpty PEmpty.elim
+  -- check (PSet.mk PEmpty f) = bSet.mk PEmpty (fun i => check (f i)) (fun _ => ⊤)
+  -- (∅ : bSet 𝔹) = bSet.mk PEmpty PEmpty.elim PEmpty.elim
+  -- Both have the same type (PEmpty) and all functions on PEmpty are equal
+  show bSet.mk PEmpty (fun i => check (PEmpty.elim i)) (fun _ => ⊤) =
+       bSet.mk PEmpty PEmpty.elim PEmpty.elim
+  congr 1 <;> funext i <;> exact i.elim
 
 -- src/bvm.lean:1527
 @[simp] lemma mem_top_of_bval_top {u : bSet 𝔹} {i : u.type} (H_top : u.bval i = ⊤) :
@@ -2001,7 +2007,21 @@ lemma check_unfold {x : PSet.{u}} :
 -- src/bvm.lean:1544
 lemma check_bv_eq_top_of_equiv {x y : PSet} (h : PSet.Equiv x y) :
     (check x : bSet 𝔹) =ᴮ check y = (⊤ : 𝔹) := by
-  sorry -- TODO: port from src/bvm.lean:1544-1553 (complex induction on check/bv_eq structure)
+  induction x generalizing y with
+  | mk α A ih =>
+  cases y with
+  | mk β B =>
+  rw [check_unfold, check_unfold, bv_eq]
+  apply top_unique
+  apply le_inf
+  · apply le_iInf; intro a
+    rw [← deduction, top_inf_eq]
+    obtain ⟨b, hb⟩ := h.1 a
+    exact le_iSup_of_le b (le_inf le_top (le_of_eq (ih a hb).symm))
+  · apply le_iInf; intro b
+    rw [← deduction, top_inf_eq]
+    obtain ⟨a, ha⟩ := h.2 b
+    exact le_iSup_of_le a (le_inf le_top (le_of_eq (ih a ha).symm))
 
 -- src/bvm.lean:1556
 lemma check_bv_eq {x y : PSet} {Γ : 𝔹} (H : PSet.Equiv x y) :
@@ -2016,7 +2036,23 @@ lemma check_eq {x y : PSet} {Γ : 𝔹} (H : PSet.Equiv x y) :
 -- src/bvm.lean:1564
 lemma check_bv_eq_bot_of_not_equiv {x y : PSet} (H : ¬ PSet.Equiv x y) :
     (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹) := by
-  sorry -- TODO: port from src/bvm.lean:1564-1571 (complex induction on check/bv_eq structure)
+  induction x generalizing y with
+  | mk α A ih =>
+  cases y with
+  | mk β B =>
+  rw [check_unfold, check_unfold, bv_eq]
+  apply bot_unique
+  rcases PSet.not_equiv H with ⟨a, ha⟩ | ⟨b, hb⟩
+  · -- ∃ a : α, ∀ b : β, ¬ (A a).Equiv (B b) → forward direction ≤ ⊥
+    apply inf_le_left.trans; apply iInf_le_of_le a
+    simp only [imp, compl_top, bot_sup_eq]
+    apply iSup_le; intro b; simp only [top_inf_eq]
+    exact le_of_eq (@ih a (B b) (ha b))
+  · -- ∃ b : β, ∀ a : α, ¬ (A a).Equiv (B b) → backward direction ≤ ⊥
+    apply inf_le_right.trans; apply iInf_le_of_le b
+    simp only [imp, compl_top, bot_sup_eq]
+    apply iSup_le; intro a; simp only [top_inf_eq]
+    exact le_of_eq (@ih a (B b) (hb a))
 
 -- src/bvm.lean:1573
 lemma check_bv_eq_dichotomy (x y : PSet) :
@@ -2468,10 +2504,39 @@ lemma infinity_of_empty_succ {u : bSet 𝔹} {c : 𝔹} (h₁ : c ≤ contains_e
   le_inf h₁ h₂
 
 lemma contains_empty_check_omega : (⊤ : 𝔹) ≤ contains_empty (check ω') := by
-  sorry -- TODO: port from src/bvm.lean:2218-2219
+  simp only [contains_empty]
+  -- ∅ = (check ω').func ⟨0⟩ since check_omega_func and PSet.ofNat 0 = ∅
+  have h : (∅ : bSet 𝔹) = (check ω').func ⟨0⟩ := by
+    simp only [check_omega_func]
+    -- PSet.ofNat 0 = ∅, so check (PSet.ofNat 0) = check ∅ = ∅
+    norm_cast
+    simp [show PSet.ofNat 0 = ∅ from rfl, check_empty_eq_empty]
+  rw [h, top_le_iff]
+  exact check_mem_top
 
 lemma contains_succ_check_omega : (⊤ : 𝔹) ≤ contains_succ (check ω') := by
-  sorry -- TODO: port from src/bvm.lean:2221-2226
+  simp only [contains_succ]
+  apply le_iInf; intro ⟨n⟩
+  apply le_iSup_of_le ⟨n + 1⟩
+  simp only [check_omega_func]
+  -- Need: ⊤ ≤ check (PSet.ofNat n) ∈ᴮ check (PSet.ofNat (n + 1))
+  apply le_trans le_top; rw [top_le_iff]
+  have hmem := @PSet.ofNat_mem_of_lt n (n + 1) (Nat.lt_succ_self n)
+  rcases hmem with ⟨i, hi⟩
+  -- hi : (PSet.ofNat n).Equiv ((PSet.ofNat (n + 1)).Func i)
+  apply top_unique
+  have h_eq : check (PSet.ofNat n) =ᴮ check ((PSet.ofNat (n + 1)).Func i) = (⊤ : 𝔹) :=
+    check_bv_eq_top_of_equiv hi
+  have h_mem : (⊤ : 𝔹) ≤ check ((PSet.ofNat (n + 1)).Func i) ∈ᴮ check (PSet.ofNat (n + 1)) :=
+    mem_check_of_mem
+  calc ⊤
+      = check (PSet.ofNat n) =ᴮ check ((PSet.ofNat (n + 1)).Func i) ⊓
+          check ((PSet.ofNat (n + 1)).Func i) ∈ᴮ check (PSet.ofNat (n + 1)) := by
+          rw [h_eq, top_inf_eq, top_le_iff.mp h_mem]
+    _ ≤ check (PSet.ofNat n) ∈ᴮ check (PSet.ofNat (n + 1)) := by
+          rw [show check (PSet.ofNat n) =ᴮ check ((PSet.ofNat (n + 1)).Func i) =
+              check ((PSet.ofNat (n + 1)).Func i) =ᴮ check (PSet.ofNat n) from bv_eq_symm]
+          exact subst_congr_mem_left
 
 theorem bSet_axiom_of_infinity : (⨆ (u : bSet 𝔹), axiom_of_infinity_spec u) = ⊤ := by
   apply top_unique
