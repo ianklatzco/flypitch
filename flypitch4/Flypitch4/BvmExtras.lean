@@ -420,20 +420,204 @@ lemma pair_congr {x₁ x₂ y₁ y₂ : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ x�
 
 -- src/bvm_extras.lean:276
 lemma eq_of_eq_pair'_left {x z y : bSet 𝔹} : pair x y =ᴮ pair z y ≤ x =ᴮ z := by
-  sorry -- TODO: port from src/bvm_extras.lean:276
+  -- pair x y =ᴮ pair z y → {x} ∈ pair z y (from bv_eq_unfold at index none)
+  -- {x} ∈ pair z y = {x} =ᴮ {z} ⊔ {x} =ᴮ {z,y}
+  -- Both cases give x =ᴮ z: first by eq_of_eq_singleton, second by eq_inserted_of_eq_singleton
+  have hL : pair x y =ᴮ pair z y ≤ ({x} : bSet 𝔹) ∈ᴮ pair z y := by
+    rw [bv_eq_unfold]
+    apply inf_le_left.trans
+    apply iInf_le_of_le (none : (pair x y).type)
+    -- (pair x y).bval none = ⊤, (pair x y).func none = {x}
+    simp only [show (pair x y).bval (none : (pair x y).type) = ⊤ from rfl,
+               show (pair x y).func (none : (pair x y).type) = ({x} : bSet 𝔹) from rfl,
+               top_imp, le_refl]
+  -- {x} ∈ pair z y = {x} =ᴮ {z} ⊔ ({x} ∈ (insert ({z,y}) ∅)) = {x} =ᴮ {z} ⊔ {x} =ᴮ {z,y}
+  have hmem : ({x} : bSet 𝔹) ∈ᴮ pair z y = ({x} : bSet 𝔹) =ᴮ ({z} : bSet 𝔹) ⊔ ({x} : bSet 𝔹) =ᴮ ({z, y} : bSet 𝔹) := by
+    show ({x} : bSet 𝔹) ∈ᴮ insert ({z} : bSet 𝔹) (insert ({z, y} : bSet 𝔹) ∅) = _
+    rw [mem_insert1]
+    have : ({x} : bSet 𝔹) ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    show ({x} : bSet 𝔹) =ᴮ ({z} : bSet 𝔹) ⊔ ({x} : bSet 𝔹) ∈ᴮ insert ({z, y} : bSet 𝔹) ∅ = _
+    rw [mem_insert1, this, sup_bot_eq]
+  rw [hmem] at hL
+  -- hL: pair x y =ᴮ pair z y ≤ {x} =ᴮ {z} ⊔ {x} =ᴮ {z,y}
+  calc pair x y =ᴮ pair z y
+      ≤ ({x} : bSet 𝔹) =ᴮ ({z} : bSet 𝔹) ⊔ ({x} : bSet 𝔹) =ᴮ ({z, y} : bSet 𝔹) := hL
+    _ ≤ x =ᴮ z := by
+          apply sup_le
+          · exact eq_of_eq_singleton le_rfl
+          · exact eq_inserted_of_eq_singleton
 
 -- src/bvm_extras.lean:287
 lemma inserted_eq_of_insert_eq {y v w : bSet 𝔹} :
     ({v, y} : bSet 𝔹) =ᴮ {v, w} ≤ y =ᴮ w := by
-  sorry -- TODO: port from src/bvm_extras.lean:287
+  -- From bv_eq_unfold at 'some none' in {v,y} and {v,w}:
+  -- Left: {v,y} =ᴮ {v,w} ≤ y ∈ {v,w} = y =ᴮ v ⊔ y =ᴮ w
+  -- Right: {v,y} =ᴮ {v,w} ≤ w ∈ {v,y} = w =ᴮ v ⊔ w =ᴮ y
+  -- Both cases: (y=v ∨ y=w) ∧ (w=v ∨ w=y) → y=w
+  have hL : ({v, y} : bSet 𝔹) =ᴮ {v, w} ≤ y ∈ᴮ ({v, w} : bSet 𝔹) := by
+    rw [bv_eq_unfold]
+    apply inf_le_left.trans
+    apply iInf_le_of_le (some none : ({v, y} : bSet 𝔹).type)
+    -- Definitionally: bval (some none) = ⊤, func (some none) = y
+    show (⊤ : 𝔹) ⟹ y ∈ᴮ ({v, w} : bSet 𝔹) ≤ y ∈ᴮ ({v, w} : bSet 𝔹)
+    rw [top_imp]
+  have hR : ({v, y} : bSet 𝔹) =ᴮ {v, w} ≤ w ∈ᴮ ({v, y} : bSet 𝔹) := by
+    rw [bv_eq_unfold]
+    apply inf_le_right.trans
+    apply iInf_le_of_le (some none : ({v, w} : bSet 𝔹).type)
+    show (⊤ : 𝔹) ⟹ w ∈ᴮ ({v, y} : bSet 𝔹) ≤ w ∈ᴮ ({v, y} : bSet 𝔹)
+    rw [top_imp]
+  -- y ∈ {v,w} = y =ᴮ v ⊔ y =ᴮ w
+  have hmem_yw : y ∈ᴮ ({v, w} : bSet 𝔹) = y =ᴮ v ⊔ y =ᴮ w := by
+    show y ∈ᴮ insert v ({w} : bSet 𝔹) = _
+    rw [mem_insert1, mem_singleton_bSet]
+    have : y ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    rw [this, sup_bot_eq]
+  -- w ∈ {v,y} = w =ᴮ v ⊔ w =ᴮ y
+  have hmem_wvy : w ∈ᴮ ({v, y} : bSet 𝔹) = w =ᴮ v ⊔ w =ᴮ y := by
+    show w ∈ᴮ insert v ({y} : bSet 𝔹) = _
+    rw [mem_insert1, mem_singleton_bSet]
+    have : w ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    rw [this, sup_bot_eq]
+  rw [hmem_yw] at hL; rw [hmem_wvy] at hR
+  calc ({v, y} : bSet 𝔹) =ᴮ {v, w}
+      ≤ (y =ᴮ v ⊔ y =ᴮ w) ⊓ (w =ᴮ v ⊔ w =ᴮ y) := le_inf hL hR
+    _ ≤ y =ᴮ w := by
+          -- (y=v ⊔ y=w) ⊓ (w=v ⊔ w=y) ≤ y=w
+          -- Step 1: distribute via inf_sup_right: (y=v ⊓ (w=v⊔w=y)) ⊔ (y=w ⊓ (w=v⊔w=y)) ≤ y=w
+          have step : (y =ᴮ v ⊔ y =ᴮ w) ⊓ (w =ᴮ v ⊔ w =ᴮ y)
+              ≤ (y =ᴮ v ⊓ (w =ᴮ v ⊔ w =ᴮ y)) ⊔ (y =ᴮ w ⊓ (w =ᴮ v ⊔ w =ᴮ y)) :=
+            le_of_eq (inf_sup_right _ _ _)
+          apply le_trans step
+          apply sup_le
+          · -- y=v ⊓ (w=v ⊔ w=y) ≤ y=w
+            have step2 : y =ᴮ v ⊓ (w =ᴮ v ⊔ w =ᴮ y)
+                ≤ (y =ᴮ v ⊓ w =ᴮ v) ⊔ (y =ᴮ v ⊓ w =ᴮ y) :=
+              le_of_eq (inf_sup_left _ _ _)
+            apply le_trans step2
+            apply sup_le
+            · -- y=v ⊓ w=v ≤ y=w: y=v, w=v → w=y, then y=w
+              rw [inf_comm]
+              exact le_trans (inf_le_inf_left _ (le_of_eq bv_eq_symm))
+                (le_trans bv_eq_trans (le_of_eq bv_eq_symm))
+            · -- y=v ⊓ w=y ≤ y=w: w=y → y=w
+              exact inf_le_right.trans (le_of_eq bv_eq_symm)
+          · exact inf_le_left
 
 -- src/bvm_extras.lean:297
 lemma eq_of_eq_pair'_right {x z y : bSet 𝔹} : pair y x =ᴮ pair y z ≤ x =ᴮ z := by
-  sorry -- TODO: port from src/bvm_extras.lean:297
+  -- Approach: pair y x =ᴮ pair y z → {y,x} ∈ pair y z (from left bv_eq at some none)
+  -- {y,x} ∈ pair y z = {y,x} =ᴮ {y} ⊔ {y,x} =ᴮ {y,z}
+  -- Also pair y x =ᴮ pair y z → {y,z} ∈ pair y x (from right bv_eq at some none)
+  -- {y,z} ∈ pair y x = {y,z} =ᴮ {y} ⊔ {y,z} =ᴮ {y,x}
+  -- From {y,x}=ᴮ{y}: x=ᴮy (specialize at some none of {y,x})
+  -- From {y,x}=ᴮ{y,z}: x=ᴮz (by inserted_eq_of_insert_eq)
+  -- From {y,z}=ᴮ{y}: z=ᴮy
+  -- From {y,z}=ᴮ{y,x}: z=ᴮx=bv_eq_symm→x=ᴮz (by inserted_eq_of_insert_eq)
+  -- Helper: {v,u} =ᴮ {v} ≤ u =ᴮ v (from left bv_eq at some none)
+  have pair_eq_sing_le : ∀ (u v : bSet 𝔹), (insert v ({u} : bSet 𝔹) : bSet 𝔹) =ᴮ ({v} : bSet 𝔹) ≤ u =ᴮ v := by
+    intro u v
+    -- From left bv_eq at 'some none': bval(some none) = ⊤, func(some none) = u
+    -- So pair_eq_sing_le extracts u ∈ {v} which gives u=v by eq_of_mem_singleton'
+    rw [bv_eq_unfold]
+    apply inf_le_left.trans
+    apply iInf_le_of_le (some none : (insert v ({u} : bSet 𝔹) : bSet 𝔹).type)
+    -- Goal: {v,u}.bval(some none) ⟹ {v,u}.func(some none) ∈ {v} ≤ u =ᴮ v
+    -- {v,u} = bSet.insert1 v {u}, so:
+    -- .bval(some none) = ({u}).bval none = ⊤ by insert1_bval_some + singleton_bval_none
+    -- .func(some none) = ({u}).func none = u by insert1_func_some + singleton_func
+    -- {v,u}.bval(some none) = ⊤ and {v,u}.func(some none) = u: use insert1_bval_some/func_some
+    -- but {v,u} = bSet.insert1 v {u} = insert v {u} so rw uses the same expression
+    -- Use conv to rewrite inside the imp
+    conv_lhs =>
+      rw [show ({v, u} : bSet 𝔹).bval (some none : ({v, u} : bSet 𝔹).type) = ⊤ from by
+        show (bSet.insert1 v ({u} : bSet 𝔹)).bval (some none) = ⊤
+        rw [insert1_bval_some]; exact singleton_bval_none]
+      rw [show ({v, u} : bSet 𝔹).func (some none : ({v, u} : bSet 𝔹).type) = u from by
+        show (bSet.insert1 v ({u} : bSet 𝔹)).func (some none) = u
+        rw [insert1_func_some]; rfl]
+    rw [top_imp]
+    exact le_trans eq_of_mem_singleton' (le_of_eq bv_eq_symm)
+  -- Extract {y,x} ∈ pair y z and {y,z} ∈ pair y x
+  have hL : pair y x =ᴮ pair y z ≤ ({y, x} : bSet 𝔹) ∈ᴮ pair y z := by
+    rw [bv_eq_unfold]
+    apply inf_le_left.trans
+    apply iInf_le_of_le (some none : (pair y x).type)
+    show (⊤ : 𝔹) ⟹ ({y, x} : bSet 𝔹) ∈ᴮ pair y z ≤ ({y, x} : bSet 𝔹) ∈ᴮ pair y z
+    rw [top_imp]
+  have hR : pair y x =ᴮ pair y z ≤ ({y, z} : bSet 𝔹) ∈ᴮ pair y x := by
+    rw [bv_eq_unfold]
+    apply inf_le_right.trans
+    apply iInf_le_of_le (some none : (pair y z).type)
+    show (⊤ : 𝔹) ⟹ ({y, z} : bSet 𝔹) ∈ᴮ pair y x ≤ ({y, z} : bSet 𝔹) ∈ᴮ pair y x
+    rw [top_imp]
+  -- Membership in pair y z: {y,x} ∈ pair y z = {y,x} =ᴮ {y} ⊔ {y,x} =ᴮ {y,z}
+  have hmem_yz : ({y, x} : bSet 𝔹) ∈ᴮ pair y z = ({y, x} : bSet 𝔹) =ᴮ ({y} : bSet 𝔹) ⊔ ({y, x} : bSet 𝔹) =ᴮ ({y, z} : bSet 𝔹) := by
+    show ({y, x} : bSet 𝔹) ∈ᴮ insert ({y} : bSet 𝔹) (insert ({y, z} : bSet 𝔹) ∅) = _
+    rw [mem_insert1]
+    have : ({y, x} : bSet 𝔹) ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    show ({y, x} : bSet 𝔹) =ᴮ ({y} : bSet 𝔹) ⊔ ({y, x} : bSet 𝔹) ∈ᴮ insert ({y, z} : bSet 𝔹) ∅ = _
+    rw [mem_insert1, this, sup_bot_eq]
+  have hmem_yx : ({y, z} : bSet 𝔹) ∈ᴮ pair y x = ({y, z} : bSet 𝔹) =ᴮ ({y} : bSet 𝔹) ⊔ ({y, z} : bSet 𝔹) =ᴮ ({y, x} : bSet 𝔹) := by
+    show ({y, z} : bSet 𝔹) ∈ᴮ insert ({y} : bSet 𝔹) (insert ({y, x} : bSet 𝔹) ∅) = _
+    rw [mem_insert1]
+    have : ({y, z} : bSet 𝔹) ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    show ({y, z} : bSet 𝔹) =ᴮ ({y} : bSet 𝔹) ⊔ ({y, z} : bSet 𝔹) ∈ᴮ insert ({y, x} : bSet 𝔹) ∅ = _
+    rw [mem_insert1, this, sup_bot_eq]
+  rw [hmem_yz] at hL; rw [hmem_yx] at hR
+  -- hL: Γ ≤ ({y,x}=ᴮ{y} ⊔ {y,x}=ᴮ{y,z})
+  -- hR: Γ ≤ ({y,z}=ᴮ{y} ⊔ {y,z}=ᴮ{y,x})
+  calc pair y x =ᴮ pair y z
+      ≤ (({y, x} : bSet 𝔹) =ᴮ {y} ⊔ ({y, x} : bSet 𝔹) =ᴮ {y, z}) ⊓
+        (({y, z} : bSet 𝔹) =ᴮ {y} ⊔ ({y, z} : bSet 𝔹) =ᴮ {y, x}) := le_inf hL hR
+    _ ≤ x =ᴮ z := by
+          -- (A₁⊔A₂) ⊓ (B₁⊔B₂) where A₁={y,x}={y}, A₂={y,x}={y,z}, B₁={y,z}={y}, B₂={y,z}={y,x}
+          have step : (({y, x} : bSet 𝔹) =ᴮ {y} ⊔ ({y, x} : bSet 𝔹) =ᴮ {y, z}) ⊓
+              (({y, z} : bSet 𝔹) =ᴮ {y} ⊔ ({y, z} : bSet 𝔹) =ᴮ {y, x})
+              ≤ (({y, x} : bSet 𝔹) =ᴮ {y} ⊓ (({y, z} : bSet 𝔹) =ᴮ {y} ⊔ ({y, z} : bSet 𝔹) =ᴮ {y, x})) ⊔
+                (({y, x} : bSet 𝔹) =ᴮ {y, z} ⊓ (({y, z} : bSet 𝔹) =ᴮ {y} ⊔ ({y, z} : bSet 𝔹) =ᴮ {y, x})) :=
+            le_of_eq (inf_sup_right _ _ _)
+          apply le_trans step
+          apply sup_le
+          · -- A₁ ⊓ (B₁⊔B₂): {y,x}=ᴮ{y} ⊓ (...)
+            have step2 : ({y, x} : bSet 𝔹) =ᴮ {y} ⊓ (({y, z} : bSet 𝔹) =ᴮ {y} ⊔ ({y, z} : bSet 𝔹) =ᴮ {y, x})
+                ≤ (({y, x} : bSet 𝔹) =ᴮ {y} ⊓ ({y, z} : bSet 𝔹) =ᴮ {y}) ⊔
+                  (({y, x} : bSet 𝔹) =ᴮ {y} ⊓ ({y, z} : bSet 𝔹) =ᴮ {y, x}) :=
+              le_of_eq (inf_sup_left _ _ _)
+            apply le_trans step2
+            apply sup_le
+            · -- {y,x}=ᴮ{y} ⊓ {y,z}=ᴮ{y}: x=y, z=y → x=z
+              have hxy := pair_eq_sing_le x y
+              have hzy := pair_eq_sing_le z y
+              calc ({y, x} : bSet 𝔹) =ᴮ {y} ⊓ ({y, z} : bSet 𝔹) =ᴮ {y}
+                  ≤ x =ᴮ y ⊓ z =ᴮ y := le_inf (inf_le_left.trans hxy) (inf_le_right.trans hzy)
+                _ ≤ x =ᴮ z := by
+                    rw [inf_comm]
+                    exact le_trans (inf_le_inf_left _ (le_of_eq bv_eq_symm))
+                      (le_trans bv_eq_trans (le_of_eq bv_eq_symm))
+            · -- {y,x}=ᴮ{y} ⊓ {y,z}=ᴮ{y,x}: z=x → x=z
+              have hzx : ({y, z} : bSet 𝔹) =ᴮ {y, x} ≤ z =ᴮ x := inserted_eq_of_insert_eq
+              exact inf_le_right.trans (hzx.trans (le_of_eq bv_eq_symm))
+          · -- A₂ ⊓ (B₁⊔B₂): {y,x}=ᴮ{y,z} → x=z
+            exact inf_le_left.trans inserted_eq_of_insert_eq
 
 -- src/bvm_extras.lean:316
 theorem eq_of_eq_pair_left {x y v w : bSet 𝔹} : pair x y =ᴮ pair v w ≤ x =ᴮ v := by
-  sorry -- TODO: port from src/bvm_extras.lean:316
+  -- Same as eq_of_eq_pair'_left: extract {x} ∈ pair v w from left bv_eq at none
+  have hL : pair x y =ᴮ pair v w ≤ ({x} : bSet 𝔹) ∈ᴮ pair v w := by
+    rw [bv_eq_unfold]
+    apply inf_le_left.trans
+    apply iInf_le_of_le (none : (pair x y).type)
+    show (⊤ : 𝔹) ⟹ ({x} : bSet 𝔹) ∈ᴮ pair v w ≤ ({x} : bSet 𝔹) ∈ᴮ pair v w
+    rw [top_imp]
+  have hmem : ({x} : bSet 𝔹) ∈ᴮ pair v w = ({x} : bSet 𝔹) =ᴮ ({v} : bSet 𝔹) ⊔ ({x} : bSet 𝔹) =ᴮ ({v, w} : bSet 𝔹) := by
+    show ({x} : bSet 𝔹) ∈ᴮ insert ({v} : bSet 𝔹) (insert ({v, w} : bSet 𝔹) ∅) = _
+    rw [mem_insert1]
+    have : ({x} : bSet 𝔹) ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    show ({x} : bSet 𝔹) =ᴮ ({v} : bSet 𝔹) ⊔ ({x} : bSet 𝔹) ∈ᴮ insert ({v, w} : bSet 𝔹) ∅ = _
+    rw [mem_insert1, this, sup_bot_eq]
+  rw [hmem] at hL
+  exact hL.trans (sup_le (eq_of_eq_singleton le_rfl) eq_inserted_of_eq_singleton)
 
 -- src/bvm_extras.lean:330
 lemma eq_of_eq_pair_left' {x y v w : bSet 𝔹} {Γ} :
@@ -442,7 +626,31 @@ lemma eq_of_eq_pair_left' {x y v w : bSet 𝔹} {Γ} :
 
 -- src/bvm_extras.lean:333
 theorem eq_of_eq_pair_right {x y v w : bSet 𝔹} : pair x y =ᴮ pair v w ≤ y =ᴮ w := by
-  sorry -- TODO: port from src/bvm_extras.lean:333
+  -- From pair x y =ᴮ pair v w:
+  -- 1. Get x =ᴮ v by eq_of_eq_pair_left
+  -- 2. From x =ᴮ v, pair x y =ᴮ pair v y (by subst_congr_pair_left, symm)
+  -- 3. pair v y =ᴮ pair v w from transitivity
+  -- 4. Use eq_of_eq_pair'_right to get y =ᴮ w
+  -- Step: pair x y =ᴮ pair v w ⊓ (pair x y =ᴮ pair v w) ≤ pair v y =ᴮ pair v w
+  -- From pair x y =ᴮ pair v w, x =ᴮ v by eq_of_eq_pair_left.
+  -- pair x y =ᴮ pair v y from x =ᴮ v (by subst_congr_pair_left with h:= bv_eq_symm).
+  -- Then pair v y =ᴮ pair v w by bv_eq_trans of pair x y =ᴮ pair v y (symm) and pair x y =ᴮ pair v w.
+  -- Then y =ᴮ w by eq_of_eq_pair'_right.
+  calc pair x y =ᴮ pair v w
+      ≤ pair v y =ᴮ pair v w := by
+          -- From pair x y =ᴮ pair v w, get pair v y =ᴮ pair v w via:
+          -- pair x y =ᴮ pair v y (from x =ᴮ v) and pair x y =ᴮ pair v w → pair v y =ᴮ pair v w
+          -- pair v y =ᴮ pair v w = symm(pair x y =ᴮ pair v y) ⊓ (pair x y =ᴮ pair v w) → bv_eq_trans
+          have hxv : pair x y =ᴮ pair v w ≤ x =ᴮ v := eq_of_eq_pair_left
+          have hpair : pair x y =ᴮ pair v w ≤ pair x y =ᴮ pair v y := by
+            -- x =ᴮ v → pair v y =ᴮ pair x y (by subst_congr_pair_left with args flipped)
+            -- then pair v y =ᴮ pair x y ≤ pair x y =ᴮ pair v y (by bv_eq_symm)
+            exact le_trans hxv (le_trans (le_of_eq bv_eq_symm)
+              (le_trans subst_congr_pair_left (le_of_eq bv_eq_symm)))
+          -- pair v y =ᴮ pair v w from: symm(pair x y =ᴮ pair v y) and (pair x y =ᴮ pair v w)
+          apply le_trans (le_inf (le_trans hpair (le_of_eq bv_eq_symm)) le_rfl)
+          exact bv_eq_trans
+    _ ≤ y =ᴮ w := eq_of_eq_pair'_right
 
 -- src/bvm_extras.lean:342
 lemma eq_of_eq_pair_right' {x y v w : bSet 𝔹} {Γ} :
