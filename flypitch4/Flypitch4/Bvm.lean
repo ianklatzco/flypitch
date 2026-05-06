@@ -1818,7 +1818,82 @@ noncomputable def core.mk_aux (u : bSet 𝔹) :
 
 -- src/bvm.lean:1337
 lemma core.mk (u : bSet 𝔹) : ∃ α : Type u, ∃ S : α → bSet 𝔹, core u S := by
-  sorry -- TODO: port from src/bvm.lean:1337-1372 (complex quotient/core reasoning)
+  -- α = Quotient (core.S''_setoid u), S = core.mk_aux u
+  refine ⟨Quotient (@core.S''_setoid 𝔹 _ u), core.mk_aux u, ?_, ?_⟩
+  · -- Part 1: ∀ x, core.mk_aux u x ∈ u = ⊤
+    intro x
+    -- core.mk_aux u x = core.S'' u (Quotient.out x)
+    -- Quotient.out x : core.α_S'' u, and core.α_S'' u is {i // core.S' u i ∈ u = ⊤}
+    exact (Quotient.out x).property
+  · -- Part 2: ∀ y, y ∈ u = ⊤ → ∃! x, y =ᴮ core.mk_aux u x = ⊤
+    intro y H_y
+    -- y' = core.S' u (image_mk y), which is a bSet with the same mk_ϕ as y
+    let y' := core.S' u (image_mk y)
+    -- core.mk_ϕ u y = core.mk_ϕ u y'  (by core.S'_spec)
+    have H_y' : core.mk_ϕ u y = core.mk_ϕ u y' := (core.S'_spec u (image_mk y)).symm
+    -- y' ∈ u = ⊤: since mk_ϕ u y = mk_ϕ u y', y ∈ u ⟺ y' ∈ u
+    have H_y'2 : y' ∈ᴮ u = ⊤ := by
+      simp only [mem_unfold]
+      apply top_unique
+      rw [← H_y, mem_unfold]
+      apply iSup_le; intro a
+      -- u.bval a ⊓ y =ᴮ u.func a = u.bval a ⊓ y' =ᴮ u.func a (from H_y')
+      have := congr_fun H_y' a
+      simp only [core.mk_ϕ] at this
+      rw [this]; exact le_iSup (fun i => u.bval i ⊓ y' =ᴮ u.func i) a
+    -- Package y' as an element of core.α_S''
+    let y_q : core.α_S'' u := ⟨image_mk y, H_y'2⟩
+    -- y'' = core.mk_aux u ⟦y_q⟧
+    let y'' := core.mk_aux u ⟦y_q⟧
+    -- y'' =ᴮ y' = ⊤: from Quotient.mk_out applied to y_q
+    have H_y'' : y'' =ᴮ y' = ⊤ := by
+      -- Quotient.mk_out y_q : (core.S''_setoid u).r (⟦y_q⟧.out) y_q
+      -- i.e., pullback_eq_rel (core.S'' u) core.bv_eq_top (⟦y_q⟧.out) y_q
+      -- i.e., core.S'' u (⟦y_q⟧.out) =ᴮ core.S'' u y_q = ⊤
+      -- i.e., core.mk_aux u ⟦y_q⟧ =ᴮ y' = ⊤
+      exact Quotient.mk_out y_q
+    -- y =ᴮ y' = ⊤: from core.mk_ϕ_inj using H_y'
+    have H₃ : y =ᴮ y' = ⊤ := core.mk_ϕ_inj u y y' H_y H_y'2 H_y'
+    -- y =ᴮ y'' = ⊤: chain through y'
+    have H₁ : y =ᴮ y'' = ⊤ := by
+      apply top_unique
+      calc (⊤ : 𝔹) ≤ y =ᴮ y' ⊓ y' =ᴮ y'' := by
+              rw [H₃, show y' =ᴮ y'' = ⊤ from by rw [bv_eq_symm]; exact H_y'']; simp
+        _ ≤ y =ᴮ y'' := bv_eq_trans
+    -- Existence: use ⟦y_q⟧ as the witness
+    refine ⟨⟦y_q⟧, H₁, ?_⟩
+    -- Uniqueness: if y =ᴮ core.mk_aux u i = ⊤, then i = ⟦y_q⟧
+    intro i H_y'''
+    -- Show core.mk_aux u i =ᴮ y' = ⊤
+    suffices h : core.mk_aux u i =ᴮ y' = ⊤ by
+      -- Then core.mk_aux u i =ᴮ y'' = ⊤ (chain through y')
+      have hiy'' : core.mk_aux u i =ᴮ y'' = ⊤ := by
+        apply top_unique
+        calc (⊤ : 𝔹) ≤ core.mk_aux u i =ᴮ y' ⊓ y' =ᴮ y'' := by
+                rw [h, show y' =ᴮ y'' = ⊤ from by rw [bv_eq_symm]; exact H_y'']; simp
+          _ ≤ core.mk_aux u i =ᴮ y'' := bv_eq_trans
+      -- Now: core.S'' u (Quotient.out i) =ᴮ core.S'' u (Quotient.out ⟦y_q⟧) = ⊤
+      -- This means (core.S''_setoid u).r (Quotient.out i) (Quotient.out ⟦y_q⟧)
+      -- So ⟦Quotient.out i⟧ = ⟦Quotient.out ⟦y_q⟧⟧ (by Quotient.sound)
+      -- And i = ⟦Quotient.out ⟦y_q⟧⟧ = ⟦y_q⟧ (by Quotient.out_eq)
+      have hrel : (core.S''_setoid u).r
+          (@Quotient.out _ (core.S''_setoid u) i)
+          (@Quotient.out _ (core.S''_setoid u) ⟦y_q⟧) := by
+        -- goal unfolds to: core.S'' u (Quotient.out i) =ᴮ core.S'' u (Quotient.out ⟦y_q⟧) = ⊤
+        -- i.e., core.mk_aux u i =ᴮ y'' = ⊤, which is hiy''
+        show core.bv_eq_top (core.S'' u _) (core.S'' u _)
+        simp only [core.bv_eq_top, core.S'', core.mk_aux] at hiy'' ⊢
+        exact hiy''
+      have heq : ⟦(@Quotient.out _ (core.S''_setoid u) i)⟧ =
+                 ⟦(@Quotient.out _ (core.S''_setoid u) ⟦y_q⟧)⟧ :=
+        Quotient.sound hrel
+      rw [Quotient.out_eq, Quotient.out_eq] at heq
+      exact heq
+    -- Prove core.mk_aux u i =ᴮ y' = ⊤
+    apply top_unique
+    rw [show (⊤ : 𝔹) = core.mk_aux u i =ᴮ y ⊓ y =ᴮ y' by
+      rw [show core.mk_aux u i =ᴮ y = ⊤ by rw [bv_eq_symm]; exact H_y''', H₃]; simp]
+    exact bv_eq_trans
 
 -- src/bvm.lean:1376
 /-- Given a subset C of α, and an α-indexed core S, return the bSet whose underlying type is C -/
@@ -1924,7 +1999,28 @@ lemma empty_iff_forall_not_mem {u : bSet 𝔹} {Γ : 𝔹} :
 -- src/bvm.lean:1459
 lemma core_aux_lemma3 (u : bSet 𝔹) (h_nonempty : (u =ᴮ ∅)ᶜ = ⊤) {α : Type u} (S : α → bSet 𝔹)
     (h_core : core u S) : ∀ x, ∃ y ∈ S '' Set.univ, x =ᴮ y = x ∈ᴮ u := by
-  sorry -- TODO: port from src/bvm.lean:1459-1468 (complex core reasoning)
+  intro x
+  -- Apply core_aux_lemma with ϕ = (· ∈ u)
+  have h_congr : ∀ a b : bSet 𝔹, a =ᴮ b ⊓ a ∈ᴮ u ≤ b ∈ᴮ u :=
+    fun a b => subst_congr_mem_left
+  have h_definite : (⨆ (w : bSet 𝔹), w ∈ᴮ u) = ⊤ :=
+    top_unique (le_trans (h_nonempty ▸ le_rfl) (exists_mem_of_nonempty u le_rfl))
+  obtain ⟨y, h₁, h₂⟩ := core_aux_lemma (fun z => z ∈ᴮ u) h_congr h_definite x
+  -- y ∈ u = ⊤, x ∈ u = y =ᴮ x
+  -- Use h_core to find y' : α with y =ᴮ S y' = ⊤
+  obtain ⟨y', H_y'_eq, -⟩ := h_core.2 y h₁
+  -- Return S y'
+  refine ⟨S y', Set.mem_image_of_mem _ (Set.mem_univ _), ?_⟩
+  -- Show x =ᴮ S y' = x ∈ u
+  -- From h₂: x ∈ u = y =ᴮ x
+  -- From H_y'_eq: y =ᴮ S y' = ⊤, so bv_rw gives x =ᴮ S y' = x =ᴮ y
+  -- And bv_eq_symm gives x =ᴮ y = y =ᴮ x
+  -- So x =ᴮ S y' = y =ᴮ x = x ∈ u
+  have h_rw : x =ᴮ S y' = x =ᴮ y := by
+    apply bv_rw H_y'_eq (fun z => x =ᴮ z)
+    intro a b
+    rw [inf_comm]; exact bv_eq_trans
+  rw [h_rw, bv_eq_symm, h₂]
 
 -- src/bvm.lean:1470
 lemma core_mem_of_mem_image {u y : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (h_core : core u S) :
