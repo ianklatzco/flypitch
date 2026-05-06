@@ -264,9 +264,79 @@ lemma boolean_realize_formula_subst_lift : ∀ {l} (v : ℕ → S) (x : S) (m : 
 lemma boolean_realize_formula_congr_gen : ∀ (v v' : ℕ → S) {l} (f : @preformula L l)
     (xs xs' : DVec S l),
     (⨅ k : ℕ, S.eq (v k) (v' k)) ⊓ (DVec.map2 S.eq xs xs').fInf ⊓
-    boolean_realize_formula v f xs ≤ boolean_realize_formula v' f xs' := by
-  -- TODO: port from src/bfol.lean:193-235 (boolean_realize_formula_congr_gen)
-  sorry
+    boolean_realize_formula v f xs ≤ boolean_realize_formula v' f xs'
+  | v, v', _, preformula.falsum, _, _ => inf_le_right
+  | v, v', _, preformula.equal t₁ t₂, DVec.nil, DVec.nil => by
+      simp only [boolean_realize_formula, DVec.map2, DVec.fInf_nil, inf_top_eq]
+      -- Goal: I ⊓ S.eq(brt v t₁)(brt v t₂) ≤ S.eq(brt v' t₁)(brt v' t₂)
+      refine le_trans ?_ (S.eq_trans (boolean_realize_term v t₂ DVec.nil))
+      apply le_inf
+      · -- Need: I ⊓ S.eq(brt v t₁)(brt v t₂) ≤ S.eq(brt v' t₁)(brt v t₂)
+        refine le_trans ?_ (S.eq_trans (boolean_realize_term v t₁ DVec.nil))
+        apply le_inf
+        · -- Need: I ⊓ ... ≤ S.eq(brt v' t₁)(brt v t₁)
+          -- = S.eq(brt v t₁)(brt v' t₁) by symm, and I ≤ that by congr_iInf
+          rw [S.eq_symm (boolean_realize_term v' t₁ DVec.nil) (boolean_realize_term v t₁ DVec.nil)]
+          exact le_trans inf_le_left (boolean_realize_term_congr_iInf v v' t₁ DVec.nil)
+        · exact inf_le_right  -- I ⊓ S.eq... ≤ S.eq(brt v t₁)(brt v t₂)
+      · -- Need: I ⊓ S.eq(brt v t₁)(brt v t₂) ≤ S.eq(brt v t₂)(brt v' t₂)
+        exact le_trans inf_le_left (boolean_realize_term_congr_iInf v v' t₂ DVec.nil)
+  | v, v', _, preformula.rel R, xs, xs' => by
+      simp only [boolean_realize_formula]
+      exact le_trans (inf_le_inf inf_le_right le_rfl) (S.rel_congr R xs xs')
+  | v, v', _, preformula.apprel f t, xs, xs' => by
+      simp only [boolean_realize_formula]
+      refine le_trans ?_ (boolean_realize_formula_congr_gen v v' f
+        (DVec.cons (boolean_realize_term v t DVec.nil) xs)
+        (DVec.cons (boolean_realize_term v' t DVec.nil) xs'))
+      simp only [DVec.map2, DVec.fInf_cons]
+      -- Need: I ⊓ xs_eq ⊓ brf v f (brt v t :: xs) ≤
+      --         I ⊓ (S.eq(brt v t)(brt v' t) ⊓ xs_eq) ⊓ brf v f (brt v t :: xs)
+      -- brf does not change; so need to weaken I ⊓ xs_eq to I ⊓ (S.eq ⊓ xs_eq)
+      apply le_inf
+      · -- I ⊓ xs_eq ⊓ brf ≤ I ⊓ (S.eq ⊓ xs_eq)
+        apply le_inf
+        · exact le_trans inf_le_left inf_le_left  -- ≤ I
+        · apply le_inf
+          · -- ≤ S.eq(brt v t)(brt v' t)
+            exact le_trans (le_trans inf_le_left inf_le_left)
+              (boolean_realize_term_congr_iInf v v' t DVec.nil)
+          · exact le_trans inf_le_left inf_le_right  -- ≤ xs_eq
+      · exact inf_le_right  -- ≤ brf v f (brt v t :: xs)
+  | v, v', _, preformula.imp f₁ f₂, xs, xs' => by
+      simp only [boolean_realize_formula, imp, inf_sup_left]
+      apply sup_le_sup
+      · -- Need: I ⊓ xs_eq ⊓ b_f₁ᶜ ≤ b_f₁'ᶜ
+        apply le_neg_of_inf_eq_bot
+        -- From IH with v↔v', xs↔xs': I' ⊓ xs_eq' ⊓ b_f₁' ≤ b_f₁
+        -- I' = (⨅ k, S.eq (v' k) (v k)) = I  (by eq_symm)
+        -- xs_eq' = (xs'.map2 S.eq xs).fInf = xs_eq  (by eq_dsymm)
+        have key := boolean_realize_formula_congr_gen v' v f₁ xs' xs
+        rw [show (⨅ k : ℕ, S.eq (v' k) (v k)) = (⨅ k : ℕ, S.eq (v k) (v' k)) from
+              iInf_congr fun k => S.eq_symm _ _,
+            ← eq_dsymm xs xs'] at key
+        have bot := sub_eq_bot_of_le key
+        -- bot: b_f₁ᶜ ⊓ (I ⊓ xs_eq ⊓ b_f₁') = ⊥
+        -- Need: b_f₁' ⊓ (I ⊓ xs_eq ⊓ b_f₁ᶜ) = ⊥
+        -- These are equal by commutativity and associativity of ⊓
+        have : boolean_realize_formula v' f₁ xs' ⊓
+               ((⨅ k, S.eq (v k) (v' k)) ⊓ (DVec.map2 S.eq xs xs').fInf ⊓
+               (boolean_realize_formula v f₁ xs)ᶜ) =
+               (boolean_realize_formula v f₁ xs)ᶜ ⊓
+               ((⨅ k, S.eq (v k) (v' k)) ⊓ (DVec.map2 S.eq xs xs').fInf ⊓
+               boolean_realize_formula v' f₁ xs') := by ac_rfl
+        rw [this]; exact bot
+      · exact boolean_realize_formula_congr_gen v v' f₂ xs xs'
+  | v, v', _, preformula.all f, DVec.nil, DVec.nil => by
+      simp only [boolean_realize_formula, DVec.map2, DVec.fInf_nil, inf_top_eq]
+      rw [le_iInf_iff]
+      intro x
+      refine le_trans ?_ (boolean_realize_formula_congr_gen (subst_realize v x 0)
+        (subst_realize v' x 0) f DVec.nil DVec.nil)
+      simp only [DVec.map2, DVec.fInf_nil, inf_top_eq]
+      apply le_inf
+      · exact le_trans inf_le_left (subst_realize_congr1 v v' x 0)
+      · exact le_trans inf_le_right (iInf_le _ x)
 
 lemma boolean_realize_formula_congr (v v' : ℕ → S) {l} (f : @preformula L l) (xs : DVec S l) :
     (⨅ k : ℕ, S.eq (v k) (v' k)) ⊓ boolean_realize_formula v f xs ≤
@@ -282,16 +352,24 @@ lemma boolean_realize_formula_subst_congr (v : ℕ → S) (s s' : term L) :
          (boolean_realize_term v (lift_term s' m) DVec.nil) ⊓
     boolean_realize_formula v (subst_formula f s m) xs ≤
     boolean_realize_formula v (subst_formula f s' m) xs := by
-  -- TODO: port from src/bfol.lean:245-256 (boolean_realize_formula_subst_congr)
-  sorry
+  intro m l f xs
+  rw [← boolean_realize_formula_subst v m f s xs,
+      ← boolean_realize_formula_subst v m f s' xs]
+  refine le_trans ?_
+    (boolean_realize_formula_congr
+      (subst_realize v (boolean_realize_term v (lift_term s m) DVec.nil) m)
+      (subst_realize v (boolean_realize_term v (lift_term s' m) DVec.nil) m) f xs)
+  apply inf_le_inf_right
+  exact subst_realize_congr2 v _ _ m
 
 lemma boolean_realize_formula_subst_congr0 (v : ℕ → S) (s s' : term L) {l} (f : @preformula L l)
     (xs : DVec S l) :
     S.eq (boolean_realize_term v s DVec.nil) (boolean_realize_term v s' DVec.nil) ⊓
     boolean_realize_formula v (subst_formula f s 0) xs ≤
     boolean_realize_formula v (subst_formula f s' 0) xs := by
-  -- TODO: port from src/bfol.lean:258-264 (boolean_realize_formula_subst_congr0)
-  sorry
+  have h := boolean_realize_formula_subst_congr v s s' (m := 0) f xs
+  simp only [lift_term_zero] at h
+  exact h
 
 @[simp] lemma boolean_realize_formula_not (v : ℕ → S) (f : formula L) :
     boolean_realize_formula v (not' f) DVec.nil = (boolean_realize_formula v f DVec.nil)ᶜ := by
