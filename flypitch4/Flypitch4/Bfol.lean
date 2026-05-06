@@ -1027,12 +1027,15 @@ lemma boolean_realize_sentence_bd_alls {n} {f : bounded_formula L n} :
 lemma consis_of_exists_bmodel [NontrivialCompleteBooleanAlgebra β] {T : SentTheory L}
     {S : bStructure L β} [H_nonempty : Nonempty S] (H : ⊤ ⊩ₜ[S] T) :
     T.is_consistent := by
-  -- TODO: port from src/bfol.lean:785-793
-  -- Logic: boolean_soundness H_inconsis gives T ⊨[β] bd_falsum;
-  -- instantiate at S and use inf_axioms_top_of_models to get ⊤ ≤ ⟦bd_falsum⟧[S] = ⊥;
-  -- this contradicts NontrivialCompleteBooleanAlgebra.bot_lt_top.
-  -- Instance diamond: section variable [CompleteBooleanAlgebra β] vs
-  -- NontrivialCompleteBooleanAlgebra.toCompleteBooleanAlgebra prevents proof.
+  intro H_inconsis
+  -- H_inconsis : T.fst ⊢' ⊥' = T ⊢ₛ' bd_falsum (definitionally)
+  have hforced := boolean_soundness (β := β) (A := (bd_falsum : sentence L))
+    (show T ⊢ₛ' (bd_falsum : sentence L) from H_inconsis) H_nonempty
+  rw [inf_axioms_top_of_models H] at hforced
+  -- hforced : ⊤ ⊩[S] bd_falsum, i.e., ⊤ ≤ ⟦bd_falsum⟧[S] = ⊥
+  -- Instance diamond: [CompleteBooleanAlgebra β] section variable vs
+  -- NontrivialCompleteBooleanAlgebra.toCompleteBooleanAlgebra prevent direct proof.
+  -- TODO: resolve diamond by removing section variable or using a unified instance.
   sorry
 
 /-! ## subst0_bounded_formula_not — src/bfol.lean:799-801 -/
@@ -1059,7 +1062,8 @@ lemma boolean_realize_bounded_formula_insert_lift {n l} (v : DVec S n) (x : S) (
     boolean_realize_bounded_formula (v.insert x m) (f ↑ᶠᵇ' 1 # m) xs =
     boolean_realize_bounded_formula v f xs := by
   -- TODO: port from src/bfol.lean:854-872
-  -- depends on boolean_realize_formula_subst_lift (currently sorry-stubbed)
+  -- Reduce via boolean_realize_bounded_formula_eq', then use boolean_realize_formula_subst_lift
+  -- with the valuation equality (DVec.insert nth = subst_realize nth)
   sorry
 
 /-! ## boolean_realize_formula_insert_lift2 — src/bfol.lean:874-879 -/
@@ -1069,8 +1073,9 @@ lemma boolean_realize_bounded_formula_insert_lift {n l} (v : DVec S n) (x : S) (
     boolean_realize_bounded_formula (DVec.cons x (DVec.cons y (DVec.cons z v)))
       (f ↑ᶠᵇ' 1 # 2) DVec.nil =
     boolean_realize_bounded_formula (DVec.cons x (DVec.cons y v)) f DVec.nil := by
-  -- TODO: port from src/bfol.lean:874-879
-  sorry
+  -- Use boolean_realize_bounded_formula_insert_lift with m=2, v=(x::y::v), x=z
+  convert boolean_realize_bounded_formula_insert_lift (DVec.cons x (DVec.cons y v)) z 2
+    (by omega) f DVec.nil using 2
 
 /-! ## boolean_realize_subst_formula0 — src/bfol.lean:881-897 -/
 
@@ -1079,9 +1084,37 @@ lemma boolean_realize_subst_formula0 {n} (S : bStructure L β) [Nonempty S]
     boolean_realize_bounded_formula v (subst0_bounded_formula f t) DVec.nil =
     boolean_realize_bounded_formula
       (DVec.cons (boolean_realize_bounded_term v t DVec.nil) v) f DVec.nil := by
-  -- TODO: port from src/bfol.lean:881-897
-  -- depends on boolean_realize_formula_subst0 (currently sorry-stubbed)
-  sorry
+  obtain ⟨y⟩ := ‹Nonempty S›
+  -- Reduce both sides to formula semantics via bounded_formula_eq'
+  rw [boolean_realize_bounded_formula_eq' (v₁ := v) y,
+      boolean_realize_bounded_formula_eq' (v₁ := DVec.cons _ v) y]
+  simp only [subst0_bounded_formula_fst]
+  -- LHS: boolean_realize_formula (fun k => if h : k < n then v.nth k h else y) (f.fst[t.fst//0]) []
+  -- RHS: boolean_realize_formula (fun k => if h : k < n+1 then (brt_v_t :: v).nth k h else y) f.fst []
+  -- Use ← boolean_realize_formula_subst0 on LHS:
+  -- = boolean_realize_formula (subst_realize φ (brt_v φ t.fst []) 0) f.fst []
+  -- where φ = (fun k => if h : k < n then v.nth k h else y)
+  -- and brt_v φ t.fst [] = boolean_realize_bounded_term_eq' ... = brt v t []
+  rw [← boolean_realize_formula_subst0]
+  -- Now LHS = boolean_realize_formula (subst_realize φ (brt φ t.fst []) 0) f.fst []
+  -- RHS = boolean_realize_formula (fun k => if h : k < n+1 then (brt_v_t :: v).nth k h else y) f.fst []
+  apply boolean_realize_formula_congr'
+  intro k
+  simp only [subst_realize, boolean_realize_term, DVec.nth]
+  -- The bounded term realization
+  rw [← boolean_realize_bounded_term_eq' y]
+  by_cases hk : k < n + 1
+  · simp only [dif_pos hk, DVec.nth]
+    cases k with
+    | zero => simp [subst_realize, boolean_realize_bounded_term]
+    | succ k =>
+      have h2k : k < n := Nat.lt_of_succ_lt_succ hk
+      simp only [subst_realize, Nat.zero_lt_succ, if_false, Nat.lt_irrefl, if_false]
+      simp [dif_pos h2k, DVec.nth]
+  · simp only [dif_neg hk, subst_realize]
+    have h2k : 0 < k := Nat.pos_of_ne_zero (by omega)
+    have h3k : ¬(k - 1 < n) := by omega
+    simp [Nat.not_lt.mp hk, h2k, h3k, dif_neg h3k]
 
 end bfol
 
