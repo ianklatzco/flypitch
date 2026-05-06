@@ -2575,8 +2575,28 @@ lemma zero_eq_empty {Γ : 𝔹} : Γ ≤ (0 : bSet 𝔹) =ᴮ ∅ := by
   rw [← check_empty_eq_empty]
   exact check_bv_eq (by rfl)
 
+-- Helper: PSet-level membership gives check-level membership
+private lemma of_nat_mem_of_nat_succ (n : ℕ) : (of_nat n : bSet 𝔹) ∈ᴮ of_nat (n + 1) = ⊤ := by
+  show check (PSet.ofNat n) ∈ᴮ check (PSet.ofNat (n + 1)) = (⊤ : 𝔹)
+  have hmem := @PSet.ofNat_mem_of_lt n (n + 1) (Nat.lt_succ_self n)
+  rcases hmem with ⟨i, hi⟩
+  apply top_unique
+  have h_eq : check (PSet.ofNat n) =ᴮ check ((PSet.ofNat (n + 1)).Func i) = (⊤ : 𝔹) :=
+    check_bv_eq_top_of_equiv hi
+  have h_mem : (⊤ : 𝔹) ≤ check ((PSet.ofNat (n + 1)).Func i) ∈ᴮ check (PSet.ofNat (n + 1)) :=
+    @mem_check_of_mem 𝔹 _ (PSet.ofNat (n + 1)) i (Γ := ⊤)
+  calc ⊤
+      = check (PSet.ofNat n) =ᴮ check ((PSet.ofNat (n + 1)).Func i) ⊓
+          check ((PSet.ofNat (n + 1)).Func i) ∈ᴮ check (PSet.ofNat (n + 1)) := by
+            rw [h_eq, top_inf_eq, top_le_iff.mp h_mem]
+    _ ≤ check (PSet.ofNat n) ∈ᴮ check (PSet.ofNat (n + 1)) := by
+          rw [show check (PSet.ofNat n) =ᴮ check ((PSet.ofNat (n + 1)).Func i) =
+              check ((PSet.ofNat (n + 1)).Func i) =ᴮ check (PSet.ofNat n) from bv_eq_symm]
+          exact subst_congr_mem_left
+
 @[simp] lemma zero_mem_one {Γ : 𝔹} : Γ ≤ (0 : bSet 𝔹) ∈ᴮ (1 : bSet 𝔹) := by
-  sorry -- TODO: port from src/bvm.lean:2267-2268
+  apply le_trans le_top; rw [top_le_iff]
+  exact of_nat_mem_of_nat_succ 0
 
 -- src/bvm.lean:2270 (one_eq_singleton_zero) -- TODO: singleton notation for bSet
 -- lemma one_eq_singleton_zero : Γ ≤ (1 : bSet 𝔹) =ᴮ {(0 : bSet 𝔹)} := by sorry
@@ -2591,7 +2611,31 @@ lemma forall_empty {Γ : 𝔹} {ϕ : bSet 𝔹 → 𝔹} : Γ ≤ ⨅ x, x ∈�
 -- src/bvm.lean:2291
 theorem bSet_axiom_of_infinity' :
     (⊤ : 𝔹) ≤ (∅ ∈ᴮ omega) ⊓ (⨅ x, x ∈ᴮ omega ⟹ ⨆ y, y ∈ᴮ omega ⊓ x ∈ᴮ y) := by
-  sorry -- TODO: port from src/bvm.lean:2291-2303
+  apply le_inf
+  · exact contains_empty_check_omega
+  · -- ⊤ ≤ ⨅ x, x ∈ᴮ omega ⟹ ⨆ y, y ∈ᴮ omega ⊓ x ∈ᴮ y
+    -- For each x ∈ᴮ omega, show ⊤ ≤ ⨆ y, y ∈ᴮ omega ⊓ x ∈ᴮ y
+    -- omega = check ω' = mk (ULift ℕ) (fun k => of_nat k.down) (fun _ => ⊤)
+    -- x ∈ᴮ omega = ⨆ k, ⊤ ⊓ of_nat k.down =ᴮ x = ⨆ k, of_nat k.down =ᴮ x
+    apply le_iInf; intro x
+    rw [← deduction, top_inf_eq]
+    -- x ∈ᴮ omega ≤ ⨆ y, y ∈ᴮ omega ⊓ x ∈ᴮ y
+    -- Manually unfold just the LHS x ∈ᴮ omega
+    rw [mem_unfold]; simp only [omega_bval, omega_func, top_inf_eq]
+    apply iSup_le; intro ⟨k⟩
+    -- of_nat k =ᴮ x ≤ ⨆ y, y ∈ᴮ omega ⊓ x ∈ᴮ y
+    apply le_iSup_of_le (of_nat (k + 1))
+    apply le_inf
+    · -- of_nat k =ᴮ x ≤ of_nat (k+1) ∈ᴮ omega
+      exact le_trans le_top omega_definite
+    · -- x =ᴮ of_nat k ≤ x ∈ᴮ of_nat (k+1)
+      -- via subst_congr_mem_left: of_nat k =ᴮ x ⊓ of_nat k ∈ᴮ of_nat(k+1) ≤ x ∈ᴮ of_nat(k+1)
+      have h_kmem : (of_nat k : bSet 𝔹) ∈ᴮ of_nat (k + 1) = ⊤ := of_nat_mem_of_nat_succ k
+      calc x =ᴮ of_nat k
+          = of_nat k =ᴮ x := bv_eq_symm
+        _ ≤ of_nat k =ᴮ x ⊓ (of_nat k : bSet 𝔹) ∈ᴮ of_nat (k + 1) :=
+            le_inf le_rfl (h_kmem ▸ le_top)
+        _ ≤ x ∈ᴮ of_nat (k + 1) := subst_congr_mem_left
 
 -- example {w : bSet 𝔹} : let ϕ := fun x => ⨅ z, z ∈ᴮ w ⊓ z ⊆ᴮ x ⊓ x ⊆ᴮ z; B_ext ϕ := by simp
 
@@ -2600,12 +2644,56 @@ end infinity
 -- src/bvm.lean:2310
 theorem bSet_epsilon_induction (ϕ : bSet 𝔹 → 𝔹) (h_congr : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y) :
     (⨅ (x : bSet 𝔹), (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ⟹ (⨅ (z : bSet 𝔹), ϕ z) = ⊤ := by
-  sorry -- TODO: port from src/bvm.lean:2310-2325 (structural induction on bSet)
+  apply top_unique; rw [← deduction, top_inf_eq]
+  -- b := ⨅ x, (⨅ y, y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x
+  apply le_iInf; intro z
+  -- Show b ≤ ϕ z by induction on z
+  induction z with
+  | mk α A B ih =>
+  -- IH: ∀ i : α, b ≤ ϕ (A i) (since A i is a sub-element)
+  -- Step 1: b ≤ ⨅ (y : bSet), y ∈ᴮ mk α A B ⟹ ϕ y
+  -- Use bounded_forall to reduce to ⨅ i : α, B i ⟹ ϕ (A i)
+  have h_bdd : (⨅ (y : bSet 𝔹), y ∈ᴮ mk α A B ⟹ ϕ y) =
+               ⨅ (i : α), (B i ⟹ ϕ (A i)) := by
+    rw [← bounded_forall (h_congr := h_congr)]
+    simp [func, bval]
+  -- Show b ≤ ⨅ i, B i ⟹ ϕ (A i) using IH
+  have h_inner : (⨅ (x : bSet 𝔹), (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ≤
+                 ⨅ (i : α), (B i ⟹ ϕ (A i)) := by
+    apply le_iInf; intro i
+    -- ih i : b ≤ ϕ (A i), need b ≤ B i ⟹ ϕ (A i) ↔ b ⊓ B i ≤ ϕ (A i)
+    rw [← deduction]
+    exact inf_le_left.trans (ih i)
+  -- Apply bv_have to combine: b ≤ ⨅ y, y ∈ mk ⟹ ϕ y (via h_bdd)
+  apply bv_have (h_bdd.symm ▸ h_inner)
+  -- b ⊓ (⨅ y, y ∈ᴮ x ⟹ ϕ y) ≤ ϕ x
+  -- Use b ≤ (⨅ y, y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x (from b = iInf of IH)
+  calc (⨅ (x : bSet 𝔹), (⨅ y, y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ⊓
+       (⨅ (y : bSet 𝔹), y ∈ᴮ mk α A B ⟹ ϕ y)
+      ≤ ((⨅ y, y ∈ᴮ mk α A B ⟹ ϕ y) ⟹ ϕ (mk α A B)) ⊓
+        (⨅ y, y ∈ᴮ mk α A B ⟹ ϕ y) := by
+          apply inf_le_inf_right
+          apply iInf_le_of_le (mk α A B); rfl
+    _ ≤ ϕ (mk α A B) := bv_imp_elim
 
 lemma epsilon_induction {Γ : 𝔹} (ϕ : bSet 𝔹 → 𝔹) (h_congr : B_ext ϕ)
     (H_ih : ∀ x, Γ ≤ (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) :
     ∀ z, Γ ≤ ϕ z := by
-  sorry -- TODO: depends on bSet_epsilon_induction
+  -- h_eps : (⨅ x, (⨅ y, y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ⟹ (⨅ z, ϕ z) = ⊤
+  have h_eps := bSet_epsilon_induction ϕ h_congr
+  -- Extract A ≤ B from A ⟹ B = ⊤ (i.e., A ≤ B via deduction)
+  have h_le : (⨅ (x : bSet 𝔹), (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ≤
+              (⨅ (z : bSet 𝔹), ϕ z) := by
+    -- h_eps : A ⟹ B = ⊤ where A = ⨅ x, ..., B = ⨅ z, ϕ z
+    -- So ⊤ ≤ A ⟹ B, and deduction.mpr gives ⊤ ⊓ A ≤ B, then top_inf_eq gives A ≤ B
+    have hle : (⊤ : 𝔹) ≤ (⨅ (x : bSet 𝔹), (⨅ y, y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x) ⟹ ⨅ z, ϕ z :=
+      h_eps ▸ le_refl _
+    have := deduction.mpr hle
+    rwa [top_inf_eq] at this
+  intro z
+  have H_a : Γ ≤ ⨅ (x : bSet 𝔹), (⨅ (y : bSet 𝔹), y ∈ᴮ x ⟹ ϕ y) ⟹ ϕ x :=
+    le_iInf (fun x => H_ih x)
+  exact le_trans H_a (le_trans h_le (iInf_le _ z))
 
 @[elab_as_elim] protected noncomputable def rec_on' {C : bSet 𝔹 → Sort*} (y : bSet 𝔹)
     (IH : ∀ (x : bSet 𝔹), (∀ (a : x.type), C (x.func a)) → C x) : C y := by
