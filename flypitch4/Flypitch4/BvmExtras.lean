@@ -864,6 +864,396 @@ lemma bot_lt_of_true {b : 𝔹} (H : ∀ {Γ}, Γ ≤ b) : ⊥ < b := by
   rw [top_le_iff] at this
   simp [this]
 
+-- ============================================================
+-- src/bvm_extras.lean lines 1300-1900
+-- ============================================================
+
+-- src/bvm_extras.lean:1301
+-- Given a surjection f : x ↠ z and an injection g : y ↪ z, lift f along g to a surjection f' : x ↠ y.
+def lift_surj_inj {x z f g : bSet 𝔹} (y : bSet 𝔹) {Γ : 𝔹}
+    (_H_surj : Γ ≤ is_surj x z f) (_H_inj : Γ ≤ is_inj g) : bSet 𝔹 :=
+  @subset.mk _ _ (prod x y)
+    (fun p => ⨆ w, w ∈ᴮ z ⊓ (pair (x.func p.1) w) ∈ᴮ f ⊓
+                           (pair (y.func p.2) w ∈ᴮ g))
+
+-- src/bvm_extras.lean:1306
+lemma ex_witness_of_mem_lift_surj_inj {x y z f g : bSet 𝔹} {Γ : 𝔹} {w₁ w₂ : bSet 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    (_H_is_func'_f : Γ ≤ is_func' x z f)
+    (H : Γ ≤ pair w₁ w₂ ∈ᴮ (lift_surj_inj y H_surj H_inj)) :
+    Γ ≤ ⨆ w, (w ∈ᴮ z ⊓ (pair w₁ w ∈ᴮ f) ⊓ (pair w₂ w ∈ᴮ g)) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1306
+
+-- src/bvm_extras.lean:1318
+lemma mem_lift_surj_inj_iff {x y z f g : bSet 𝔹} {Γ : 𝔹} {w₁ w₂ : bSet 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    (H_is_func'_f : Γ ≤ is_func' x z f) {H_mem₁ : Γ ≤ w₁ ∈ᴮ x} {H_mem₂ : Γ ≤ w₂ ∈ᴮ y} :
+    Γ ≤ pair w₁ w₂ ∈ᴮ (lift_surj_inj y H_surj H_inj) ↔
+      Γ ≤ ⨆ w, (w ∈ᴮ z ⊓ (pair w₁ w ∈ᴮ f) ⊓ (pair w₂ w ∈ᴮ g)) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1318
+
+-- src/bvm_extras.lean:1346
+lemma lift_surj_inj_is_func {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    (H_is_func_f : Γ ≤ is_func' x z f) :
+    Γ ≤ is_func (lift_surj_inj y H_surj H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1346
+
+-- src/bvm_extras.lean:1362
+lemma lift_surj_inj_is_total {y z f g S : bSet 𝔹} {Γ : 𝔹}
+    (H_surj : Γ ≤ is_surj S z f) (H_inj : Γ ≤ is_inj g) (H_is_func_f : Γ ≤ is_func' S z f) :
+    Γ ≤ is_total (subset.mk (fun i : S.type =>
+      ⨆ b, b ∈ᴮ y ⊓ ⨆ c, c ∈ᴮ z ⊓ pair (S.func i) c ∈ᴮ f ⊓ pair b c ∈ᴮ g)) y
+      (lift_surj_inj y H_surj H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1362
+
+-- src/bvm_extras.lean:1375
+lemma lift_surj_inj_is_surj {y z f g S : bSet 𝔹} {Γ : 𝔹}
+    (H_surj : Γ ≤ is_surj S z f) (H_inj : Γ ≤ is_inj g)
+    (H_is_func_f : Γ ≤ is_func' S z f) (H_is_func_g : Γ ≤ is_func' y z g) :
+    Γ ≤ is_surj (subset.mk (fun i : S.type =>
+      ⨆ b, b ∈ᴮ y ⊓ ⨆ c, c ∈ᴮ z ⊓ pair (S.func i) c ∈ᴮ f ⊓ pair b c ∈ᴮ g)) y
+      (lift_surj_inj y H_surj H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1375
+
+-- src/bvm_extras.lean:1404
+def extend_surj_inj {x z f g : bSet 𝔹} (y : bSet 𝔹) {Γ : 𝔹}
+    (_H_surj : Γ ≤ is_surj x z f) (_H_inj : Γ ≤ is_inj g) : bSet 𝔹 :=
+  @subset.mk _ _ (prod y z)
+    (fun p => ⨆ w, w ∈ᴮ x ⊓ (pair w (z.func p.2)) ∈ᴮ f ⊓
+                           (pair w (y.func p.1) ∈ᴮ g))
+
+-- src/bvm_extras.lean:1410
+lemma ex_witness_of_mem_extend_surj_inj {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    {w₁ w₂ : bSet 𝔹}
+    (H_is_func'_f : Γ ≤ is_func' x z f)
+    (H : Γ ≤ pair w₁ w₂ ∈ᴮ extend_surj_inj y H_surj H_inj) :
+    Γ ≤ ⨆ w, (w ∈ᴮ x ⊓ (pair w w₁ ∈ᴮ g) ⊓ (pair w w₂ ∈ᴮ f)) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1410
+
+-- src/bvm_extras.lean:1422
+lemma mem_extend_surj_inj_iff {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    {w₁ w₂ : bSet 𝔹}
+    {H_mem₁ : Γ ≤ w₁ ∈ᴮ y} {H_mem₂ : Γ ≤ w₂ ∈ᴮ z}
+    (H_is_func'_f : Γ ≤ is_func' x z f) :
+    Γ ≤ pair w₁ w₂ ∈ᴮ extend_surj_inj y H_surj H_inj ↔
+      Γ ≤ ⨆ w, (w ∈ᴮ x ⊓ (pair w w₁ ∈ᴮ g) ⊓ (pair w w₂ ∈ᴮ f)) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1422
+
+-- src/bvm_extras.lean:1445
+lemma extend_surj_inj_is_func {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    (H_f_is_func' : Γ ≤ is_func' x z f) (H_g_is_func' : Γ ≤ is_func' x y g) :
+    Γ ≤ is_func (extend_surj_inj y H_surj H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1445
+
+-- src/bvm_extras.lean:1457
+lemma extend_surj_inj_is_total {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    (H_f_is_func' : Γ ≤ is_func' x z f) (H_g_is_func' : Γ ≤ is_func' x y g) :
+    Γ ≤ is_total (image x y g) z (extend_surj_inj y H_surj H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1457
+
+-- src/bvm_extras.lean:1472
+lemma extend_surj_inj_is_surj {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    {H_surj : Γ ≤ is_surj x z f} {H_inj : Γ ≤ is_inj g}
+    (H_f_is_func' : Γ ≤ is_func' x z f) (H_g_is_func' : Γ ≤ is_func' x y g) :
+    Γ ≤ is_surj (image x y g) z (extend_surj_inj y H_surj H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1472
+
+-- src/bvm_extras.lean:1486
+-- (locally: ≺ means (larger_than x y)ᶜ, ≼ means injects_into x y)
+lemma bSet_lt_of_lt_of_le {x y z : bSet 𝔹} {Γ : 𝔹}
+    (H₁ : Γ ≤ (larger_than x y)ᶜ) (H₂ : Γ ≤ injects_into y z) :
+    Γ ≤ (larger_than x z)ᶜ := by
+  sorry -- TODO: port from src/bvm_extras.lean:1486
+
+-- src/bvm_extras.lean:1500
+lemma bSet_lt_of_le_of_lt {x y z : bSet 𝔹} {Γ : 𝔹}
+    (H₁ : Γ ≤ injects_into x y) (H₂ : Γ ≤ (larger_than y z)ᶜ) :
+    Γ ≤ (larger_than x z)ᶜ := by
+  sorry -- TODO: port from src/bvm_extras.lean:1500
+
+-- ============================================================
+-- src/bvm_extras.lean:1513-1604: is_func'_comp section
+-- ============================================================
+
+-- src/bvm_extras.lean:1518
+def is_func'_comp {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (_Hf_func : Γ ≤ is_func' x y f) (_Hg_func : Γ ≤ is_func' y z g) : bSet 𝔹 :=
+  subset.mk (fun pr : (prod x z).type =>
+    ⨆ b, b ∈ᴮ y ⊓ pair (x.func pr.1) b ∈ᴮ f ⊓ pair b (z.func pr.2) ∈ᴮ g)
+
+-- src/bvm_extras.lean:1521
+lemma mem_is_func'_comp_iff {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) {Γ' : 𝔹} {a c : bSet 𝔹} :
+    Γ' ≤ pair a c ∈ᴮ is_func'_comp Hf_func Hg_func ↔
+      Γ' ≤ a ∈ᴮ x ∧ Γ' ≤ c ∈ᴮ z ∧ Γ' ≤ ⨆ b, b ∈ᴮ y ⊓ (pair a b ∈ᴮ f ⊓ pair b c ∈ᴮ g) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1521
+
+-- src/bvm_extras.lean:1554
+lemma is_func'_comp_is_func {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) :
+    Γ ≤ is_func (is_func'_comp Hf_func Hg_func) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1554
+
+-- src/bvm_extras.lean:1565
+lemma is_func'_comp_is_total {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) :
+    Γ ≤ is_total x z (is_func'_comp Hf_func Hg_func) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1565
+
+-- src/bvm_extras.lean:1576
+lemma is_func'_comp_is_func' {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) :
+    Γ ≤ is_func' x z (is_func'_comp Hf_func Hg_func) :=
+  le_inf (is_func'_comp_is_func Hf_func Hg_func) (is_func'_comp_is_total Hf_func Hg_func)
+
+-- src/bvm_extras.lean:1583
+lemma is_func'_comp_inj {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g)
+    (Hf_inj : Γ ≤ is_inj f) (Hg_inj : Γ ≤ is_inj g) :
+    Γ ≤ is_inj (is_func'_comp Hf_func Hg_func) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1583
+
+-- src/bvm_extras.lean:1594
+lemma is_func'_comp_surj {x y z f g : bSet 𝔹} {Γ : 𝔹}
+    (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g)
+    (H₁ : Γ ≤ is_surj x y f) (H₂ : Γ ≤ is_surj y z g) :
+    Γ ≤ is_surj x z (is_func'_comp Hf_func Hg_func) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1594
+
+-- src/bvm_extras.lean:1606
+def function_comp {𝔹' : Type u} [NontrivialCompleteBooleanAlgebra 𝔹'] {Γ' : 𝔹'} {x y z f g : bSet 𝔹'}
+    (H₁ : Γ' ≤ is_function x y f) (H₂ : Γ' ≤ is_function y z g) : bSet 𝔹' :=
+  is_func'_comp (is_func'_of_is_function H₁) (is_func'_of_is_function H₂)
+
+-- src/bvm_extras.lean:1609
+lemma function_comp_is_function {𝔹' : Type u} [NontrivialCompleteBooleanAlgebra 𝔹'] {Γ' : 𝔹'} {x y z f g : bSet 𝔹'}
+    {H₁ : Γ' ≤ is_function x y f} {H₂ : Γ' ≤ is_function y z g} :
+    Γ' ≤ is_function x z (function_comp H₁ H₂) :=
+  le_inf (is_func'_comp_is_func' _ _) subset.mk_subset
+
+-- src/bvm_extras.lean:1616
+def injective_function_comp {𝔹' : Type u} [NontrivialCompleteBooleanAlgebra 𝔹'] {Γ' : 𝔹'} {x y z f g : bSet 𝔹'}
+    (H₁ : Γ' ≤ is_injective_function x y f) (H₂ : Γ' ≤ is_injective_function y z g) : bSet 𝔹' :=
+  is_func'_comp (is_func'_of_is_injective_function H₁) (is_func'_of_is_injective_function H₂)
+
+-- src/bvm_extras.lean:1619
+lemma injective_function_comp_is_injective_function {𝔹' : Type u} [NontrivialCompleteBooleanAlgebra 𝔹'] {Γ' : 𝔹'} {x y z f g : bSet 𝔹'}
+    {H₁ : Γ' ≤ is_injective_function x y f} {H₂ : Γ' ≤ is_injective_function y z g} :
+    Γ' ≤ is_injective_function x z (injective_function_comp H₁ H₂) :=
+  le_inf (function_comp_is_function (H₁ := H₁.trans inf_le_left) (H₂ := H₂.trans inf_le_left))
+         (is_func'_comp_inj _ _ (H₁.trans inf_le_right) (H₂.trans inf_le_right))
+
+-- src/bvm_extras.lean:1625
+lemma injective_function_comp_is_function {𝔹' : Type u} [NontrivialCompleteBooleanAlgebra 𝔹'] {Γ' : 𝔹'} {x y z f g : bSet 𝔹'}
+    {H₁ : Γ' ≤ is_injective_function x y f} {H₂ : Γ' ≤ is_injective_function y z g} :
+    Γ' ≤ is_function x z (injective_function_comp H₁ H₂) :=
+  injective_function_comp_is_injective_function.trans inf_le_left
+
+-- src/bvm_extras.lean:1628
+lemma injects_into_trans {x y z : bSet 𝔹} {Γ : 𝔹}
+    (H₁ : Γ ≤ injects_into x y) (H₂ : Γ ≤ injects_into y z) :
+    Γ ≤ injects_into x z := by
+  sorry -- TODO: port from src/bvm_extras.lean:1628 (needs iSup witness extraction)
+
+-- src/bvm_extras.lean:1636
+lemma injection_into_trans {x y z : bSet 𝔹} {Γ : 𝔹}
+    (H₁ : Γ ≤ injection_into x y) (H₂ : Γ ≤ injection_into y z) :
+    Γ ≤ injection_into x z := by
+  rw [← injects_into_iff_injection_into] at H₁ H₂ ⊢
+  exact injects_into_trans H₁ H₂
+
+-- src/bvm_extras.lean:1639
+lemma AE_of_check_func_check₀ (x y : PSet.{u}) {f : bSet 𝔹} {Γ : 𝔹}
+    (H : Γ ≤ is_func' (check x) (check y) f) (H_nonzero : ⊥ < Γ) :
+    ∀ (i : x.Type), ∃ (j : y.Type),
+      ⊥ < (is_func' (check x) (check y) f) ⊓
+          (pair (check (x.Func i)) (check (y.Func j))) ∈ᴮ f := by
+  sorry -- TODO: port from src/bvm_extras.lean:1639
+
+-- src/bvm_extras.lean:1653
+lemma AE_of_check_func_check (x y : PSet.{u}) {f : bSet 𝔹} {Γ : 𝔹}
+    (H : Γ ≤ is_func' (check x) (check y) f) (H_nonzero : ⊥ < Γ) :
+    ∀ (i : x.Type), ∃ (j : y.Type) (Γ' : 𝔹) (_H_nonzero' : ⊥ < Γ') (_H_le : Γ' ≤ Γ),
+      Γ' ≤ (is_func' (check x) (check y) f) ∧
+      Γ' ≤ (pair (check (x.Func i)) (check (y.Func j))) ∈ᴮ f := by
+  sorry -- TODO: port from src/bvm_extras.lean:1653
+
+-- src/bvm_extras.lean:1692
+lemma exists_surjection_of_surjects_onto {x y : bSet 𝔹} {Γ : 𝔹}
+    (H_surj : Γ ≤ surjects_onto x y) :
+    Γ ≤ ⨆ f, is_function x y f ⊓ is_surj x y f := by
+  -- H_surj : Γ ≤ ⨆ f, is_func' x y f ⊓ is_surj x y f
+  -- Need to extract witness from iSup - requires sorry
+  sorry -- TODO: port from src/bvm_extras.lean:1692
+
+-- src/bvm_extras.lean:1700
+def functions (x y : bSet 𝔹) : bSet 𝔹 :=
+  set_of_indicator (fun s : (bv_powerset (prod x y) : bSet 𝔹).type =>
+    is_function x y ((bv_powerset (prod x y)).func s))
+
+-- src/bvm_extras.lean:1703
+@[simp] lemma functions_func {x y : bSet 𝔹} {i} :
+    (functions x y).func i = (bv_powerset (prod x y)).func i := rfl
+
+-- src/bvm_extras.lean:1705
+@[simp] lemma functions_bval {x y : bSet 𝔹} {i} :
+    (functions x y).bval i = is_function x y ((bv_powerset (prod x y)).func i) := rfl
+
+-- src/bvm_extras.lean:1707
+@[simp] lemma functions_type {x y : bSet 𝔹} :
+    (functions x y).type = (bv_powerset (prod x y)).type := rfl
+
+-- src/bvm_extras.lean:1709
+lemma mem_functions_iff {g x y : bSet 𝔹} {Γ : 𝔹} :
+    (Γ ≤ g ∈ᴮ functions x y) ↔ (Γ ≤ is_function x y g) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1709
+
+-- ============================================================
+-- src/bvm_extras.lean:1732-1798: function_mk' section
+-- ============================================================
+
+-- src/bvm_extras.lean:1740
+def functionMk' {x y : bSet 𝔹}
+    (F : x.type → y.type)
+    (χ : x.type → 𝔹)
+    (_H_ext : ∀ i j {Γ : 𝔹}, Γ ≤ x.func i =ᴮ x.func j → Γ ≤ y.func (F i) =ᴮ y.func (F j))
+    (_H_mem : ∀ i {Γ : 𝔹}, Γ ≤ x.bval i → Γ ≤ y.bval (F i) ∧ Γ ≤ χ i) : bSet 𝔹 :=
+  subset.mk (fun pr : (prod x y).type => χ pr.1 ⊓ y.func pr.2 =ᴮ y.func (F pr.1))
+
+-- src/bvm_extras.lean:1757
+lemma functionMk'_is_func {x y : bSet 𝔹} {Γ : 𝔹}
+    (F : x.type → y.type) (χ : x.type → 𝔹)
+    (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
+    (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
+    Γ ≤ is_func (functionMk' F χ H_ext H_mem) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1757
+
+-- src/bvm_extras.lean:1767
+lemma functionMk'_is_total {x y : bSet 𝔹} {Γ : 𝔹}
+    (F : x.type → y.type) (χ : x.type → 𝔹)
+    (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
+    (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
+    Γ ≤ is_total x y (functionMk' F χ H_ext H_mem) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1767
+
+-- src/bvm_extras.lean:1774
+lemma functionMk'_is_subset {x y : bSet 𝔹} {Γ : 𝔹}
+    (F : x.type → y.type) (χ : x.type → 𝔹)
+    (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
+    (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
+    Γ ≤ functionMk' F χ H_ext H_mem ⊆ᴮ prod x y :=
+  subset.mk_subset
+
+-- src/bvm_extras.lean:1780
+lemma functionMk'_is_function {x y : bSet 𝔹} {Γ : 𝔹}
+    (F : x.type → y.type) (χ : x.type → 𝔹)
+    (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
+    (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
+    Γ ≤ is_function x y (functionMk' F χ H_ext H_mem) :=
+  le_inf (le_inf (functionMk'_is_func F χ H_ext H_mem) (functionMk'_is_total F χ H_ext H_mem))
+         (functionMk'_is_subset F χ H_ext H_mem)
+
+-- src/bvm_extras.lean:1788
+lemma functionMk'_is_inj {x y : bSet 𝔹} {Γ : 𝔹}
+    (F : x.type → y.type) (χ : x.type → 𝔹)
+    (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
+    (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i)
+    (H_inj : ∀ i j {Γ'' : 𝔹}, Γ'' ≤ y.func (F i) =ᴮ y.func (F j) → Γ'' ≤ x.func i =ᴮ x.func j) :
+    Γ ≤ is_inj (functionMk' F χ H_ext H_mem) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1788
+
+-- ============================================================
+-- src/bvm_extras.lean:1800-1888: inj_inverse section
+-- ============================================================
+
+-- src/bvm_extras.lean:1806
+def inj_inverse {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) : bSet 𝔹 :=
+  subset.mk (fun pr : (prod (image x y f) x).type =>
+    pair (x.func pr.2) ((image x y f).func pr.1) ∈ᴮ f)
+
+-- src/bvm_extras.lean:1809
+lemma mem_inj_inverse_iff {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f)
+    {Γ' : 𝔹} {b a : bSet 𝔹} :
+    Γ' ≤ pair b a ∈ᴮ inj_inverse H_func H_inj ↔
+      Γ' ≤ a ∈ᴮ x ∧ Γ' ≤ b ∈ᴮ y ∧ Γ' ≤ pair a b ∈ᴮ f := by
+  sorry -- TODO: port from src/bvm_extras.lean:1809
+
+-- src/bvm_extras.lean:1841
+lemma inj_inverse_is_func {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ is_func (inj_inverse H_func H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1841
+
+-- src/bvm_extras.lean:1850
+lemma inj_inverse_is_total {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ is_total (image x y f) x (inj_inverse H_func H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1850
+
+-- src/bvm_extras.lean:1858
+lemma inj_inverse_is_func' {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ is_func' (image x y f) x (inj_inverse H_func H_inj) :=
+  le_inf (inj_inverse_is_func H_func H_inj) (inj_inverse_is_total H_func H_inj)
+
+-- src/bvm_extras.lean:1865
+lemma inj_inverse_is_surj {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ is_surj (image x y f) x (inj_inverse H_func H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1865
+
+-- src/bvm_extras.lean:1875
+lemma inj_inverse_subset_prod {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ inj_inverse H_func H_inj ⊆ᴮ prod (image x y f) x :=
+  subset.mk_subset
+
+-- src/bvm_extras.lean:1877
+lemma inj_inverse_is_function {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ is_function (image x y f) x (inj_inverse H_func H_inj) :=
+  le_inf (inj_inverse_is_func' H_func H_inj) (inj_inverse_subset_prod H_func H_inj)
+
+-- src/bvm_extras.lean:1880
+lemma inj_inverse_is_inj {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
+    Γ ≤ is_inj (inj_inverse H_func H_inj) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1880
+
+-- ============================================================
+-- src/bvm_extras.lean:1890-1900: injective_function_inverse section
+-- ============================================================
+
+section injective_function_inverse_section
+variable {Γ : 𝔹}
+
+-- src/bvm_extras.lean:1892
+def injective_function_inverse {x y f : bSet 𝔹} (H_inj : Γ ≤ is_injective_function x y f) :
+    bSet 𝔹 :=
+  inj_inverse (is_func'_of_is_injective_function H_inj)
+              (is_inj_of_is_injective_function H_inj)
+
+-- src/bvm_extras.lean:1895
+lemma injective_function_inverse_is_injective_function {x y f : bSet 𝔹}
+    {H_inj : Γ ≤ is_injective_function x y f} :
+    Γ ≤ is_injective_function (image x y f) x (injective_function_inverse H_inj) :=
+  le_inf (inj_inverse_is_function _ _) (inj_inverse_is_inj _ _)
+
+-- src/bvm_extras.lean:1898
+lemma injective_function_inverse_is_inj {x y f : bSet 𝔹}
+    {H_inj : Γ ≤ is_injective_function x y f} :
+    Γ ≤ is_inj (injective_function_inverse H_inj) :=
+  injective_function_inverse_is_injective_function.trans inf_le_right
+
+end injective_function_inverse_section
+
 end extras
 
 end bSet
