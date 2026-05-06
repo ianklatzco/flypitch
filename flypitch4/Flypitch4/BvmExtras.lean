@@ -2718,7 +2718,48 @@ def omega_spec (ω : bSet 𝔹) : Prop :=
 
 -- src/bvm_extras.lean:2684
 lemma omega_closed_under_succ {Γ : 𝔹} : closed_under_successor Γ (bSet.omega) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2684
+  unfold closed_under_successor
+  -- Goal: Γ ≤ ⨅ y, y ∈ omega ⟹ succ y ∈ omega
+  apply le_iInf; intro y; rw [← deduction]
+  -- Goal: Γ ⊓ y ∈ omega ≤ succ y ∈ omega
+  -- Extract index k from y ∈ omega
+  have h_ymem : Γ ⊓ y ∈ᴮ (bSet.omega : bSet 𝔹) ≤
+      ⨆ k : ULift ℕ, y =ᴮ bSet.of_nat k.down := by
+    apply inf_le_right.trans
+    -- y ∈ omega = ⨆ k, omega.bval k ⊓ y =ᴮ omega.func k
+    rw [mem_unfold]
+    -- omega.bval k = ⊤ (by check_bval_top), omega.func k = of_nat k.down (by omega_func)
+    apply iSup_le; intro k; apply le_iSup_of_le k
+    simp only [omega_func, check_bval_top, top_inf_eq, le_refl]
+  -- Carry context and use iSup
+  calc Γ ⊓ y ∈ᴮ (bSet.omega : bSet 𝔹)
+      ≤ (⨆ k : ULift ℕ, y =ᴮ bSet.of_nat k.down) ⊓ (Γ ⊓ y ∈ᴮ (bSet.omega : bSet 𝔹)) :=
+        le_inf h_ymem le_rfl
+    _ ≤ ⨆ k : ULift ℕ, (y =ᴮ bSet.of_nat k.down) ⊓ (Γ ⊓ y ∈ᴮ (bSet.omega : bSet 𝔹)) :=
+        (iSup_inf_eq _ _).le
+    _ ≤ succ y ∈ᴮ (bSet.omega : bSet 𝔹) := by
+        apply iSup_le; intro k
+        -- Context: (y =ᴮ of_nat k.down) ⊓ ctx
+        -- succ y =ᴮ succ (of_nat k.down) = of_nat (k.down + 1)
+        have h_yk : (y =ᴮ bSet.of_nat k.down) ⊓ (Γ ⊓ y ∈ᴮ (bSet.omega : bSet 𝔹)) ≤
+            y =ᴮ bSet.of_nat k.down := inf_le_left
+        -- succ (of_nat k.down) = of_nat (k.down + 1)
+        have h_succ_eq : succ (bSet.of_nat k.down : bSet 𝔹) = bSet.of_nat (k.down + 1) :=
+          (@check_succ_eq_succ_check k.down 𝔹 _).symm
+        -- succ y ∈ omega from y =ᴮ of_nat k.down and of_nat (k.down+1) ∈ omega
+        have h_mem : (y =ᴮ bSet.of_nat k.down) ⊓ (Γ ⊓ y ∈ᴮ (bSet.omega : bSet 𝔹)) ≤
+            bSet.of_nat (k.down + 1) ∈ᴮ (bSet.omega : bSet 𝔹) :=
+          le_top.trans of_nat_mem_omega
+        -- succ y ∈ omega via: succ y =ᴮ succ (of_nat k) (from y =ᴮ of_nat k via B_ext_succ)
+        --                    and succ (of_nat k) = of_nat (k+1) ∈ omega
+        rw [← h_succ_eq] at h_mem
+        -- h_mem : ... ≤ succ (of_nat k) ∈ omega
+        -- succ y ∈ omega from y =ᴮ of_nat k
+        apply bv_rw' (H := h_yk) (ϕ := fun z => succ z ∈ᴮ (bSet.omega : bSet 𝔹))
+        · -- B_ext (fun z => succ z ∈ omega)
+          exact B_ext_term (ϕ := fun v => v ∈ᴮ (bSet.omega : bSet 𝔹)) (t := succ)
+            B_ext_mem_left B_congr_succ
+        · exact h_mem
 
 -- src/bvm_extras.lean:2694
 lemma omega_nonempty {Γ : 𝔹} : Γ ≤ not_empty bSet.omega := by
@@ -2728,7 +2769,30 @@ lemma omega_nonempty {Γ : 𝔹} : Γ ≤ not_empty bSet.omega := by
 
 -- src/bvm_extras.lean:2701
 lemma omega_is_omega : omega_spec (bSet.omega : bSet 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2701
+  constructor
+  · intro Γ; exact ⟨omega_nonempty, omega_closed_under_succ⟩
+  · intro x Γ H₁ H₂
+    -- Need: Γ ≤ omega ⊆ x
+    -- omega = bSet.mk (ULift ℕ) (fun k => of_nat k.down) (fun _ => ⊤)
+    -- omega ⊆ x = ⨅ k : ULift ℕ, ⊤ ⟹ of_nat k.down ∈ x = ⨅ k, of_nat k.down ∈ x
+    rw [subset_unfold]
+    apply le_iInf; intro k
+    -- Need: Γ ≤ omega.bval k ⟹ omega.func k ∈ x = ⊤ ⟹ of_nat k.down ∈ x
+    simp only [omega_func, check_bval_top, top_imp]
+    -- Need: Γ ≤ of_nat k.down ∈ x, prove by induction on k.down
+    suffices h : ∀ n : ℕ, Γ ≤ of_nat n ∈ᴮ x from h k.down
+    intro n
+    induction n with
+    | zero =>
+        -- of_nat 0 = 0 ∈ x: use H₁ : Γ ≤ ∅ ∈ x and 0 =ᴮ ∅
+        exact bv_rw' (H := @zero_eq_empty 𝔹 _ Γ) (H_new := H₁) (h_congr := B_ext_mem_left)
+    | succ n ih =>
+        -- of_nat (n+1) = succ (of_nat n) ∈ x from H₂ applied to ih
+        rw [@check_succ_eq_succ_check n 𝔹 _]
+        -- Goal: Γ ≤ succ (of_nat n) ∈ x
+        -- From H₂ = closed_under_successor Γ x = Γ ≤ ⨅ y, y ∈ x ⟹ succ y ∈ x
+        -- Specialize at of_nat n: Γ ≤ (of_nat n ∈ x ⟹ succ (of_nat n) ∈ x)
+        exact le_trans (le_inf (le_trans H₂ (iInf_le _ (of_nat n))) ih) bv_imp_elim
 
 -- src/bvm_extras.lean:2714
 lemma Ord_omega {Γ : 𝔹} : Γ ≤ Ord (omega : bSet 𝔹) :=
