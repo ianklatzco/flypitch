@@ -391,7 +391,27 @@ lemma pair_eq_pair_iff {x y x' y' : bSet 𝔹} {Γ : 𝔹} :
 -- src/bvm_extras.lean:371
 lemma prod_mem_old {v w x y : bSet 𝔹} :
     x ∈ᴮ v ⊓ y ∈ᴮ w ≤ pair x y ∈ᴮ prod v w := by
-  sorry -- TODO: port from src/bvm_extras.lean:371
+  -- From x ∈ v and y ∈ w, show pair x y ∈ prod v w
+  -- prod v w has type v.type × w.type, func (i,j) = pair (v.func i) (w.func j), bval (i,j) = v.bval i ⊓ w.bval j
+  rw [mem_unfold, mem_unfold, mem_unfold]
+  -- (⨆ i, v.bval i ⊓ x =ᴮ v.func i) ⊓ (⨆ j, w.bval j ⊓ y =ᴮ w.func j)
+  -- ≤ ⨆ p : v.type × w.type, (v.bval p.1 ⊓ w.bval p.2) ⊓ pair x y =ᴮ pair (v.func p.1) (w.func p.2)
+  rw [iSup_inf_iSup]
+  apply iSup_le; intro ⟨i, j⟩
+  -- (v.bval i ⊓ x =ᴮ v.func i) ⊓ (w.bval j ⊓ y =ᴮ w.func j) ≤ ...
+  apply le_iSup_of_le (i, j)
+  simp only [prod_bval, prod_func]
+  -- Need: (v.bval i ⊓ x =ᴮ v.func i) ⊓ (w.bval j ⊓ y =ᴮ w.func j)
+  --   ≤ (v.bval i ⊓ w.bval j) ⊓ pair x y =ᴮ pair (v.func i) (w.func j)
+  refine le_inf (le_inf ?_ ?_) ?_
+  · exact inf_le_left.trans inf_le_left
+  · exact inf_le_right.trans inf_le_left
+  · -- pair x y =ᴮ pair (v.func i) (w.func j) from x =ᴮ v.func i and y =ᴮ w.func j
+    have hx : (v.bval i ⊓ x =ᴮ v.func i) ⊓ (w.bval j ⊓ y =ᴮ w.func j) ≤ x =ᴮ v.func i :=
+      inf_le_left.trans inf_le_right
+    have hy : (v.bval i ⊓ x =ᴮ v.func i) ⊓ (w.bval j ⊓ y =ᴮ w.func j) ≤ y =ᴮ w.func j :=
+      inf_le_right.trans inf_le_right
+    exact pair_congr hx hy
 
 -- src/bvm_extras.lean:389
 lemma prod_mem {v w x y : bSet 𝔹} {Γ} : Γ ≤ x ∈ᴮ v → Γ ≤ y ∈ᴮ w → Γ ≤ pair x y ∈ᴮ prod v w :=
@@ -488,7 +508,19 @@ lemma check_pset_prod {x y : PSet.{u}} {Γ : 𝔹} :
 -- src/bvm_extras.lean:538
 @[simp] lemma is_func_subset_of_is_func {f g : bSet 𝔹} {Γ} (H : Γ ≤ is_func f)
     (H_sub : Γ ≤ g ⊆ᴮ f) : Γ ≤ is_func g := by
-  sorry -- TODO: port from src/bvm_extras.lean:538
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction]
+  -- Γ ⊓ (pair w₁ v₁ ∈ g ⊓ pair w₂ v₂ ∈ g) ≤ w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂
+  have hspec : Γ ⊓ (pair w₁ v₁ ∈ᴮ g ⊓ pair w₂ v₂ ∈ᴮ g) ≤
+      pair w₁ v₁ ∈ᴮ f ⊓ pair w₂ v₂ ∈ᴮ f ⟹ (w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂) :=
+    le_trans (le_trans inf_le_left H)
+      (iInf_le _ w₁ |>.trans (iInf_le _ w₂) |>.trans (iInf_le _ v₁) |>.trans (iInf_le _ v₂))
+  have hmem₁ : Γ ⊓ (pair w₁ v₁ ∈ᴮ g ⊓ pair w₂ v₂ ∈ᴮ g) ≤ pair w₁ v₁ ∈ᴮ f :=
+    mem_of_mem_subset (le_trans inf_le_left H_sub) (inf_le_right.trans inf_le_left)
+  have hmem₂ : Γ ⊓ (pair w₁ v₁ ∈ᴮ g ⊓ pair w₂ v₂ ∈ᴮ g) ≤ pair w₂ v₂ ∈ᴮ f :=
+    mem_of_mem_subset (le_trans inf_le_left H_sub) (inf_le_right.trans inf_le_right)
+  exact le_trans (le_inf hspec (le_inf hmem₁ hmem₂)) bv_imp_elim
 
 -- src/bvm_extras.lean:548
 @[reducible] def is_functional (f : bSet 𝔹) : 𝔹 :=
@@ -496,7 +528,25 @@ lemma check_pset_prod {x y : PSet.{u}} {Γ : 𝔹} :
 
 -- src/bvm_extras.lean:551
 lemma is_functional_of_is_func (f : bSet 𝔹) {Γ} (H : Γ ≤ is_func f) : Γ ≤ is_functional f := by
-  sorry -- TODO: port from src/bvm_extras.lean:551
+  unfold is_functional
+  apply le_iInf; intro z; rw [← deduction]
+  -- Γ ⊓ ⨆ w, pair z w ∈ᴮ f ≤ ⨆ w', ⨅ w'', pair z w'' ∈ᴮ f ⟹ w' =ᴮ w''
+  rw [inf_comm]
+  calc (⨆ w, pair z w ∈ᴮ f) ⊓ Γ
+      ≤ ⨆ w, pair z w ∈ᴮ f ⊓ Γ := (iSup_inf_eq _ _).le
+    _ ≤ ⨆ w', ⨅ w'', pair z w'' ∈ᴮ f ⟹ w' =ᴮ w'' := by
+        apply iSup_le; intro w
+        apply le_iSup_of_le w
+        apply le_iInf; intro w'; rw [← deduction]
+        -- pair z w ∈ f ⊓ Γ ⊓ pair z w' ∈ f ≤ w =ᴮ w'
+        -- is_func f says: pair z w ∈ f ⊓ pair z w' ∈ f ⟹ (z =ᴮ z ⟹ w =ᴮ w')
+        have hspec : pair z w ∈ᴮ f ⊓ Γ ⊓ pair z w' ∈ᴮ f ≤
+            pair z w ∈ᴮ f ⊓ pair z w' ∈ᴮ f ⟹ (z =ᴮ z ⟹ w =ᴮ w') :=
+          le_trans (le_trans (inf_le_left.trans inf_le_right) H)
+            (iInf_le _ z |>.trans (iInf_le _ z) |>.trans (iInf_le _ w) |>.trans (iInf_le _ w'))
+        have hmem : pair z w ∈ᴮ f ⊓ Γ ⊓ pair z w' ∈ᴮ f ≤ pair z w ∈ᴮ f ⊓ pair z w' ∈ᴮ f :=
+          le_inf (inf_le_left.trans inf_le_left) inf_le_right
+        exact le_trans (le_inf (le_trans (le_inf hspec hmem) bv_imp_elim) bv_refl) bv_imp_elim
 
 -- src/bvm_extras.lean:561
 @[reducible] def is_total (x y f : bSet 𝔹) : 𝔹 :=
@@ -584,7 +634,6 @@ def image (x y f : bSet 𝔹) : bSet 𝔹 :=
 lemma mem_image_iff {x y b f : bSet 𝔹} {Γ} :
     Γ ≤ b ∈ᴮ image x y f ↔ (Γ ≤ b ∈ᴮ y) ∧ Γ ≤ ⨆ z, z ∈ᴮ x ⊓ pair z b ∈ᴮ f := by
   sorry -- TODO: port from src/bvm_extras.lean:638
-
 -- src/bvm_extras.lean:649
 @[simp] lemma B_congr_image_left {y f : bSet 𝔹} : B_congr (fun x => image x y f) := by
   sorry -- TODO: port from src/bvm_extras.lean:649
