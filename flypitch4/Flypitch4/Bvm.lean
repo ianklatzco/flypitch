@@ -2598,21 +2598,116 @@ prefix:80 "𝒫" => bv_powerset
 -- Replacing with equivalent formulation via bv_powerset_spec.
 -- lemma bSet_axiom_of_powerset' {Γ : 𝔹} (u : bSet 𝔹) : ... := by sorry
 
-theorem bSet_axiom_of_powerset :
-    (⨅ (u : bSet 𝔹), ⨆ (v : bSet 𝔹), ⨅ (x : bSet 𝔹),
-      (x ∈ᴮ v) ⇔ (x ⊆ᴮ u)) = ⊤ := by
-  sorry -- TODO: port from src/bvm.lean:2074-2078
-
 -- src/bvm.lean:2080
+-- Auxiliary: bv_powerset unfolds membership
+private lemma bv_powerset_mem_unfold {u x : bSet 𝔹} :
+    x ∈ᴮ bv_powerset u =
+    ⨆ f : u.type → 𝔹, (set_of_indicator (u := u) f ⊆ᴮ u) ⊓ x =ᴮ set_of_indicator (u := u) f := by
+  rw [mem_unfold]
+  rfl
+
 lemma bv_powerset_spec {u x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ x ⊆ᴮ u ↔ Γ ≤ x ∈ᴮ (bv_powerset u) := by
-  sorry -- TODO: port from src/bvm.lean:2080-2090 (requires bSet_axiom_of_powerset')
+  rw [bv_powerset_mem_unfold]
+  constructor
+  · -- Forward: x ⊆ u → x ∈ bv_powerset u
+    intro H
+    -- Choose f = fun j => u.func j ∈ᴮ x
+    apply bv_use (fun j => u.func j ∈ᴮ x)
+    apply le_inf
+    · -- set_of_indicator (fun j => u.func j ∈ x) ⊆ᴮ u
+      -- = ⨅ j : u.type, (u.func j ∈ x) ⟹ u.func j ∈ u
+      rw [subset_unfold]
+      simp only [set_of_indicator_bval, set_of_indicator_func]
+      apply le_iInf; intro j; rw [← deduction]
+      -- Need: Γ ⊓ u.func j ∈ x ≤ u.func j ∈ u
+      -- From H : Γ ≤ x ⊆ u, take z = u.func j in subset_unfold'
+      have hspec : Γ ≤ u.func j ∈ᴮ x ⟹ u.func j ∈ᴮ u :=
+        le_trans H (by rw [subset_unfold']; exact iInf_le _ (u.func j))
+      exact le_trans (le_inf (le_trans inf_le_left hspec) inf_le_right) bv_imp_elim
+    · -- x =ᴮ set_of_indicator (fun j => u.func j ∈ x)
+      apply mem_ext
+      · -- ⨅ z, z ∈ x ⟹ z ∈ set_of_indicator (fun j => u.func j ∈ x)
+        apply le_iInf; intro z; rw [← deduction]
+        -- Γ ⊓ z ∈ x ≤ z ∈ set_of_indicator (fun j => u.func j ∈ x)
+        -- Expand membership in set_of_indicator
+        rw [mem_unfold (v := set_of_indicator (u := u) (fun j => u.func j ∈ᴮ x))]
+        simp only [set_of_indicator_bval, set_of_indicator_func]
+        -- Goal: Γ ⊓ z ∈ x ≤ ⨆ j : u.type, (u.func j ∈ x) ⊓ z =ᴮ u.func j
+        -- From H: Γ ≤ x ⊆ u, so Γ ⊓ z ∈ x ≤ z ∈ u
+        have hmem_u : Γ ⊓ z ∈ᴮ x ≤ z ∈ᴮ u := by
+          have : Γ ≤ z ∈ᴮ x ⟹ z ∈ᴮ u :=
+            le_trans H (by rw [subset_unfold']; exact iInf_le _ z)
+          exact le_trans (le_inf (le_trans inf_le_left this) inf_le_right) bv_imp_elim
+        -- (Γ ⊓ z ∈ x) ≤ (Γ ⊓ z ∈ x) ⊓ z ∈ u ≤ ⨆ j, (u.func j ∈ x) ⊓ z =ᴮ u.func j
+        calc Γ ⊓ z ∈ᴮ x
+            ≤ (Γ ⊓ z ∈ᴮ x) ⊓ (z ∈ᴮ u) := le_inf le_rfl hmem_u
+          _ = (Γ ⊓ z ∈ᴮ x) ⊓ ⨆ j, u.bval j ⊓ z =ᴮ u.func j := by rw [← mem_unfold]
+          _ = ⨆ j, (Γ ⊓ z ∈ᴮ x) ⊓ (u.bval j ⊓ z =ᴮ u.func j) := by
+              rw [inf_iSup_eq]
+          _ ≤ ⨆ j, (u.func j ∈ᴮ x) ⊓ z =ᴮ u.func j := by
+              apply iSup_le; intro j; apply le_iSup_of_le j
+              apply le_inf
+              · -- (Γ ⊓ z ∈ x) ⊓ u.bval j ⊓ z =ᴮ u.func j ≤ u.func j ∈ x
+                have : (Γ ⊓ z ∈ᴮ x) ⊓ (u.bval j ⊓ z =ᴮ u.func j) ≤
+                       z ∈ᴮ x ⊓ z =ᴮ u.func j :=
+                  le_inf (inf_le_left.trans inf_le_right) (inf_le_right.trans inf_le_right)
+                exact le_trans this (by rw [inf_comm]; exact subst_congr_mem_left)
+              · exact inf_le_right.trans inf_le_right
+      · -- ⨅ z, z ∈ set_of_indicator (fun j => u.func j ∈ x) ⟹ z ∈ x
+        -- bval j = u.func j ∈ x, func j = u.func j
+        apply le_iInf; intro z; rw [← deduction]
+        -- Γ ⊓ z ∈ set_of_indicator (...) ≤ z ∈ x
+        -- z ∈ set_of_indicator (...) = ⨆ j, (u.func j ∈ x) ⊓ z =ᴮ u.func j
+        rw [mem_unfold (v := set_of_indicator (u := u) (fun j => u.func j ∈ᴮ x))]
+        simp only [set_of_indicator_bval, set_of_indicator_func]
+        -- Goal: Γ ⊓ ⨆ j, (u.func j ∈ x) ⊓ z =ᴮ u.func j ≤ z ∈ x
+        rw [inf_iSup_eq]
+        apply iSup_le; intro j
+        -- Γ ⊓ (u.func j ∈ x ⊓ z =ᴮ u.func j) ≤ z ∈ x
+        calc Γ ⊓ (u.func j ∈ᴮ x ⊓ z =ᴮ u.func j)
+            ≤ u.func j ∈ᴮ x ⊓ z =ᴮ u.func j := inf_le_right
+          _ ≤ u.func j =ᴮ z ⊓ u.func j ∈ᴮ x :=
+              le_inf (inf_le_right.trans (le_of_eq bv_eq_symm)) inf_le_left
+          _ ≤ z ∈ᴮ x := subst_congr_mem_left
+  · -- Backward: x ∈ bv_powerset u → x ⊆ u
+    intro H
+    apply le_trans H
+    apply iSup_le; intro f
+    -- (set_of_indicator f ⊆ u) ⊓ x =ᴮ set_of_indicator f ≤ x ⊆ u
+    exact le_trans (le_inf inf_le_left inf_le_right) subst_congr_subset_left
 
 lemma mem_powerset_iff {u x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ x ∈ᴮ (bv_powerset u) ↔ Γ ≤ x ⊆ᴮ u :=
   bv_powerset_spec.symm
 
+-- src/bvm.lean:2074
+theorem bSet_axiom_of_powerset :
+    (⨅ (u : bSet 𝔹), ⨆ (v : bSet 𝔹), ⨅ (x : bSet 𝔹),
+      (x ∈ᴮ v) ⇔ (x ⊆ᴮ u)) = ⊤ := by
+  sorry -- TODO: prove using bv_powerset_spec
+
+-- src/bvm.lean:2091
 lemma bv_powerset_congr {Γ : 𝔹} {x y : bSet 𝔹} (H : Γ ≤ x =ᴮ y) :
     Γ ≤ bv_powerset x =ᴮ bv_powerset y := by
-  sorry -- TODO: port from src/bvm.lean:2091-2097
+  apply mem_ext
+  · -- ⨅ z, z ∈ bv_powerset x ⟹ z ∈ bv_powerset y
+    apply le_iInf; intro z; rw [← deduction]
+    -- Γ ⊓ z ∈ bv_powerset x ≤ z ∈ bv_powerset y
+    -- Step 1: z ∈ bv_powerset x → z ⊆ x (via .mpr)
+    have hz_sub_x : Γ ⊓ z ∈ᴮ bv_powerset x ≤ z ⊆ᴮ x :=
+      le_trans inf_le_right (bv_powerset_spec.mpr le_rfl)
+    -- Step 2: (z ⊆ x) ⊓ (x =ᴮ y) ≤ z ⊆ y
+    have hz_sub_y : Γ ⊓ z ∈ᴮ bv_powerset x ≤ z ⊆ᴮ y :=
+      le_trans (le_inf hz_sub_x (le_trans inf_le_left H)) subst_congr_subset_right
+    -- Step 3: z ⊆ y → z ∈ bv_powerset y (via .mp)
+    exact bv_powerset_spec.mp hz_sub_y
+  · -- ⨅ z, z ∈ bv_powerset y ⟹ z ∈ bv_powerset x
+    apply le_iInf; intro z; rw [← deduction]
+    have hz_sub_y : Γ ⊓ z ∈ᴮ bv_powerset y ≤ z ⊆ᴮ y :=
+      le_trans inf_le_right (bv_powerset_spec.mpr le_rfl)
+    have Hy : Γ ≤ y =ᴮ x := le_trans H (le_of_eq bv_eq_symm)
+    have hz_sub_x : Γ ⊓ z ∈ᴮ bv_powerset y ≤ z ⊆ᴮ x :=
+      le_trans (le_inf hz_sub_y (le_trans inf_le_left Hy)) subst_congr_subset_right
+    exact bv_powerset_spec.mp hz_sub_x
 
 -- src/bvm.lean:2099
 @[simp] lemma set_of_indicator_mem.mk {x : bSet 𝔹} {i : x.type} {χ : x.type → 𝔹} {Γ : 𝔹}
@@ -2684,7 +2779,34 @@ lemma check_mem_set_of_indicator_iff {x : PSet}
     (i : x.Type) {χ : (check x).type → 𝔹} :
     (∀ {Γ : 𝔹}, Γ ≤ check (x.Func i) ∈ᴮ set_of_indicator χ) ↔
     (∀ {Γ : 𝔹}, Γ ≤ χ (cast check_type'.symm i)) := by
-  sorry -- TODO: port from src/bvm.lean:2147-2161 (by_cases injectivity)
+  -- check_type' : (check x : bSet 𝔹).type = x.Type, proved by `cases x; simp [check]`
+  -- so cast check_type' and cast check_type'.symm are inverse casts
+  cases x with | mk α A =>
+  -- Now (check (PSet.mk α A) : bSet 𝔹).type = α = (PSet.mk α A).Type definitionally
+  -- i : α, χ : α → 𝔹, cast check_type'.symm i reduces to i by simp [check_cast_symm, check_type']
+  constructor
+  · -- Forward: membership implies indicator
+    intro H Γ
+    -- Unfold membership in set_of_indicator
+    rw [mem_unfold] at H
+    simp only [set_of_indicator_bval, set_of_indicator_func, check_func, check_cast] at H
+    -- H : Γ ≤ ⨆ j : α, χ j ⊓ check (A i) =ᴮ check (A j)
+    apply le_trans H
+    apply iSup_le; intro j
+    classical
+    by_cases hj : j = i
+    · subst hj; exact inf_le_left
+    · have hne : ¬ PSet.Equiv (A i) (A j) := fun heq =>
+        hj (H_inj i j heq).symm
+      have hbot : (check (A i) : bSet 𝔹) =ᴮ check (A j) = ⊥ :=
+        check_bv_eq_bot_of_not_equiv hne
+      simp [hbot]
+  · -- Backward: indicator implies membership
+    intro H Γ
+    rw [mem_unfold]
+    simp only [set_of_indicator_bval, set_of_indicator_func, check_func, check_cast]
+    apply bv_use i
+    exact le_inf H bv_refl
 
 -- src/bvm.lean:2163
 lemma subset_of_pointwise_bounded {Γ : 𝔹} {x : bSet 𝔹} {p p' : x.type → 𝔹}
@@ -2703,7 +2825,34 @@ lemma pointwise_bounded_of_check_subset_check {x : PSet} {p₁ p₂ : (check x).
     (H_inj : ∀ i₁ i₂ : x.Type, PSet.Equiv (x.Func i₁) (x.Func i₂) → i₁ = i₂)
     (H_eq : ∀ {Γ : 𝔹}, Γ ≤ set_of_indicator p₁ ⊆ᴮ set_of_indicator p₂) :
     ∀ i, p₁ i ≤ p₂ i := by
-  sorry -- TODO: port from src/bvm.lean:2169-2182
+  intro i
+  -- Use H_eq with Γ = p₁ i to get: p₁ i ≤ set_of_indicator p₁ ⊆ᴮ set_of_indicator p₂
+  have hle : p₁ i ≤ set_of_indicator p₁ ⊆ᴮ set_of_indicator p₂ := H_eq
+  -- Unfold subset to get: p₁ i ≤ ⨅ j, p₁ j ⟹ (check x).func j ∈ᴮ set_of_indicator p₂
+  rw [subset_unfold] at hle
+  simp only [set_of_indicator_bval, set_of_indicator_func] at hle
+  -- Extract the i-th conjunct via iInf_le: p₁ i ≤ p₁ i ⟹ (check x).func i ∈ᴮ set_of_indicator p₂
+  have himp : p₁ i ≤ p₁ i ⟹ (check x).func i ∈ᴮ set_of_indicator p₂ :=
+    le_trans hle (iInf_le _ i)
+  -- From bv_imp_elim: (A ⟹ B) ⊓ A ≤ B, so p₁ i ≤ (check x).func i ∈ᴮ set_of_indicator p₂
+  have hmem : p₁ i ≤ (check x).func i ∈ᴮ set_of_indicator p₂ :=
+    le_trans (le_inf himp le_rfl) bv_imp_elim
+  -- Unfold membership in set_of_indicator p₂
+  rw [mem_unfold] at hmem
+  simp only [set_of_indicator_bval, set_of_indicator_func, check_func] at hmem
+  -- hmem : p₁ i ≤ ⨆ j, p₂ j ⊓ check (x.Func (check_cast i)) =ᴮ check (x.Func (check_cast j))
+  -- Bound this iSup by p₂ i
+  calc p₁ i ≤ ⨆ j, p₂ j ⊓ check (x.Func (check_cast i)) =ᴮ (check (x.Func (check_cast j)) : bSet 𝔹) := hmem
+    _ ≤ p₂ i := by
+        apply iSup_le; intro j
+        classical
+        by_cases hj : check_cast j = check_cast i
+        · have hjj : j = i := by
+            simp only [check_cast, cast_inj] at hj; exact hj
+          subst hjj; simp
+        · have hne : ¬ PSet.Equiv (x.Func (check_cast i)) (x.Func (check_cast j)) := fun heq =>
+            hj (H_inj (check_cast i) (check_cast j) heq).symm
+          rw [check_bv_eq_bot_of_not_equiv hne]; simp
 
 -- src/bvm.lean:2184
 lemma pointwise_eq_of_eq_set_of_indicator {x : PSet} {p₁ p₂ : (check x).type → 𝔹}
