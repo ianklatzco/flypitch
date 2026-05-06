@@ -1319,6 +1319,413 @@ def subset'_partial_order {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (
     rw [eq_top_iff] at H₁ H₂ ⊢
     exact subset_ext H₁ H₂
 
+-- src/bvm.lean:1424
+-- (these lemmas have complex `letI` formulations in Lean 3; skipped as auxiliary)
+lemma subset'_trans {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} {h : core u S} {a b c : α}
+    (hab : subset' h a b) (hbc : subset' h b c) : subset' h a c := by
+  simp only [subset'] at *
+  rw [eq_top_iff] at *
+  exact subset_trans' hab hbc
+
+-- src/bvm.lean:1427
+lemma subset'_unfold {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} {h : core u S} {a₁ a₂ : α} :
+    subset' h a₁ a₂ ↔ S a₁ ⊆ᴮ S a₂ = ⊤ := Iff.rfl
+
+-- src/bvm.lean:1430
+@[reducible] def exists_mem (x : bSet 𝔹) : 𝔹 := ⨆ (y : bSet 𝔹), y ∈ᴮ x
+
+-- src/bvm.lean:1432
+@[reducible] def not_empty (x : bSet 𝔹) : 𝔹 := (x =ᴮ ∅)ᶜ
+
+-- src/bvm.lean:1435
+lemma exists_mem_of_nonempty (u : bSet 𝔹) {Γ : 𝔹} (H : Γ ≤ (u =ᴮ ∅)ᶜ) : Γ ≤ ⨆ x, x ∈ᴮ u := by
+  apply le_trans H
+  simp [eq_empty]
+  intro x
+  apply bv_use (u.func x)
+  apply mem_mk'
+
+-- src/bvm.lean:1438
+lemma nonempty_of_exists_mem (u : bSet 𝔹) {Γ : 𝔹} (H : Γ ≤ (⨆ x, x ∈ᴮ u)) : Γ ≤ (u =ᴮ ∅)ᶜ := by
+  apply le_trans H
+  simp [eq_empty]
+  intro x
+  rw [mem_unfold]
+  apply bv_Or_elim
+  intro i
+  apply bv_use i
+  apply inf_le_left
+
+-- src/bvm.lean:1443
+lemma nonempty_iff_exists_mem {u : bSet 𝔹} {Γ : 𝔹} : Γ ≤ (u =ᴮ ∅)ᶜ ↔ Γ ≤ ⨆ x, x ∈ᴮ u :=
+  ⟨fun H => exists_mem_of_nonempty _ H, fun H => nonempty_of_exists_mem _ H⟩
+
+-- src/bvm.lean:1450
+lemma empty_iff_forall_not_mem {u : bSet 𝔹} {Γ : 𝔹} :
+    Γ ≤ u =ᴮ ∅ ↔ Γ ≤ ⨅ x, (x ∈ᴮ u)ᶜ := by
+  sorry -- TODO: port from src/bvm.lean:1450-1457 (complex bv_by_contra reasoning)
+
+-- src/bvm.lean:1459
+lemma core_aux_lemma3 (u : bSet 𝔹) (h_nonempty : (u =ᴮ ∅)ᶜ = ⊤) {α : Type u} (S : α → bSet 𝔹)
+    (h_core : core u S) : ∀ x, ∃ y ∈ S '' Set.univ, x =ᴮ y = x ∈ᴮ u := by
+  sorry -- TODO: port from src/bvm.lean:1459-1468 (complex core reasoning)
+
+-- src/bvm.lean:1470
+lemma core_mem_of_mem_image {u y : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (h_core : core u S) :
+    y ∈ S '' Set.univ → y ∈ᴮ u = ⊤ := by
+  rintro ⟨a, -, rfl⟩
+  exact h_core.1 a
+
 end cores
+
+section check_names
+
+/-! `check` is the canonical embedding of PSet into bSet.
+Note that a check-name is not only definite, but recursively definite. -/
+
+-- src/bvm.lean:1479
+@[simp] def check : PSet.{u} → bSet 𝔹
+  | ⟨α, A⟩ => ⟨α, fun a => check (A a), fun _ => ⊤⟩
+
+-- Postfix notation to match Lean 3 `̌ ` postfix notation
+scoped postfix:9999 "̌" => check
+
+-- src/bvm.lean:1484
+@[simp] lemma check_type {α : Type u} {A : α → PSet} :
+    (check (PSet.mk α A) : bSet 𝔹).type = α := rfl
+
+-- src/bvm.lean:1487
+@[simp] lemma check_type_iInf {α : Type u} {A : α → PSet} {s : α → 𝔹} :
+    (⨅ (a : (check (PSet.mk α A) : bSet 𝔹).type), s a) = (⨅ (a : α), s a : 𝔹) :=
+  rfl
+
+-- src/bvm.lean:1491
+@[simp] lemma check_type_iSup {α : Type u} {A : α → PSet} {s : α → 𝔹} :
+    (⨆ (a : (check (PSet.mk α A) : bSet 𝔹).type), s a) = (⨆ (a : α), s a : 𝔹) :=
+  rfl
+
+-- src/bvm.lean:1494 (this is trivially true in Lean 4)
+
+-- src/bvm.lean:1497
+@[simp] lemma check_type' {x : PSet.{u}} :
+    (check x : bSet 𝔹).type = x.Type := by
+  cases x; simp [check]
+
+-- src/bvm.lean:1500
+@[simp] lemma check_type'_set {x : PSet} :
+    Set (check x : bSet 𝔹).type = Set (x.Type) := by
+  cases x; simp [check]
+
+-- src/bvm.lean:1503
+@[reducible, simp] def check_cast {x : PSet} (i : (check x : bSet 𝔹).type) : x.Type :=
+  cast check_type' i
+
+-- src/bvm.lean:1506
+@[reducible, simp] def check_cast_symm {x : PSet} (i : x.Type) : (check x : bSet 𝔹).type :=
+  cast check_type'.symm i
+
+-- src/bvm.lean:1509
+@[reducible, simp] def check_cast_set {x : PSet} (S : Set (check x : bSet 𝔹).type) :
+    Set (x.Type) :=
+  cast check_type'_set S
+
+-- src/bvm.lean:1512
+lemma check_func {x : PSet} {i} :
+    (check x : bSet 𝔹).func i = check (x.Func (check_cast i)) := by
+  cases x; rfl
+
+-- src/bvm.lean:1516
+lemma check_unfold {x : PSet.{u}} :
+    (check x : bSet 𝔹) = bSet.mk x.Type (fun i => check (x.Func i)) (fun _ => ⊤) := by
+  cases x; rfl
+
+-- src/bvm.lean:1519
+@[simp] lemma check_bval_top (x : PSet) {i} : (check x : bSet 𝔹).bval i = ⊤ := by
+  cases x; rfl
+
+-- src/bvm.lean:1521
+@[simp] lemma check_bval_mk {α : Type u} {A : α → PSet} {i} :
+    (check (PSet.mk α A) : bSet 𝔹).bval i = (⊤ : 𝔹) := rfl
+
+-- src/bvm.lean:1523
+@[simp] lemma check_empty_eq_empty : check (∅ : PSet) = (∅ : bSet 𝔹) := by
+  sorry -- TODO: not definitionally equal (bval component ⊤ vs PEmpty.elim)
+
+-- src/bvm.lean:1527
+@[simp] lemma mem_top_of_bval_top {u : bSet 𝔹} {i : u.type} (H_top : u.bval i = ⊤) :
+    u.func i ∈ᴮ u = ⊤ := by
+  apply top_unique; rw [← H_top]; apply mem_mk'
+
+-- src/bvm.lean:1530
+@[simp] lemma check_mem_top {x : PSet} {i : (check x : bSet 𝔹).type} :
+    (check x : bSet 𝔹).func i ∈ᴮ check x = ⊤ :=
+  mem_top_of_bval_top (check_bval_top x)
+
+-- src/bvm.lean:1536
+@[simp] lemma mem_check_of_mem {x : PSet} {i : x.Type} {Γ : 𝔹} :
+    Γ ≤ check (x.Func i) ∈ᴮ check x := by
+  rw [mem_unfold]
+  apply bv_use (check_cast_symm i)
+  simp only [true_and, le_inf_iff, le_top, check_cast_symm, check_bval_top]
+  convert bv_refl
+  cases x; rfl
+
+-- src/bvm.lean:1544
+lemma check_bv_eq_top_of_equiv {x y : PSet} (h : PSet.Equiv x y) :
+    (check x : bSet 𝔹) =ᴮ check y = (⊤ : 𝔹) := by
+  sorry -- TODO: port from src/bvm.lean:1544-1553 (complex induction on check/bv_eq structure)
+
+-- src/bvm.lean:1556
+lemma check_bv_eq {x y : PSet} {Γ : 𝔹} (H : PSet.Equiv x y) :
+    (Γ : 𝔹) ≤ check x =ᴮ check y := by
+  exact le_trans le_top (by rw [top_le_iff]; exact check_bv_eq_top_of_equiv H)
+
+-- src/bvm.lean:1560
+lemma check_eq {x y : PSet} {Γ : 𝔹} (H : PSet.Equiv x y) :
+    (Γ : 𝔹) ≤ check x =ᴮ check y :=
+  check_bv_eq H
+
+-- src/bvm.lean:1564
+lemma check_bv_eq_bot_of_not_equiv {x y : PSet} (H : ¬ PSet.Equiv x y) :
+    (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹) := by
+  sorry -- TODO: port from src/bvm.lean:1564-1571 (complex induction on check/bv_eq structure)
+
+-- src/bvm.lean:1573
+lemma check_bv_eq_dichotomy (x y : PSet) :
+    (check x : bSet 𝔹) =ᴮ check y = (⊤ : 𝔹) ∨ (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹) := by
+  classical
+  by_cases h : PSet.Equiv x y
+  · left; exact check_bv_eq_top_of_equiv h
+  · right; exact check_bv_eq_bot_of_not_equiv h
+
+-- src/bvm.lean:1581
+lemma check_bv_eq_iff {x y : PSet} :
+    PSet.Equiv x y ↔ (check x : bSet 𝔹) =ᴮ check y = (⊤ : 𝔹) := by
+  constructor
+  · exact check_bv_eq_top_of_equiv
+  · intro h
+    classical
+    by_contra hne
+    have hbot : (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹) := check_bv_eq_bot_of_not_equiv hne
+    rw [hbot] at h; exact absurd h (by simp)
+
+-- src/bvm.lean:1600
+lemma not_check_bv_eq_iff {x y : PSet} :
+    ¬ PSet.Equiv x y ↔ (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹) :=
+  ⟨check_bv_eq_bot_of_not_equiv,
+   fun (H : (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹)) hE =>
+     by have := check_bv_eq_top_of_equiv (𝔹 := 𝔹) hE; rw [this] at H; simp at H⟩
+
+-- src/bvm.lean:1609
+lemma check_not_eq {x y : PSet.{u}} (H : ¬ PSet.Equiv x y) {Γ : 𝔹} :
+    Γ ≤ ((check x : bSet 𝔹) =ᴮ check y)ᶜ := by
+  have : (check x : bSet 𝔹) =ᴮ check y = (⊥ : 𝔹) := check_bv_eq_bot_of_not_equiv H
+  rw [this]; simp
+
+-- src/bvm.lean:1612
+lemma check_bv_eq_nonzero_iff_eq_top {x y : PSet} :
+    (⊥ : 𝔹) < check x =ᴮ check y ↔ (check x : bSet 𝔹) =ᴮ check y = (⊤ : 𝔹) :=
+  ⟨fun H => by
+    rcases @check_bv_eq_dichotomy 𝔹 _ x y with h | h
+    · exact h
+    · rw [h] at H; exact absurd H (lt_irrefl _),
+   fun H => by rw [H]; exact nontrivial_bot_lt_top⟩
+
+-- src/bvm.lean:1619
+lemma check_eq_reflect {x y : PSet} {Γ : 𝔹} (H_lt : ⊥ < Γ)
+    (H_mem : Γ ≤ check x =ᴮ check y) : PSet.Equiv x y :=
+  check_bv_eq_iff.mpr (check_bv_eq_nonzero_iff_eq_top.mp (lt_of_lt_of_le H_lt H_mem))
+
+-- src/bvm.lean:1625
+@[simp] lemma check_insert (a b : PSet) :
+    check (PSet.insert a b) = (bSet.insert1 (check a) (check b) : bSet 𝔹) := by
+  sorry -- TODO: port from src/bvm.lean:1625-1626 (PSet.insert structure)
+
+-- src/bvm.lean:1628
+lemma mem_check_witness {y x : PSet.{u}} {Γ : 𝔹} (h_nonzero : ⊥ < Γ)
+    (H : Γ ≤ check y ∈ᴮ check x) : ∃ i : x.Type, Γ ≤ check y =ᴮ check (x.Func i) := by
+  sorry -- TODO: port from src/bvm.lean:1628-1638 (supr_eq_Gamma_max + cast alignment)
+
+-- src/bvm.lean:1640
+lemma check_mem_iff {x y : PSet} :
+    x ∈ y ↔ (check x : bSet 𝔹) ∈ᴮ check y = (⊤ : 𝔹) := by
+  constructor
+  · intro H
+    cases y
+    rename_i β B
+    rw [← top_le_iff]
+    simp only [PSet.mem_iff] at H
+    obtain ⟨b, hb⟩ := H
+    apply bv_use b
+    exact le_inf (by simp) (check_bv_eq hb)
+  · intro H
+    cases y
+    rename_i β B
+    rw [← top_le_iff] at H
+    obtain ⟨i, hi⟩ := mem_check_witness (by simp) H
+    have hi' : (check x : bSet 𝔹) =ᴮ check (B i) = ⊤ := by rwa [top_le_iff] at hi
+    exact ⟨i, check_bv_eq_iff.mpr hi'⟩
+
+-- src/bvm.lean:1650
+lemma not_check_mem_iff {x y : PSet} :
+    x ∉ y ↔ (check x : bSet 𝔹) ∈ᴮ check y = (⊥ : 𝔹) := by
+  sorry -- TODO: port from src/bvm.lean:1650-1659 (cast alignment issue)
+
+-- src/bvm.lean:1662
+lemma check_not_mem {x y : PSet} : x ∉ y → ∀ {Γ : 𝔹}, Γ ≤ check x ∈ᴮ check y → Γ ≤ ⊥ := by
+  intro H
+  have H' : (check x : bSet 𝔹) ∈ᴮ check y = ⊥ := not_check_mem_iff.mp H
+  intros Γ HΓ
+  rwa [← H']
+
+-- src/bvm.lean:1665
+lemma check_mem_dichotomy (x y : PSet) :
+    (check x : bSet 𝔹) ∈ᴮ check y = (⊤ : 𝔹) ∨ (check x : bSet 𝔹) ∈ᴮ check y = (⊥ : 𝔹) := by
+  classical
+  by_cases h : x ∈ y
+  · left; exact check_mem_iff.mp h
+  · right; exact not_check_mem_iff.mp h
+
+-- src/bvm.lean:1671
+lemma check_mem_nonzero_iff_eq_top {x y : PSet} :
+    (⊥ : 𝔹) < (check x : bSet 𝔹) ∈ᴮ check y ↔ (check x : bSet 𝔹) ∈ᴮ check y = (⊤ : 𝔹) := by
+  constructor
+  · intro H
+    rcases @check_mem_dichotomy 𝔹 _ x y with h | h
+    · exact h
+    · rw [h] at H; exact absurd H (lt_irrefl _)
+  · intro H; simp [H]
+
+-- src/bvm.lean:1678
+lemma check_mem_reflect {x y : PSet} {Γ : 𝔹} (H_lt : ⊥ < Γ)
+    (H_mem : Γ ≤ (check x : bSet 𝔹) ∈ᴮ check y) : x ∈ y :=
+  check_mem_iff.mpr (check_mem_nonzero_iff_eq_top.mp (lt_of_lt_of_le H_lt H_mem))
+
+-- src/bvm.lean:1684
+@[simp] lemma check_mem {x y : PSet} {Γ : 𝔹} (h_mem : x ∈ y) :
+    (Γ : 𝔹) ≤ check x ∈ᴮ check y := by
+  rw [mem_unfold]
+  cases y
+  rename_i β B
+  simp only [PSet.mem_iff] at h_mem
+  obtain ⟨w, hw⟩ := h_mem
+  apply bv_use w
+  apply le_inf
+  · simp
+  · exact check_bv_eq hw
+
+-- src/bvm.lean:1691
+@[simp] lemma check_subset_of_subset {x y : PSet} (h_subset : x ⊆ y) :
+    (⊤ : 𝔹) ≤ check x ⊆ᴮ check y := by
+  sorry -- TODO: port from src/bvm.lean:1691-1697 (check_cast + PSet.subset_iff alignment)
+
+-- src/bvm.lean:1699
+lemma check_subset {x y : PSet} {Γ : 𝔹} (h_subset : x ⊆ y) :
+    Γ ≤ check x ⊆ᴮ check y :=
+  le_trans le_top (check_subset_of_subset h_subset)
+
+-- src/bvm.lean:1702
+lemma check_not_subset {x y : PSet} (H : ¬ x ⊆ y) {Γ} :
+    (Γ : 𝔹) ≤ (check x ⊆ᴮ check y)ᶜ := by
+  sorry -- TODO: port from src/bvm.lean:1702-1711 (check_not_subset)
+
+-- src/bvm.lean:1713
+@[simp] lemma check_exists_mem {y : PSet} (H_exists_mem : ∃ z, z ∈ y) {Γ : 𝔹} :
+    Γ ≤ exists_mem (check y) := by
+  obtain ⟨z, hz⟩ := H_exists_mem
+  apply bv_use (check z)
+  simp [check_mem hz]
+
+-- src/bvm.lean:1746
+lemma instantiate_existential_over_check_aux {ϕ : bSet 𝔹 → 𝔹} (H_congr : B_ext ϕ)
+    (x : PSet) {Γ} (H_nonzero : ⊥ < Γ) (H_ex : Γ ≤ ⨆ y, (y ∈ᴮ check x ⊓ ϕ y)) :
+    ∃ i : x.Type, ⊥ < (ϕ (check (x.Func i)) ⊓ Γ) := by
+  sorry -- TODO: port from src/bvm.lean:1746-1753 (check cast alignment)
+
+-- src/bvm.lean:1755
+noncomputable def instantiate_existential_over_check
+    {ϕ : bSet 𝔹 → 𝔹} (H_congr : B_ext ϕ) (x : PSet) {Γ}
+    (H_nonzero : ⊥ < Γ) (H_ex : Γ ≤ ⨆ y, (y ∈ᴮ check x ⊓ ϕ y)) : x.Type :=
+  Classical.choose (instantiate_existential_over_check_aux H_congr x H_nonzero H_ex)
+
+-- src/bvm.lean:1762
+lemma instantiate_existential_over_check_spec {ϕ : bSet 𝔹 → 𝔹} (H_congr : B_ext ϕ)
+    (x : PSet) {Γ} (H_nonzero : ⊥ < Γ) (H_ex : Γ ≤ ⨆ y, (y ∈ᴮ check x ⊓ ϕ y)) :
+    ⊥ < (ϕ (check (x.Func (instantiate_existential_over_check H_congr x H_nonzero H_ex))) ⊓ Γ) :=
+  Classical.choose_spec (instantiate_existential_over_check_aux H_congr x H_nonzero H_ex)
+
+-- src/bvm.lean:1766
+lemma instantiate_existential_over_check_spec₂ (ϕ : bSet 𝔹 → 𝔹) (H_congr : B_ext ϕ)
+    (x : PSet) {Γ} (H_nonzero : ⊥ < Γ) (H_ex : Γ ≤ ⨆ y, (y ∈ᴮ check x ⊓ ϕ y)) :
+    ⊥ < ϕ (check (x.Func (instantiate_existential_over_check H_congr x H_nonzero H_ex))) :=
+  bot_lt_resolve_right H_nonzero (instantiate_existential_over_check_spec H_congr x H_nonzero H_ex)
+
+-- src/bvm.lean:1775
+/-- This corresponds to Property 4 in Moore's The method of forcing -/
+lemma eq_check_of_mem_check {Γ : 𝔹} (h_nonzero : ⊥ < Γ) {x : PSet.{u}} {y : bSet 𝔹}
+    (H_mem : Γ ≤ y ∈ᴮ check x) :
+    ∃ (i : x.Type) (Γ' : 𝔹) (_ : ⊥ < Γ') (_ : Γ' ≤ Γ), Γ' ≤ y =ᴮ check (x.Func i) := by
+  sorry -- TODO: port from src/bvm.lean:1775-1785 (depends on instantiate_existential_over_check)
+
+-- src/bvm.lean:1787
+lemma eq_check_of_mem_check₂ {Γ : 𝔹} (h_nonzero : ⊥ < Γ) (x : PSet.{u}) (y : bSet 𝔹)
+    (H_mem : Γ ≤ y ∈ᴮ check x) : ∃ i : x.Type, ⊥ < y =ᴮ check (x.Func i) := by
+  obtain ⟨i, Γ', HΓ'₁, HΓ'₂, HΓ'₃⟩ := eq_check_of_mem_check h_nonzero H_mem
+  exact ⟨i, lt_of_lt_of_le HΓ'₁ HΓ'₃⟩
+
+end check_names
+
+-- src/bvm.lean:1802-1836 — collect definitions (outside section to avoid section var issues)
+
+/-- The choice function underlying collect -/
+noncomputable def collect.func
+    (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h_congr_right : ∀ x y z, x =ᴮ y ⊓ ϕ z x ≤ ϕ z y)
+    (u : bSet 𝔹) : u.type → bSet 𝔹 :=
+  Classical.choose (Classical.axiomOfChoice
+    (AE_convert u.func u.bval ϕ (by intro z; intro xv yv; exact h_congr_right xv yv z)))
+
+/-- The collect bSet -/
+noncomputable def collect
+    (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h_congr_right : ∀ x y z, x =ᴮ y ⊓ ϕ z x ≤ ϕ z y)
+    (h_congr_left : ∀ x y z, x =ᴮ y ⊓ ϕ x z ≤ ϕ y z)
+    (u : bSet 𝔹) : bSet 𝔹 :=
+  ⟨u.type, collect.func ϕ h_congr_right u, u.bval⟩
+
+lemma collect.func_spec
+    (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h_congr_right : ∀ x y z, x =ᴮ y ⊓ ϕ z x ≤ ϕ z y)
+    (h_congr_left : ∀ x y z, x =ᴮ y ⊓ ϕ x z ≤ ϕ y z)
+    (u : bSet 𝔹) (Γ : 𝔹)
+    (H : Γ ≤ ⨅ (j : u.type), u.bval j ⟹ ⨆ (z : bSet 𝔹), ϕ (u.func j) z) :
+    Γ ≤ ⨅ (x : u.type), u.bval x ⟹ ϕ (u.func x) (collect.func ϕ h_congr_right u x) := by
+  apply le_iInf; intro i
+  rw [← deduction]
+  have hspec := Classical.choose_spec (Classical.axiomOfChoice
+    (AE_convert u.func u.bval ϕ (by intro z; intro xv yv; exact h_congr_right xv yv z)))
+  specialize hspec i
+  have hΓ_imp : Γ ≤ u.bval i ⟹ ϕ (u.func i) _ := le_trans H hspec
+  rwa [← deduction] at hΓ_imp
+
+-- src/bvm.lean:1814
+lemma collect_spec₁
+    (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h_congr_right : ∀ x y z, x =ᴮ y ⊓ ϕ z x ≤ ϕ z y)
+    (h_congr_left : ∀ x y z, x =ᴮ y ⊓ ϕ x z ≤ ϕ y z)
+    (u : bSet 𝔹) {Γ : 𝔹}
+    (H_AE : Γ ≤ ⨅ i : u.type, u.bval i ⟹ ⨆ w, ϕ (u.func i) w) :
+    Γ ≤ ⨅ (z : bSet 𝔹), z ∈ᴮ u ⟹ ⨆ w, w ∈ᴮ collect ϕ h_congr_right h_congr_left u ⊓ ϕ z w := by
+  sorry -- TODO: port from src/bvm.lean:1814-1823 (bv_cases_at + bv_rw' step)
+
+-- src/bvm.lean:1825
+lemma collect_spec₂
+    (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
+    (h_congr_right : ∀ x y z, x =ᴮ y ⊓ ϕ z x ≤ ϕ z y)
+    (h_congr_left : ∀ x y z, x =ᴮ y ⊓ ϕ x z ≤ ϕ y z)
+    (u : bSet 𝔹) {Γ : 𝔹}
+    (H_AE : Γ ≤ ⨅ i : u.type, u.bval i ⟹ ⨆ w, ϕ (u.func i) w) :
+    Γ ≤ ⨅ (w : bSet 𝔹), w ∈ᴮ collect ϕ h_congr_right h_congr_left u ⟹ ⨆ z, z ∈ᴮ u ⊓ ϕ z w := by
+  sorry -- TODO: port from src/bvm.lean:1825-1836 (bv_cases_at + bv_rw' step)
 
 end bSet
