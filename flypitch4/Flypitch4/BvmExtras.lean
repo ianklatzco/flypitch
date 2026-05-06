@@ -723,12 +723,34 @@ lemma prod_mem {v w x y : bSet 𝔹} {Γ} : Γ ≤ x ∈ᴮ v → Γ ≤ y ∈�
 -- src/bvm_extras.lean:392
 lemma mem_left_of_prod_mem {v w x y : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ pair x y ∈ᴮ prod v w → Γ ≤ x ∈ᴮ v := by
-  sorry -- TODO: port from src/bvm_extras.lean:392
+  intro H
+  -- pair x y ∈ prod v w = ⨆ (i,j), bval(i,j) ⊓ pair x y =ᴮ func(i,j)
+  rw [mem_unfold] at H
+  -- H : Γ ≤ ⨆ p : (prod v w).type, (prod v w).bval p ⊓ pair x y =ᴮ (prod v w).func p
+  -- = ⨆ (i,j), (v.bval i ⊓ w.bval j) ⊓ pair x y =ᴮ pair (v.func i) (w.func j)
+  rw [mem_unfold]
+  -- Need: Γ ≤ ⨆ i : v.type, v.bval i ⊓ x =ᴮ v.func i
+  apply le_trans H
+  apply iSup_le; intro ⟨i, j⟩
+  apply le_iSup_of_le i
+  simp only [prod_bval, prod_func]
+  -- (v.bval i ⊓ w.bval j) ⊓ pair x y =ᴮ pair (v.func i) (w.func j) ≤ v.bval i ⊓ x =ᴮ v.func i
+  refine le_inf (inf_le_left.trans inf_le_left) ?_
+  -- pair x y =ᴮ pair (v.func i) (w.func j) ≤ x =ᴮ v.func i by eq_of_eq_pair_left
+  exact inf_le_right.trans eq_of_eq_pair_left
 
 -- src/bvm_extras.lean:400
 lemma mem_right_of_prod_mem {v w x y : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ pair x y ∈ᴮ prod v w → Γ ≤ y ∈ᴮ w := by
-  sorry -- TODO: port from src/bvm_extras.lean:400
+  intro H
+  rw [mem_unfold] at H
+  rw [mem_unfold]
+  apply le_trans H
+  apply iSup_le; intro ⟨i, j⟩
+  apply le_iSup_of_le j
+  simp only [prod_bval, prod_func]
+  refine le_inf (inf_le_left.trans inf_le_right) ?_
+  exact inf_le_right.trans eq_of_eq_pair_right
 
 -- src/bvm_extras.lean:408
 @[simp] lemma mem_prod_iff {v w x y : bSet 𝔹} {Γ} :
@@ -807,9 +829,10 @@ lemma mem_prod_iff₂ {x y z : bSet 𝔹} {Γ} :
     Γ ≤ z ∈ᴮ prod x y ↔
     ∃ v, ∃ _hv : Γ ≤ v ∈ᴮ x, ∃ w, ∃ _hw : Γ ≤ w ∈ᴮ y, Γ ≤ z =ᴮ pair v w := by
   constructor
-  · intro H; sorry -- TODO: port from src/bvm_extras.lean:448
+  · intro H; sorry -- TODO: forward direction needs classical witness extraction
   · intro ⟨v, Hv, w, Hw, H_eq⟩
-    sorry -- TODO: z =ᴮ pair v w and pair v w ∈ prod x y → z ∈ prod x y
+    -- z =ᴮ pair v w and pair v w ∈ prod x y → z ∈ prod x y
+    exact subst_congr_mem_left' (bv_symm H_eq) (prod_mem Hv Hw)
 
 -- src/bvm_extras.lean:465
 lemma prod_ext {S₁ S₂ x y : bSet 𝔹} {Γ : 𝔹}
@@ -1644,7 +1667,17 @@ lemma surjects_onto_of_larger_than_and_exists_mem {x y : bSet 𝔹} {Γ : 𝔹}
 -- src/bvm_extras.lean:1230
 lemma larger_than_of_surjects_onto {x y : bSet 𝔹} {Γ} (H_surj : Γ ≤ surjects_onto x y) :
     Γ ≤ larger_than x y := by
-  sorry -- TODO: port from src/bvm_extras.lean:1230 (needs bv_cases for iSup)
+  -- surjects_onto x y = ⨆ f, is_func' x y f ⊓ is_surj x y f
+  -- larger_than x y = ⨆ S, ⨆ f, S ⊆ x ⊓ is_func' S y f ⊓ is_surj S y f
+  -- Witness: S = x, using H_surj's f
+  unfold larger_than
+  apply le_trans H_surj
+  apply iSup_le; intro f
+  apply le_iSup_of_le x
+  apply le_iSup_of_le f
+  -- Need: is_func' x y f ⊓ is_surj x y f ≤ x ⊆ x ⊓ is_func' x y f ⊓ is_surj x y f
+  apply le_inf (le_inf ?_ inf_le_left) inf_le_right
+  exact le_top.trans subset_self
 
 -- src/bvm_extras.lean:1238
 lemma check_not_is_func {x y f : PSet.{u}} (H : ¬ PSet.is_func x y f) :
