@@ -103,36 +103,130 @@ scoped infix:81 " ∩ᴮ " => bSet.binary_inter
 -- src/bvm_extras.lean:94
 lemma mem_binary_inter_iff {x y z : bSet 𝔹} {Γ} :
     Γ ≤ z ∈ᴮ (x ∩ᴮ y) ↔ (Γ ≤ z ∈ᴮ x ∧ Γ ≤ z ∈ᴮ y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:94
+  -- (x ∩ᴮ y).bval i = x.bval i ⊓ (x.func i ∈ᴮ y)
+  -- (x ∩ᴮ y).func i = x.func i
+  -- z ∈ᴮ (x ∩ᴮ y) = ⨆ i, (x.bval i ⊓ x.func i ∈ᴮ y) ⊓ z =ᴮ x.func i
+  constructor
+  · intro H
+    constructor
+    · -- z ∈ᴮ x: strip the x.func i ∈ᴮ y part
+      rw [mem_unfold] at H ⊢
+      apply le_trans H; apply iSup_le; intro i
+      apply le_iSup_of_le i
+      simp only [binary_inter_bval, binary_inter_func]
+      exact le_inf (inf_le_left.trans inf_le_left) inf_le_right
+    · -- z ∈ᴮ y: from x.func i ∈ᴮ y and z =ᴮ x.func i
+      -- Use subst_congr_mem_left' with u=x.func i, v=z, w=y
+      -- need: Γ_1 ≤ x.func i =ᴮ z and Γ_1 ≤ x.func i ∈ᴮ y
+      rw [mem_unfold] at H
+      apply le_trans H; apply iSup_le; intro i
+      simp only [binary_inter_bval, binary_inter_func]
+      -- Γ_1 = (x.bval i ⊓ x.func i ∈ᴮ y) ⊓ z =ᴮ x.func i
+      exact subst_congr_mem_left' (bv_symm inf_le_right) (inf_le_left.trans inf_le_right)
+  · intro ⟨H₁, H₂⟩
+    -- Use H₁ : Γ ≤ z ∈ᴮ x and H₂ : Γ ≤ z ∈ᴮ y
+    -- z ∈ᴮ x = ⨆ i, x.bval i ⊓ z =ᴮ x.func i
+    -- We need ⨆ i, (x.bval i ⊓ x.func i ∈ᴮ y) ⊓ z =ᴮ x.func i
+    -- Augment with H₂: Γ ≤ (⨆ i, x.bval i ⊓ z =ᴮ x.func i) ⊓ z ∈ᴮ y
+    -- Then: (x.bval i ⊓ z =ᴮ x.func i) ⊓ z ∈ᴮ y ≤ (x.bval i ⊓ x.func i ∈ᴮ y) ⊓ z =ᴮ x.func i
+    rw [mem_unfold] at H₁ ⊢
+    calc Γ ≤ (⨆ i : x.type, x.bval i ⊓ z =ᴮ x.func i) ⊓ z ∈ᴮ y := le_inf H₁ H₂
+      _ ≤ ⨆ i : x.type, (x.bval i ⊓ z =ᴮ x.func i) ⊓ z ∈ᴮ y := by
+              rw [iSup_inf_eq]
+      _ ≤ ⨆ i : (x ∩ᴮ y).type, (x ∩ᴮ y).bval i ⊓ z =ᴮ (x ∩ᴮ y).func i := by
+              apply iSup_le; intro i; apply le_iSup_of_le i
+              simp only [binary_inter_bval, binary_inter_func]
+              -- (x.bval i ⊓ z =ᴮ x.func i) ⊓ z ∈ᴮ y ≤ (x.bval i ⊓ x.func i ∈ᴮ y) ⊓ z =ᴮ x.func i
+              refine le_inf (le_inf ?_ ?_) ?_
+              · exact inf_le_left.trans inf_le_left
+              · -- (x.bval i ⊓ z =ᴮ x.func i) ⊓ z ∈ᴮ y ≤ x.func i ∈ᴮ y
+                -- Use subst_congr_mem_left: z =ᴮ x.func i ⊓ z ∈ᴮ y ≤ x.func i ∈ᴮ y
+                exact le_trans (le_inf (inf_le_left.trans inf_le_right) inf_le_right)
+                               subst_congr_mem_left
+              · exact inf_le_left.trans inf_le_right
 
 -- src/bvm_extras.lean:112
 lemma subset_binary_inter_iff {x y z : bSet 𝔹} {Γ} :
     Γ ≤ z ⊆ᴮ x ∩ᴮ y ↔ (Γ ≤ z ⊆ᴮ x ∧ Γ ≤ z ⊆ᴮ y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:112
+  constructor
+  · intro H
+    constructor
+    · -- z ⊆ x: every w ∈ z is in x ∩ y hence in x
+      rw [subset_unfold']; apply le_iInf; intro w; rw [← deduction]
+      have hmem : Γ ⊓ w ∈ᴮ z ≤ w ∈ᴮ (x ∩ᴮ y) := mem_of_mem_subset (le_trans inf_le_left H) inf_le_right
+      exact (mem_binary_inter_iff.mp hmem).1
+    · -- z ⊆ y: every w ∈ z is in x ∩ y hence in y
+      rw [subset_unfold']; apply le_iInf; intro w; rw [← deduction]
+      have hmem : Γ ⊓ w ∈ᴮ z ≤ w ∈ᴮ (x ∩ᴮ y) := mem_of_mem_subset (le_trans inf_le_left H) inf_le_right
+      exact (mem_binary_inter_iff.mp hmem).2
+  · intro ⟨H₁, H₂⟩
+    rw [subset_unfold']; apply le_iInf; intro w; rw [← deduction]
+    apply mem_binary_inter_iff.mpr
+    exact ⟨mem_of_mem_subset (le_trans inf_le_left H₁) inf_le_right, mem_of_mem_subset (le_trans inf_le_left H₂) inf_le_right⟩
 
 -- src/bvm_extras.lean:126
 lemma binary_inter_symm {x y : bSet 𝔹} {Γ} : Γ ≤ x ∩ᴮ y =ᴮ y ∩ᴮ x := by
-  sorry -- TODO: port from src/bvm_extras.lean:126
+  apply mem_ext
+  · apply le_iInf; intro z; rw [← deduction]
+    have h : Γ ⊓ z ∈ᴮ (x ∩ᴮ y) ≤ z ∈ᴮ x ∧ Γ ⊓ z ∈ᴮ (x ∩ᴮ y) ≤ z ∈ᴮ y :=
+      mem_binary_inter_iff.mp inf_le_right
+    exact mem_binary_inter_iff.mpr ⟨h.2, h.1⟩
+  · apply le_iInf; intro z; rw [← deduction]
+    have h : Γ ⊓ z ∈ᴮ (y ∩ᴮ x) ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ (y ∩ᴮ x) ≤ z ∈ᴮ x :=
+      mem_binary_inter_iff.mp inf_le_right
+    exact mem_binary_inter_iff.mpr ⟨h.2, h.1⟩
 
 -- src/bvm_extras.lean:132
 lemma B_congr_binary_inter_left {y : bSet 𝔹} : B_congr (fun x => x ∩ᴮ y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:132
+  intro x₁ x₂ Γ H_eq
+  apply mem_ext
+  · apply le_iInf; intro z; rw [← deduction]
+    have h : Γ ⊓ z ∈ᴮ (x₁ ∩ᴮ y) ≤ z ∈ᴮ x₁ ∧ Γ ⊓ z ∈ᴮ (x₁ ∩ᴮ y) ≤ z ∈ᴮ y :=
+      mem_binary_inter_iff.mp inf_le_right
+    exact mem_binary_inter_iff.mpr ⟨bv_rw'' (le_trans inf_le_left H_eq) h.1 B_ext_mem_right, h.2⟩
+  · apply le_iInf; intro z; rw [← deduction]
+    have h : Γ ⊓ z ∈ᴮ (x₂ ∩ᴮ y) ≤ z ∈ᴮ x₂ ∧ Γ ⊓ z ∈ᴮ (x₂ ∩ᴮ y) ≤ z ∈ᴮ y :=
+      mem_binary_inter_iff.mp inf_le_right
+    exact mem_binary_inter_iff.mpr ⟨bv_rw'' (le_trans inf_le_left (bv_symm H_eq)) h.1 B_ext_mem_right, h.2⟩
 
 -- src/bvm_extras.lean:139
 lemma B_congr_binary_inter_right {y : bSet 𝔹} : B_congr (fun x => y ∩ᴮ x) := by
-  sorry -- TODO: port from src/bvm_extras.lean:139
+  intro x₁ x₂ Γ H_eq
+  apply mem_ext
+  · apply le_iInf; intro z; rw [← deduction]
+    have h : Γ ⊓ z ∈ᴮ (y ∩ᴮ x₁) ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ (y ∩ᴮ x₁) ≤ z ∈ᴮ x₁ :=
+      mem_binary_inter_iff.mp inf_le_right
+    exact mem_binary_inter_iff.mpr ⟨h.1, bv_rw'' (le_trans inf_le_left H_eq) h.2 B_ext_mem_right⟩
+  · apply le_iInf; intro z; rw [← deduction]
+    have h : Γ ⊓ z ∈ᴮ (y ∩ᴮ x₂) ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ (y ∩ᴮ x₂) ≤ z ∈ᴮ x₂ :=
+      mem_binary_inter_iff.mp inf_le_right
+    exact mem_binary_inter_iff.mpr ⟨h.1, bv_rw'' (le_trans inf_le_left (bv_symm H_eq)) h.2 B_ext_mem_right⟩
 
 -- src/bvm_extras.lean:146
 lemma binary_inter_subset_left {x y : bSet 𝔹} {Γ} : Γ ≤ x ∩ᴮ y ⊆ᴮ x := by
-  sorry -- TODO: port from src/bvm_extras.lean:146
+  rw [subset_unfold']; apply le_iInf; intro z; rw [← deduction]
+  have h : Γ ⊓ z ∈ᴮ (x ∩ᴮ y) ≤ z ∈ᴮ x ∧ Γ ⊓ z ∈ᴮ (x ∩ᴮ y) ≤ z ∈ᴮ y :=
+    mem_binary_inter_iff.mp inf_le_right
+  exact h.1
 
 -- src/bvm_extras.lean:150
 lemma binary_inter_subset_right {x y : bSet 𝔹} {Γ} : Γ ≤ x ∩ᴮ y ⊆ᴮ y := by
-  sorry -- TODO: port from src/bvm_extras.lean:150
+  rw [subset_unfold']; apply le_iInf; intro z; rw [← deduction]
+  have h : Γ ⊓ z ∈ᴮ (x ∩ᴮ y) ≤ z ∈ᴮ x ∧ Γ ⊓ z ∈ᴮ (x ∩ᴮ y) ≤ z ∈ᴮ y :=
+    mem_binary_inter_iff.mp inf_le_right
+  exact h.2
 
 -- src/bvm_extras.lean:158
 lemma unordered_pair_symm (x y : bSet 𝔹) {Γ : 𝔹} : Γ ≤ ({x, y} : bSet 𝔹) =ᴮ {y, x} := by
-  sorry -- TODO: port from src/bvm_extras.lean:158
+  -- z ∈ᴮ {x, y} = z =ᴮ x ⊔ z =ᴮ y, z ∈ᴮ {y, x} = z =ᴮ y ⊔ z =ᴮ x
+  have mem_bot : ∀ (w : bSet 𝔹), w ∈ᴮ (∅ : bSet 𝔹) = ⊥ := fun w => by
+    rw [mem_unfold]; exact exists_over_empty _
+  apply mem_ext
+  all_goals {
+    apply le_iInf; intro z; rw [← deduction]
+    simp only [mem_insert1, mem_singleton_bSet, mem_bot, sup_bot_eq]
+    exact le_trans inf_le_right (le_of_eq (sup_comm _ _))
+  }
 
 -- src/bvm_extras.lean:166
 lemma binary_union_symm {x y : bSet 𝔹} {Γ} : Γ ≤ binary_union x y =ᴮ binary_union y x := by
@@ -162,7 +256,12 @@ lemma succ_eq_binary_union' {x : bSet 𝔹} {Γ} : Γ ≤ succ x =ᴮ binary_uni
 
 -- src/bvm_extras.lean:209
 @[simp] lemma subst_congr_pair_left {x z y : bSet 𝔹} : x =ᴮ z ≤ pair x y =ᴮ pair z y := by
-  sorry -- TODO: port from src/bvm_extras.lean:209
+  unfold pair
+  -- pair x y = insert1 {x} (insert1 {x,y} ∅), pair z y = insert1 {z} (insert1 {z,y} ∅)
+  -- Change {x} to {z} in head, then {x,y} to {z,y} in tail
+  exact bv_trans
+    (subst_congr_insert1_left' (subst_congr_insert1_left (v := (∅ : bSet 𝔹))))
+    (subst_congr_insert1_left'' subst_congr_insert1_left)
 
 -- src/bvm_extras.lean:216
 @[simp] lemma subst_congr_pair_left' {x z y : bSet 𝔹} {Γ : 𝔹} :
@@ -171,7 +270,11 @@ lemma succ_eq_binary_union' {x : bSet 𝔹} {Γ} : Γ ≤ succ x =ᴮ binary_uni
 
 -- src/bvm_extras.lean:219
 lemma subst_congr_pair_right {x y z : bSet 𝔹} : y =ᴮ z ≤ pair x y =ᴮ pair x z := by
-  sorry -- TODO: port from src/bvm_extras.lean:219
+  unfold pair
+  -- pair x y = {{x},{x,y}}, pair x z = {{x},{x,z}}
+  -- y =ᴮ z → {x,y} =ᴮ {x,z}: subst_congr_insert1_left'' le_refl
+  -- y =ᴮ z → {{x},{x,y}} =ᴮ {{x},{x,z}}: apply again
+  exact subst_congr_insert1_left'' (subst_congr_insert1_left'' (le_refl _))
 
 -- src/bvm_extras.lean:222
 lemma subst_congr_pair_right' {Γ} {x y z : bSet 𝔹} (H : Γ ≤ y =ᴮ z) :
@@ -1254,6 +1357,231 @@ lemma injective_function_inverse_is_inj {x y f : bSet 𝔹}
 
 end injective_function_inverse_section
 
+-- ============================================================
+-- src/bvm_extras.lean:1902-1927: function_eval section
+-- ============================================================
+
+-- Helper: get existential from is_total
+private lemma function_eval_exists {x y f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_function x y f) (z : bSet 𝔹) (H_mem : Γ ≤ z ∈ᴮ x) :
+    ∃ w, Γ ≤ w ∈ᴮ y ⊓ pair z w ∈ᴮ f := by
+  sorry -- TODO: B_ext proof + exists_convert from is_total_of_is_function
+
+-- src/bvm_extras.lean:1906
+noncomputable def function_eval {x y f : bSet 𝔹} {Γ : 𝔹} (H_func : Γ ≤ is_function x y f)
+    (z : bSet 𝔹) (H_mem : Γ ≤ z ∈ᴮ x) : bSet 𝔹 :=
+  (function_eval_exists H_func z H_mem).choose
+
+-- src/bvm_extras.lean:1914
+lemma function_eval_spec {x y f : bSet 𝔹} {Γ : 𝔹} {H_func : Γ ≤ is_function x y f}
+    {z : bSet 𝔹} {H_mem : Γ ≤ z ∈ᴮ x} :
+    Γ ≤ (function_eval H_func z H_mem) ∈ᴮ y ⊓ pair z (function_eval H_func z H_mem) ∈ᴮ f :=
+  (function_eval_exists H_func z H_mem).choose_spec
+
+-- src/bvm_extras.lean:1921
+lemma function_eval_mem_codomain {x y f : bSet 𝔹} {Γ : 𝔹} {H_func : Γ ≤ is_function x y f}
+    {z : bSet 𝔹} {H_mem : Γ ≤ z ∈ᴮ x} :
+    Γ ≤ (function_eval H_func z H_mem) ∈ᴮ y :=
+  function_eval_spec.trans inf_le_left
+
+-- src/bvm_extras.lean:1924
+lemma function_eval_pair_mem {x y f : bSet 𝔹} {Γ : 𝔹} {H_func : Γ ≤ is_function x y f}
+    {z : bSet 𝔹} {H_mem : Γ ≤ z ∈ᴮ x} :
+    Γ ≤ pair z (function_eval H_func z H_mem) ∈ᴮ f :=
+  function_eval_spec.trans inf_le_right
+
+-- ============================================================
+-- src/bvm_extras.lean:1930: surjects_onto_of_injects_into
+-- ============================================================
+
+-- src/bvm_extras.lean:1930
+lemma surjects_onto_of_injects_into' {x y : bSet 𝔹} {Γ} (H_inj : Γ ≤ injects_into x y)
+    (H_exists_mem : Γ ≤ exists_mem x) : Γ ≤ surjects_onto y x := by
+  sorry -- TODO: port from src/bvm_extras.lean:1930
+
+-- ============================================================
+-- src/bvm_extras.lean:1956-1989: functionMk (= function.mk) and check''
+-- ============================================================
+
+-- src/bvm_extras.lean:1956: function.mk renamed to functionMk
+-- (functionMk' already exists; this is a different construction called function.mk in Lean 3)
+def functionMk {u : bSet 𝔹} (F : u.type → bSet 𝔹)
+    (h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j) : bSet 𝔹 :=
+  ⟨u.type, fun a => pair (u.func a) (F a), u.bval⟩
+
+@[simp] lemma functionMk_type {u : bSet 𝔹} {F : u.type → bSet 𝔹}
+    {h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j} :
+    (functionMk F h_congr).type = u.type := rfl
+
+@[simp] lemma functionMk_func {u : bSet 𝔹} {F : u.type → bSet 𝔹}
+    {h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j} {i} :
+    (functionMk F h_congr).func i = pair (u.func i) (F i) := rfl
+
+@[simp] lemma functionMk_bval {u : bSet 𝔹} {F : u.type → bSet 𝔹}
+    {h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j} {i} :
+    (functionMk F h_congr).bval i = u.bval i := rfl
+
+@[simp] lemma functionMk_self {u : bSet 𝔹} {F : u.type → bSet 𝔹}
+    {h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j} {i : u.type} :
+    u.bval i ≤ pair (u.func i) (F i) ∈ᴮ functionMk F h_congr := by
+  simp only [mem_unfold, functionMk_type, functionMk_bval, functionMk_func]
+  exact le_iSup_of_le i (le_inf le_rfl bv_refl)
+
+-- src/bvm_extras.lean:1972: check' named check'' to avoid collision
+def check'' {α : Type u} (A : α → bSet 𝔹) : bSet 𝔹 := ⟨α, A, fun _ => ⊤⟩
+
+@[simp] lemma check''_type {α : Type u} {A : α → bSet 𝔹} : (check'' A).type = α := rfl
+@[simp] lemma check''_bval {α : Type u} {A : α → bSet 𝔹} {i} : (check'' A).bval i = ⊤ := rfl
+@[simp] lemma check''_func {α : Type u} {A : α → bSet 𝔹} {i} : (check'' A).func i = A i := rfl
+
+-- src/bvm_extras.lean:1978
+lemma functionMk_is_func {u : bSet 𝔹} (F : u.type → bSet 𝔹)
+    (h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j) :
+    (⊤ : 𝔹) ≤ is_func (functionMk F h_congr) := by
+  sorry -- TODO: port from src/bvm_extras.lean:1978
+
+-- src/bvm_extras.lean:2041
+lemma functionMk_inj_of_inj {u : bSet 𝔹} {F : u.type → bSet 𝔹}
+    (h_inj : ∀ i j, i ≠ j → F i =ᴮ F j ≤ ⊥)
+    (h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j) :
+    (⊤ : 𝔹) ≤ is_inj (functionMk F h_congr) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2041
+
+-- ============================================================
+-- src/bvm_extras.lean:2080-2136: bot_of_mem_self, bot_of_mem_mem
+-- ============================================================
+
+-- src/bvm_extras.lean:2080
+lemma bot_of_mem_self {x : bSet 𝔹} : (⊤ : 𝔹) ≤ (x ∈ᴮ x ⟹ ⊥) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2080 (inductive proof)
+
+-- src/bvm_extras.lean:2093
+lemma bot_of_mem_self' {x : bSet 𝔹} {Γ} (H : Γ ≤ (x ∈ᴮ x)) : Γ ≤ ⊥ := by
+  have h := @bot_of_mem_self 𝔹 _ x
+  -- h : ⊤ ≤ x ∈ᴮ x ⟹ ⊥, i.e., ⊤ ⊓ x ∈ᴮ x ≤ ⊥ (by ← deduction)
+  calc Γ ≤ ⊤ ⊓ x ∈ᴮ x := le_inf le_top H
+    _ ≤ ⊥ := by rwa [← deduction] at h
+
+-- src/bvm_extras.lean:2099
+lemma bot_of_zero_eq_one {Γ : 𝔹} (H : Γ ≤ (0 : bSet 𝔹) =ᴮ 1) : Γ ≤ ⊥ := by
+  apply bot_of_mem_self'
+  -- Need: Γ ≤ 0 ∈ᴮ 0
+  -- Since H : Γ ≤ 0 =ᴮ 1, and 0 ∈ᴮ 1, we can rewrite 0 = 1 to get 0 ∈ᴮ 0
+  exact bv_rw' H (ϕ := fun z => (0 : bSet 𝔹) ∈ᴮ z)
+    (h_congr := B_ext_mem_right) (H_new := zero_mem_one)
+
+-- src/bvm_extras.lean:2110
+lemma bot_of_mem_mem (x y : bSet 𝔹) : (⊤ : 𝔹) ≤ ((x ∈ᴮ y ⊓ y ∈ᴮ x) ⟹ ⊥) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2110 (double induction)
+
+-- src/bvm_extras.lean:2131
+lemma bot_of_mem_mem' (x y : bSet 𝔹) {Γ} (H : Γ ≤ x ∈ᴮ y) (H' : Γ ≤ y ∈ᴮ x) : Γ ≤ ⊥ := by
+  have h : (⊤ : 𝔹) ≤ (x ∈ᴮ y ⊓ y ∈ᴮ x) ⟹ ⊥ := bot_of_mem_mem x y
+  calc Γ ≤ ⊤ ⊓ (x ∈ᴮ y ⊓ y ∈ᴮ x) := le_inf le_top (le_inf H H')
+    _ ≤ ⊥ := by rwa [← deduction] at h
+
 end extras
+
+-- ============================================================
+-- src/bvm_extras.lean:2140-2218: section check (inside bSet namespace)
+-- ============================================================
+
+section bSet_check_extras
+variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+
+-- src/bvm_extras.lean:2154
+lemma check_powerset_subset_powerset (x : PSet) {Γ : 𝔹} :
+    Γ ≤ (check (PSet.powerset x) : bSet 𝔹) ⊆ᴮ (bv_powerset (check x)) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2154
+
+-- src/bvm_extras.lean:2193
+lemma check_functions_subset_functions {x y : PSet.{u}} {Γ : 𝔹} :
+    Γ ≤ (check (PSet.functions x y) : bSet 𝔹) ⊆ᴮ functions (check x) (check y) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2193
+
+-- src/bvm_extras.lean:2203
+@[simp] lemma check_mem'' {y : PSet} {i : y.Type} :
+    ((check (y.Func i) : bSet 𝔹)) ∈ᴮ (check y) = (⊤ : 𝔹) := by
+  apply top_unique; simp
+
+-- src/bvm_extras.lean:2206
+lemma of_nat_inj' {n k : ℕ} (H_neq : n ≠ k) :
+    ((of_nat n : bSet 𝔹) =ᴮ of_nat k) = ⊥ :=
+  check_bv_eq_bot_of_not_equiv (PSet.ofNat_inj H_neq)
+
+-- src/bvm_extras.lean:2209
+lemma of_nat_mem_of_lt' {k₁ k₂ : ℕ} (H_lt : k₁ < k₂) {Γ : 𝔹} :
+    Γ ≤ (of_nat k₁ : bSet 𝔹) ∈ᴮ (of_nat k₂) :=
+  check_mem (PSet.ofNat_mem_of_lt H_lt)
+
+-- src/bvm_extras.lean:2215
+@[simp] lemma zero_eq_some_none' {Γ : 𝔹} :
+    Γ ≤ (0 : bSet 𝔹) =ᴮ (𝟚 : bSet 𝔹).func (some none) :=
+  bv_refl
+
+end bSet_check_extras
+
+-- ============================================================
+-- src/bvm_extras.lean:2220-2396: section powerset (inside bSet namespace)
+-- ============================================================
+
+section powerset_section
+variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+variable (x : bSet 𝔹)
+
+-- src/bvm_extras.lean:2228
+-- powerset_injects_F: maps (bv_powerset x).type → (functions x 𝟚).type
+-- encodes χ ↦ characteristic function as subset of x × 𝟚
+def powerset_injects_F : (bv_powerset x).type → (functions x 𝟚).type :=
+  fun χ pr =>
+    (x.func pr.1 ∈ᴮ set_of_indicator χ ⊓ ((𝟚 : bSet 𝔹).func pr.2 =ᴮ 0)) ⊔
+    (x.func pr.1 ∈ᴮ subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ)ᶜ) ⊓
+      ((𝟚 : bSet 𝔹).func pr.2 =ᴮ 1))
+
+-- src/bvm_extras.lean:2231
+lemma mem_powerset_injects_F_iff {Γ : 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} :
+    Γ ≤ pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x χ) ↔
+    Γ ≤ z ∈ᴮ set_of_indicator χ := by
+  sorry -- TODO: port from src/bvm_extras.lean:2231
+
+-- src/bvm_extras.lean:2249
+lemma powerset_injects_F_ext : ∀ (i j : (bv_powerset x).type) {Γ : 𝔹},
+    Γ ≤ (bv_powerset x).func i =ᴮ (bv_powerset x).func j →
+    Γ ≤ (functions x 𝟚).func (powerset_injects_F x i) =ᴮ
+        (functions x 𝟚).func (powerset_injects_F x j) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2249
+
+-- src/bvm_extras.lean:2301
+lemma powerset_injects_F_subset_prod {χ : x.type → 𝔹} {Γ : 𝔹}
+    (H_le : Γ ≤ set_of_indicator χ ⊆ᴮ x) :
+    Γ ≤ (bv_powerset (prod x 𝟚)).func (powerset_injects_F x χ) ⊆ᴮ prod x 𝟚 := by
+  sorry -- TODO: port from src/bvm_extras.lean:2301
+
+-- src/bvm_extras.lean:2318
+lemma powerset_injects_F_mem : ∀ (i : (bv_powerset x).type) {Γ : 𝔹},
+    Γ ≤ (bv_powerset x).bval i →
+    Γ ≤ (functions x 𝟚).bval (powerset_injects_F x i) ∧ Γ ≤ (⊤ : 𝔹) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2318
+
+-- src/bvm_extras.lean:2377
+lemma powerset_injects_F_inj : ∀ (i j : (bv_powerset x).type) {Γ : 𝔹},
+    Γ ≤ (functions x 𝟚).func (powerset_injects_F x i) =ᴮ
+        (functions x 𝟚).func (powerset_injects_F x j) →
+    Γ ≤ (bv_powerset x).func i =ᴮ (bv_powerset x).func j := by
+  sorry -- TODO: port from src/bvm_extras.lean:2377
+
+-- src/bvm_extras.lean:2387
+noncomputable def powerset_injects_f : bSet 𝔹 :=
+  functionMk' (powerset_injects_F x) (fun _ => ⊤)
+    (powerset_injects_F_ext x) (powerset_injects_F_mem x)
+
+-- src/bvm_extras.lean:2389
+lemma powerset_injects_into_functions {Γ : 𝔹} :
+    Γ ≤ injects_into (bv_powerset x) (functions x 𝟚) :=
+  le_iSup_of_le (powerset_injects_f x)
+    (le_inf (is_func'_of_is_function (functionMk'_is_function _ _ _ _))
+            (functionMk'_is_inj _ _ _ _ (powerset_injects_F_inj x)))
+
+end powerset_section
 
 end bSet
