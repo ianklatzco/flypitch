@@ -1259,12 +1259,18 @@ noncomputable def equiv_preformulae_apprel {T : Set (formula L)} {l} {f f' : @pr
     equiv_preformulae T (preformula.apprel f s) (preformula.apprel f' s') := by
   intro xs
   apply biimp_trans (Ht (DVec.cons s xs))
-  apply prf_subst (apps_rel (lift_formula f' 1) (DVec.cons s (xs.map lift_term1)) ⇔
+  apply prf_subst (apps_rel (lift_formula f' 1) (DVec.cons (lift_term1 s) (xs.map lift_term1)) ⇔
                   apps_rel (lift_formula f' 1) (DVec.cons (&0) (xs.map lift_term1))) Hs
-  · -- TODO: port from src/fol.lean:1053-1057 (dvec map collapses via lift_term1_subst_term)
-    sorry
-  · -- TODO: port from src/fol.lean:1053-1057
-    sorry
+  · -- H₂: T ⊢ f₁ [s // 0]f. After simp, becomes biimp_refl.
+    simp only [subst_formula_biimp, subst_formula_apps_rel, DVec.map,
+               lift_subst_formula_cancel, DVec.map_map, Function.comp,
+               lift_term1_subst_term, subst_term_var0]
+    exact biimp_refl T _
+  · -- H₃: f₁ [s' // 0]f = goal. After simp, becomes the target equation.
+    simp only [subst_formula_biimp, subst_formula_apps_rel, DVec.map,
+               DVec.map_map, Function.comp,
+               lift_term1_subst_term, subst_term_var0]
+    simp only [DVec.map_id, apps_rel, lift_formula1_subst]
 
 @[refl] noncomputable def equiv_preformulae_refl (T : Set (formula L)) {l} (f : @preformula L l) :
     equiv_preformulae T f f :=
