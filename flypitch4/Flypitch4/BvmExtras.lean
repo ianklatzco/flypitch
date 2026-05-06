@@ -800,12 +800,37 @@ def preimage (x y f : bSet 𝔹) : bSet 𝔹 :=
   is_func' x y f ⊓ (f ⊆ᴮ prod x y)
 
 -- src/bvm_extras.lean:687
-@[simp] lemma B_ext_is_function_left {y f : bSet 𝔹} : B_ext (fun x => is_function x y f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:687
+@[simp] lemma B_ext_is_function_left {y f : bSet 𝔹} : B_ext (fun x => is_function x y f) :=
+  -- is_function x y f = (is_func f ⊓ is_total x y f) ⊓ f ⊆ prod x y
+  -- is_total x y f = ⨅ w₁, w₁ ∈ x ⟹ ⨆ w₂, w₂ ∈ y ⊓ pair w₁ w₂ ∈ f
+  -- f ⊆ prod x y = ⨅ j, f.bval j ⟹ f.func j ∈ prod x y
+  B_ext_inf
+    (B_ext_inf B_ext_const
+      (B_ext_iInf (h := fun _ => B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))))
+    (B_ext_term (ϕ := fun v => f ⊆ᴮ v) (t := fun x => prod x y)
+      (H := B_ext_subset_right) (H' := B_congr_prod_left))
 
 -- src/bvm_extras.lean:690
-@[simp] lemma B_ext_is_function_right {x y : bSet 𝔹} : B_ext (fun f => is_function x y f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:690
+@[simp] lemma B_ext_is_function_right {x y : bSet 𝔹} : B_ext (fun f => is_function x y f) :=
+  -- is_function x y f = (is_func f ⊓ is_total x y f) ⊓ f ⊆ prod x y
+  -- is_func f = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ f ⊓ pair w₂ v₂ ∈ f ⟹ (w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂)
+  -- is_total x y f = ⨅ w₁, w₁ ∈ x ⟹ ⨆ w₂, w₂ ∈ y ⊓ pair w₁ w₂ ∈ f
+  -- f ⊆ prod x y = ⨅ j, f.bval j ⟹ f.func j ∈ prod x y (but this uses f's own structure)
+  -- B_ext_subset_left : B_ext (fun x => x ⊆ prod x y) (uses x both in domain and range)
+  -- Actually need: B_ext (fun f => f ⊆ prod x y)
+  -- f ⊆ prod x y as function of f
+  B_ext_inf
+    (B_ext_inf
+      -- is_func f as function of f: ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ f ⊓ pair w₂ v₂ ∈ f ⟹ ...
+      -- B_ext (fun f => pair w₁ v₁ ∈ f) = B_ext_mem_right (x := pair w₁ v₁)
+      (B_ext_iInf (h := fun w₁ => B_ext_iInf (h := fun w₂ => B_ext_iInf (h := fun v₁ => B_ext_iInf (h := fun v₂ =>
+        B_ext_imp (h₁ := B_ext_inf B_ext_mem_right B_ext_mem_right)
+          (h₂ := B_ext_imp (h₁ := B_ext_const) (h₂ := B_ext_const)))))))
+      -- is_total x y f as function of f: ⨅ w₁, w₁ ∈ x ⟹ ⨆ w₂, w₂ ∈ y ⊓ pair w₁ w₂ ∈ f
+      -- B_ext (fun f => pair w₁ w₂ ∈ f) = B_ext_mem_right
+      (B_ext_iInf (h := fun _ => B_ext_imp (h₁ := B_ext_const)
+        (h₂ := B_ext_iSup (h := fun _ => B_ext_inf B_ext_const B_ext_mem_right)))))
+    (B_ext_subset_left (y := prod x y))
 
 -- src/bvm_extras.lean:692
 lemma is_func'_of_is_function {Γ : 𝔹} {x y f} (H_func : Γ ≤ is_function x y f) :
