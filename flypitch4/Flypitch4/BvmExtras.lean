@@ -755,11 +755,43 @@ lemma mem_image_iff {x y b f : bSet 𝔹} {Γ} :
     exact mem_image (Ha.trans inf_le_right) (Ha.trans inf_le_left) H_mem_y
 -- src/bvm_extras.lean:649
 @[simp] lemma B_congr_image_left {y f : bSet 𝔹} : B_congr (fun x => image x y f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:649
+  intro x₁ x₂ Γ H_eq
+  apply mem_ext
+  · -- fwd: image x₁ y f ⊆ image x₂ y f
+    apply le_iInf; intro z; rw [← deduction]
+    have hΓ : Γ ⊓ z ∈ᴮ image x₁ y f ≤ Γ := inf_le_left
+    have hmem : Γ ⊓ z ∈ᴮ image x₁ y f ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ image x₁ y f ≤ ⨆ w, w ∈ᴮ x₁ ⊓ pair w z ∈ᴮ f :=
+      mem_image_iff.mp (inf_le_right (a := Γ))
+    rw [mem_image_iff]
+    exact ⟨hmem.1, bv_rw' (H := bv_symm (hΓ.trans H_eq)) (ϕ := fun x => ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f)
+      (h_congr := B_ext_iSup (h := fun _ => B_ext_inf B_ext_mem_right B_ext_const)) (H_new := hmem.2)⟩
+  · -- bwd: image x₂ y f ⊆ image x₁ y f
+    apply le_iInf; intro z; rw [← deduction]
+    have hΓ : Γ ⊓ z ∈ᴮ image x₂ y f ≤ Γ := inf_le_left
+    have hmem : Γ ⊓ z ∈ᴮ image x₂ y f ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ image x₂ y f ≤ ⨆ w, w ∈ᴮ x₂ ⊓ pair w z ∈ᴮ f :=
+      mem_image_iff.mp (inf_le_right (a := Γ))
+    rw [mem_image_iff]
+    exact ⟨hmem.1, bv_rw' (H := hΓ.trans H_eq) (ϕ := fun x => ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f)
+      (h_congr := B_ext_iSup (h := fun _ => B_ext_inf B_ext_mem_right B_ext_const)) (H_new := hmem.2)⟩
 
 -- src/bvm_extras.lean:658
 @[simp] lemma B_congr_image_right {x y : bSet 𝔹} : B_congr (fun f => image x y f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:658
+  intro f₁ f₂ Γ H_eq
+  apply mem_ext
+  · apply le_iInf; intro z; rw [← deduction]
+    have hΓ : Γ ⊓ z ∈ᴮ image x y f₁ ≤ Γ := inf_le_left
+    have hmem : Γ ⊓ z ∈ᴮ image x y f₁ ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ image x y f₁ ≤ ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f₁ :=
+      mem_image_iff.mp (inf_le_right (a := Γ))
+    rw [mem_image_iff]
+    exact ⟨hmem.1, bv_rw' (H := bv_symm (hΓ.trans H_eq)) (ϕ := fun f => ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f)
+      (h_congr := B_ext_iSup (h := fun _ => B_ext_inf B_ext_const B_ext_mem_right)) (H_new := hmem.2)⟩
+  · apply le_iInf; intro z; rw [← deduction]
+    have hΓ : Γ ⊓ z ∈ᴮ image x y f₂ ≤ Γ := inf_le_left
+    have hmem : Γ ⊓ z ∈ᴮ image x y f₂ ≤ z ∈ᴮ y ∧ Γ ⊓ z ∈ᴮ image x y f₂ ≤ ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f₂ :=
+      mem_image_iff.mp (inf_le_right (a := Γ))
+    rw [mem_image_iff]
+    exact ⟨hmem.1, bv_rw' (H := hΓ.trans H_eq) (ϕ := fun f => ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f)
+      (h_congr := B_ext_iSup (h := fun _ => B_ext_inf B_ext_const B_ext_mem_right)) (H_new := hmem.2)⟩
 
 -- src/bvm_extras.lean:668
 -- bounded preimage
@@ -982,8 +1014,9 @@ lemma factor_image_is_injective_function {x y f : bSet 𝔹} {Γ : 𝔹}
 
 -- src/bvm_extras.lean:821
 @[simp] lemma B_ext_is_injective_function_left {y f : bSet 𝔹} :
-    B_ext (fun x => is_injective_function x y f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:821 (simp timeout)
+    B_ext (fun x => is_injective_function x y f) :=
+  -- is_injective_function x y f = is_function x y f ⊓ is_inj f
+  B_ext_inf B_ext_is_function_left B_ext_const
 
 -- src/bvm_extras.lean:824
 lemma is_func'_of_is_injective_function {x y f : bSet 𝔹} {Γ}
