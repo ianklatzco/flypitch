@@ -647,12 +647,63 @@ def image (x y f : bSet 𝔹) : bSet 𝔹 :=
 @[simp] lemma mem_image {x y a b f : bSet 𝔹} {Γ}
     (H_mem : Γ ≤ pair a b ∈ᴮ f) (H_mem'' : Γ ≤ a ∈ᴮ x) (H_mem' : Γ ≤ b ∈ᴮ y) :
     Γ ≤ b ∈ᴮ image x y f := by
-  sorry -- TODO: port from src/bvm_extras.lean:628
+  -- image x y f = subset.mk (fun j : y.type => ⨆ z, z ∈ x ⊓ pair z (y.func j) ∈ f)
+  unfold image
+  rw [mem_subset.mk_iff]
+  -- Need: Γ ≤ ⨆ i, b =ᴮ y.func i ⊓ ((⨆ z, z ∈ x ⊓ pair z (y.func i) ∈ f) ⊓ y.bval i)
+  -- Extract index i from b ∈ y, augmenting with Γ to access H_mem and H_mem''
+  rw [mem_unfold] at H_mem'
+  calc Γ ≤ (⨆ i, y.bval i ⊓ b =ᴮ y.func i) ⊓ Γ := le_inf H_mem' le_rfl
+    _ ≤ ⨆ i, (y.bval i ⊓ b =ᴮ y.func i) ⊓ Γ := (iSup_inf_eq _ _).le
+    _ ≤ ⨆ i, b =ᴮ y.func i ⊓ ((⨆ z, z ∈ᴮ x ⊓ pair z (y.func i) ∈ᴮ f) ⊓ y.bval i) := by
+          apply iSup_le; intro i
+          apply le_iSup_of_le i
+          -- Context: (y.bval i ⊓ b =ᴮ y.func i) ⊓ Γ
+          refine le_inf (inf_le_left.trans inf_le_right) (le_inf ?_ (inf_le_left.trans inf_le_left))
+          -- Need: ... ≤ ⨆ z, z ∈ x ⊓ pair z (y.func i) ∈ f
+          apply le_iSup_of_le a
+          -- Need: ... ≤ a ∈ x ⊓ pair a (y.func i) ∈ f
+          refine le_inf (inf_le_right.trans H_mem'') ?_
+          -- pair a (y.func i) ∈ f from pair a b ∈ f and b =ᴮ y.func i
+          -- bv_rw' with H : y.func i =ᴮ b, H_new : pair a b ∈ f → pair a (y.func i) ∈ f
+          exact bv_rw' (bv_symm (inf_le_left.trans inf_le_right)) (ϕ := fun z => pair a z ∈ᴮ f)
+            (h_congr := B_ext_pair_mem_right) (H_new := inf_le_right.trans H_mem)
 
 -- src/bvm_extras.lean:638
 lemma mem_image_iff {x y b f : bSet 𝔹} {Γ} :
     Γ ≤ b ∈ᴮ image x y f ↔ (Γ ≤ b ∈ᴮ y) ∧ Γ ≤ ⨆ z, z ∈ᴮ x ⊓ pair z b ∈ᴮ f := by
-  sorry -- TODO: port from src/bvm_extras.lean:638
+  constructor
+  · intro H
+    refine ⟨mem_of_mem_subset image_subset H, ?_⟩
+    unfold image at H; rw [mem_subset.mk_iff] at H
+    -- H: Γ ≤ ⨆ i, b =ᴮ y.func i ⊓ ((⨆ z, z ∈ x ⊓ pair z (y.func i) ∈ f) ⊓ y.bval i)
+    apply H.trans
+    apply iSup_le; intro i
+    -- Context: b =ᴮ y.func i ⊓ ((⨆ z, z ∈ x ⊓ pair z (y.func i) ∈ f) ⊓ y.bval i)
+    set A := b =ᴮ y.func i
+    set Chi := ⨆ z, z ∈ᴮ x ⊓ pair z (y.func i) ∈ᴮ f
+    -- hbeq : A ⊓ (Chi ⊓ y.bval i) ≤ A
+    -- hChi : A ⊓ (Chi ⊓ y.bval i) ≤ Chi
+    have hbeq : A ⊓ (Chi ⊓ y.bval i) ≤ A := inf_le_left
+    have hChi : A ⊓ (Chi ⊓ y.bval i) ≤ Chi :=
+      inf_le_right.trans inf_le_left
+    -- Show Chi ⊓ A ≤ ⨆ z, z ∈ x ⊓ pair z b ∈ f
+    apply le_trans (le_inf hChi hbeq)
+    rw [iSup_inf_eq]
+    apply iSup_le; intro z
+    apply le_iSup_of_le z
+    -- Context: (z ∈ x ⊓ pair z (y.func i) ∈ f) ⊓ A  where A = b =ᴮ y.func i
+    refine le_inf (inf_le_left.trans inf_le_left) ?_
+    -- Context: (z ∈ x ⊓ pair z (y.func i) ∈ f) ⊓ (b =ᴮ y.func i)
+    -- H_beq : _ ≤ b =ᴮ y.func i (from inf_le_right)
+    -- H_mem : _ ≤ pair z (y.func i) ∈ f (from inf_le_left.trans inf_le_right)
+    -- bv_rw' with b =ᴮ y.func i, ϕ = fun w => pair z w ∈ f,
+    --   H_new = pair z (y.func i) ∈ f → pair z b ∈ f
+    exact bv_rw' (H := inf_le_right) (ϕ := fun w => pair z w ∈ᴮ f)
+      (h_congr := B_ext_pair_mem_right) (H_new := inf_le_left.trans inf_le_right)
+  · intro ⟨H_mem_y, H_ex⟩
+    obtain ⟨a, Ha⟩ := exists_convert H_ex (B_ext_inf B_ext_mem_left B_ext_pair_mem_left)
+    exact mem_image (Ha.trans inf_le_right) (Ha.trans inf_le_left) H_mem_y
 -- src/bvm_extras.lean:649
 @[simp] lemma B_congr_image_left {y f : bSet 𝔹} : B_congr (fun x => image x y f) := by
   sorry -- TODO: port from src/bvm_extras.lean:649
