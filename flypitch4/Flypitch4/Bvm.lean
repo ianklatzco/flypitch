@@ -1743,7 +1743,26 @@ def core.mk_ϕ (u : bSet 𝔹) : bSet 𝔹 → (u.type → 𝔹) :=
 lemma core.mk_ϕ_inj (u : bSet 𝔹) (x y : bSet 𝔹)
     (h₁ : x ∈ᴮ u = ⊤) (h₂ : y ∈ᴮ u = ⊤) (H : core.mk_ϕ u x = core.mk_ϕ u y) :
     x =ᴮ y = ⊤ := by
-  sorry -- TODO: port from src/bvm.lean:1285-1294 (complex bv_trans reasoning)
+  -- H : ∀ a, u.bval a ⊓ x =ᴮ u.func a = u.bval a ⊓ y =ᴮ u.func a
+  have H' := congr_fun H  -- H' : ∀ a, core.mk_ϕ u x a = core.mk_ϕ u y a
+  simp only [core.mk_ϕ] at H'
+  -- H' a : u.bval a ⊓ x =ᴮ u.func a = u.bval a ⊓ y =ᴮ u.func a
+  apply top_unique
+  -- ⊤ ≤ x =ᴮ y
+  -- From h₁: ⊤ ≤ x ∈ u = ⨆ a, u.bval a ⊓ x =ᴮ u.func a
+  rw [← h₁, mem_unfold]
+  apply iSup_le; intro a
+  -- u.bval a ⊓ x =ᴮ u.func a ≤ x =ᴮ y
+  -- Chain: ≤ x =ᴮ u.func a ⊓ u.func a =ᴮ y ≤ x =ᴮ y
+  calc u.bval a ⊓ x =ᴮ u.func a
+      ≤ x =ᴮ u.func a ⊓ u.func a =ᴮ y := by
+          apply le_inf inf_le_right
+          -- u.bval a ⊓ x =ᴮ u.func a ≤ u.func a =ᴮ y
+          calc u.bval a ⊓ x =ᴮ u.func a
+              = u.bval a ⊓ y =ᴮ u.func a := H' a
+            _ ≤ y =ᴮ u.func a := inf_le_right
+            _ = u.func a =ᴮ y := bv_eq_symm
+    _ ≤ x =ᴮ y := bv_eq_trans
 
 -- src/bvm.lean:1296
 noncomputable def core.S' (u : bSet 𝔹) : (core.mk_ϕ u '' Set.univ) → bSet 𝔹 :=
