@@ -301,7 +301,46 @@ lemma binary_union_symm {x y : bSet 𝔹} {Γ} : Γ ≤ binary_union x y =ᴮ bi
 
 -- src/bvm_extras.lean:185
 lemma succ_eq_binary_union {x : bSet 𝔹} {Γ} : Γ ≤ succ x =ᴮ binary_union ({x} : bSet 𝔹) x := by
-  sorry -- TODO: port from src/bvm_extras.lean:185 (reverted broken proof)
+  -- succ x = insert1 x x, z ∈ succ x = z =ᴮ x ⊔ z ∈ x
+  -- binary_union {x} x = bv_union (insert ({x}:bSet 𝔹) {x})
+  -- Elements of the pair: {x} (singleton) and x. z ∈ bv_union iff (z ∈ {x}) ⊔ (z ∈ x) = (z =ᴮ x) ⊔ (z ∈ x).
+  have hbu : binary_union ({x} : bSet 𝔹) x = bv_union (insert ({x} : bSet 𝔹) {x}) := rfl
+  have hmem_pair : ∀ (y : bSet 𝔹),
+      y ∈ᴮ insert ({x} : bSet 𝔹) ({x} : bSet 𝔹) = y =ᴮ ({x} : bSet 𝔹) ⊔ y =ᴮ x := by
+    intro y; rw [mem_insert1, mem_singleton_bSet]
+    have : y ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    rw [this, sup_bot_eq]
+  apply mem_ext
+  · apply le_iInf; intro z; rw [← deduction]
+    have hz : Γ ⊓ z ∈ᴮ succ x ≤ z =ᴮ x ⊔ z ∈ᴮ x := inf_le_right.trans (le_of_eq mem_insert1)
+    apply le_trans hz
+    rw [show binary_union ({x} : bSet 𝔹) x = bv_union (insert ({x} : bSet 𝔹) ({x} : bSet 𝔹)) from hbu]
+    apply sup_le
+    · apply (bv_union_spec_split _ z).mpr
+      apply le_iSup_of_le ({x} : bSet 𝔹)
+      refine le_inf ?_ ?_
+      · -- {x} ∈ insert {x} {x} = {x} =ᴮ {x} ⊔ {x} =ᴮ x ≥ z =ᴮ x since {x}=ᴮ{x}=⊤
+        rw [hmem_pair]; simp [bv_eq_refl]
+      · -- z ∈ {x} from z =ᴮ x (using mem_singleton_of_eq)
+        exact mem_singleton_of_eq (le_of_eq bv_eq_symm)
+    · apply (bv_union_spec_split _ z).mpr
+      apply le_iSup_of_le x
+      refine le_inf ?_ le_rfl
+      · -- x ∈ insert {x} {x} = x =ᴮ {x} ⊔ x =ᴮ x ≥ ⊤ from x =ᴮ x = ⊤
+        rw [hmem_pair]; simp [bv_eq_refl]
+  · apply le_iInf; intro z; rw [← deduction]
+    rw [show z ∈ᴮ succ x = z =ᴮ x ⊔ z ∈ᴮ x from mem_insert1]
+    rw [show binary_union ({x} : bSet 𝔹) x = bv_union (insert ({x} : bSet 𝔹) ({x} : bSet 𝔹)) from hbu]
+    apply le_trans ((bv_union_spec_split _ z).mp inf_le_right)
+    apply iSup_le; intro y
+    rw [hmem_pair, inf_sup_right]
+    apply sup_le
+    · -- y =ᴮ {x} ⊓ z ∈ y ≤ z =ᴮ x ⊔ z ∈ x: z ∈ {x} → z =ᴮ x
+      have h1 : y =ᴮ ({x} : bSet 𝔹) ⊓ z ∈ᴮ y ≤ z ∈ᴮ ({x} : bSet 𝔹) :=
+        subst_congr_mem_right
+      exact le_trans h1 (le_trans (le_trans eq_of_mem_singleton' (le_of_eq bv_eq_symm)) le_sup_left)
+    · -- y =ᴮ x ⊓ z ∈ y ≤ z =ᴮ x ⊔ z ∈ x: z ∈ x via subst_congr_mem_right
+      exact le_trans subst_congr_mem_right le_sup_right
 
 -- src/bvm_extras.lean:204
 lemma succ_eq_binary_union' {x : bSet 𝔹} {Γ} : Γ ≤ succ x =ᴮ binary_union x ({x} : bSet 𝔹) :=
