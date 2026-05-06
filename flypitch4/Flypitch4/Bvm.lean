@@ -2708,10 +2708,26 @@ lemma mem_powerset_iff {u x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ x ∈ᴮ (bv_power
   bv_powerset_spec.symm
 
 -- src/bvm.lean:2074
+-- Note: direct apply le_iInf fails for bSet-indexed iInf with ⇔ involving ⊆ᴮ
+-- due to elaboration issue. We use an auxiliary lemma with an explicit u argument.
+private lemma bSet_axiom_of_powerset_slice (u : bSet 𝔹) :
+    (⊤ : 𝔹) ≤ ⨆ (v : bSet 𝔹), ⨅ (x : bSet 𝔹), biimp (x ∈ᴮ v) (x ⊆ᴮ u) := by
+  apply le_iSup_of_le (bv_powerset u)
+  apply le_iInf; intro x
+  simp only [biimp]
+  apply le_inf
+  · -- ⊤ ≤ x ∈ bv_powerset u ⟹ x ⊆ u
+    rw [← deduction, top_inf_eq]
+    exact bv_powerset_spec.mpr le_rfl
+  · -- ⊤ ≤ x ⊆ u ⟹ x ∈ bv_powerset u
+    rw [← deduction, top_inf_eq]
+    exact bv_powerset_spec.mp le_rfl
+
 theorem bSet_axiom_of_powerset :
     (⨅ (u : bSet 𝔹), ⨆ (v : bSet 𝔹), ⨅ (x : bSet 𝔹),
-      (x ∈ᴮ v) ⇔ (x ⊆ᴮ u)) = ⊤ := by
-  sorry -- TODO: prove using bv_powerset_spec
+      ((x ∈ᴮ v) ⇔ (x ⊆ᴮ u))) = ⊤ :=
+  -- The inner ((x ∈ v) ⇔ (x ⊆ u)) = biimp (x ∈ v) (x ⊆ u)
+  top_unique (le_iInf bSet_axiom_of_powerset_slice)
 
 -- src/bvm.lean:2091
 lemma bv_powerset_congr {Γ : 𝔹} {x y : bSet 𝔹} (H : Γ ≤ x =ᴮ y) :
