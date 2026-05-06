@@ -1061,10 +1061,33 @@ lemma boolean_realize_bounded_formula_insert_lift {n l} (v : DVec S n) (x : S) (
     (f : bounded_preformula L n l) (xs : DVec S l) :
     boolean_realize_bounded_formula (v.insert x m) (f ↑ᶠᵇ' 1 # m) xs =
     boolean_realize_bounded_formula v f xs := by
-  -- TODO: port from src/bfol.lean:854-872
-  -- Reduce via boolean_realize_bounded_formula_eq', then use boolean_realize_formula_subst_lift
-  -- with the valuation equality (DVec.insert nth = subst_realize nth)
-  sorry
+  -- Reduce to unbounded formula semantics
+  rw [boolean_realize_bounded_formula_eq' (v₁ := v.insert x m) x,
+      boolean_realize_bounded_formula_eq' (v₁ := v) x]
+  simp only [lift_bounded_formula_fst]
+  -- Now use boolean_realize_formula_subst_lift
+  rw [show (fun k => if h : k < n + 1 then (v.insert x m).nth k h else x) =
+          subst_realize (fun k => if h : k < n then v.nth k h else x) x m from by
+        funext k
+        simp only [subst_realize]
+        by_cases hkm : k < m
+        · simp only [hkm, if_true]
+          have hkn : k < n := Nat.lt_of_lt_of_le hkm hm
+          have hkn1 : k < n + 1 := Nat.lt_succ_of_le (Nat.le_of_lt hkn)
+          simp only [dif_pos hkn1, dif_pos hkn]
+          simp [DVec.insert_nth_lt x v (by exact hkn) hkn1 (by exact hkm)]
+        · by_cases hkm' : k = m
+          · subst hkm'
+            simp [hkm, DVec.insert_nth]
+          · have hkm2 : m < k := Nat.lt_of_le_of_ne (Nat.le_of_not_lt hkm) (Ne.symm hkm')
+            simp only [Nat.lt_asymm hkm2, hkm2, if_false, if_true]
+            by_cases hkn1 : k < n + 1
+            · have hk1 : k - 1 < n := by omega
+              simp only [dif_pos hkn1, dif_pos hk1]
+              rw [DVec.insert_nth_gt_simp x v hkn1 hkm2]
+            · have hk1 : ¬(k - 1 < n) := by omega
+              simp only [dif_neg hkn1, dif_neg hk1]]
+  exact boolean_realize_formula_subst_lift _ _ _ _ _
 
 /-! ## boolean_realize_formula_insert_lift2 — src/bfol.lean:874-879 -/
 
