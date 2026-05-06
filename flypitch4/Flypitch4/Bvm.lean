@@ -1891,7 +1891,16 @@ lemma nonempty_iff_exists_mem {u : bSet 𝔹} {Γ : 𝔹} : Γ ≤ (u =ᴮ ∅)�
 -- src/bvm.lean:1450
 lemma empty_iff_forall_not_mem {u : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ u =ᴮ ∅ ↔ Γ ≤ ⨅ x, (x ∈ᴮ u)ᶜ := by
-  sorry -- TODO: port from src/bvm.lean:1450-1457 (complex bv_by_contra reasoning)
+  -- Key: (u =ᴮ ∅)ᶜ = ⨆ x, x ∈ u (from nonempty_iff_exists_mem)
+  -- So u =ᴮ ∅ = (⨆ x, x ∈ u)ᶜ = ⨅ x, (x ∈ u)ᶜ (by compl_iSup)
+  have h_eq : (u =ᴮ ∅ : 𝔹) = ⨅ x, (x ∈ᴮ u)ᶜ := by
+    have h_compl : (u =ᴮ ∅ : 𝔹)ᶜ = ⨆ x, x ∈ᴮ u :=
+      le_antisymm (nonempty_iff_exists_mem.mp le_rfl)
+                  (nonempty_iff_exists_mem.mpr le_rfl)
+    calc (u =ᴮ ∅ : 𝔹) = ((u =ᴮ ∅ : 𝔹)ᶜ)ᶜ := compl_compl _ |>.symm
+      _ = (⨆ x, x ∈ᴮ u)ᶜ := by rw [h_compl]
+      _ = ⨅ x, (x ∈ᴮ u)ᶜ := compl_iSup
+  rw [h_eq]
 
 -- src/bvm.lean:1459
 lemma core_aux_lemma3 (u : bSet 𝔹) (h_nonempty : (u =ᴮ ∅)ᶜ = ⊤) {α : Type u} (S : α → bSet 𝔹)
@@ -3102,13 +3111,68 @@ lemma epsilon_induction {Γ : 𝔹} (ϕ : bSet 𝔹 → 𝔹) (h_congr : B_ext �
   fun y => bSet.rec_on' y IH
 
 -- src/bvm.lean:2345
+-- Auxiliary statement used in regularity_aux (with Γ = ⊤)
+private lemma regularity_aux_top (x : bSet 𝔹) :
+    (⊤ : 𝔹) ≤ ⨅ u, x ∈ᴮ u ⟹ (⨆ y, y ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ y)ᶜ)) := by
+  induction x using bSet.rec' with
+  | _ x IH =>
+    -- IH a : ⊤ ≤ ⨅ u, x.func a ∈ u ⟹ ⨆ y, y ∈ u ⊓ ...
+    -- Specialize IH: x.func a ∈ u' ≤ ⨆ y, y ∈ u' ⊓ ...
+    have IH_spec : ∀ (a : x.type) (u' : bSet 𝔹),
+        x.func a ∈ᴮ u' ≤ ⨆ y, y ∈ᴮ u' ⊓ (⨅ z', z' ∈ᴮ u' ⟹ (z' ∈ᴮ y)ᶜ) := fun a u' =>
+      le_trans
+        (le_inf (le_trans le_top (le_trans (IH a) (iInf_le _ u'))) le_rfl)
+        bv_imp_elim
+    apply le_iInf; intro u
+    rw [← deduction, top_inf_eq]
+    -- Goal: x ∈ u ≤ ⨆ y, y ∈ u ⊓ ⨅ z', z' ∈ u ⟹ (z' ∈ y)ᶜ
+    -- Use bv_em on P = ⨅ z', z' ∈ u ⟹ (z' ∈ x)ᶜ
+    set P := ⨅ (z' : bSet 𝔹), z' ∈ᴮ u ⟹ (z' ∈ᴮ x)ᶜ with hP_def
+    -- x ∈ u ≤ (x ∈ u ⊓ P) ⊔ (x ∈ u ⊓ Pᶜ)
+    calc x ∈ᴮ u
+        = x ∈ᴮ u ⊓ (P ⊔ Pᶜ) := by rw [sup_compl_eq_top, inf_top_eq]
+      _ = (x ∈ᴮ u ⊓ P) ⊔ (x ∈ᴮ u ⊓ Pᶜ) := inf_sup_left (a := x ∈ᴮ u) (b := P) (c := Pᶜ)
+      _ ≤ ⨆ y, y ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ y)ᶜ) := by
+          apply sup_le
+          · -- Case A: x ∈ u ⊓ P ≤ ⨆ y, y ∈ u ⊓ ⨅ z', z' ∈ u ⟹ (z' ∈ y)ᶜ
+            -- Use y = x: x ∈ u ⊓ P = x ∈ u ⊓ ⨅ z', z' ∈ u ⟹ (z' ∈ x)ᶜ
+            apply le_iSup_of_le x
+            exact le_inf inf_le_left inf_le_right
+          · -- Case B: x ∈ u ⊓ Pᶜ ≤ ⨆ y, y ∈ u ⊓ ...
+            -- Pᶜ = ⨆ z', z' ∈ u ⊓ z' ∈ x
+            rw [show Pᶜ = ⨆ (z' : bSet 𝔹), z' ∈ᴮ u ⊓ z' ∈ᴮ x by
+              simp only [hP_def, compl_iInf, neg_imp, compl_compl]]
+            rw [inf_iSup_eq]
+            -- x ∈ u ⊓ (z' ∈ u ⊓ z' ∈ x) ≤ ⨆ y, ...
+            apply iSup_le; intro z'
+            -- z' ∈ x = ⨆ a : x.type, x.bval a ⊓ z' =ᴮ x.func a
+            rw [mem_unfold (v := x), inf_iSup_eq, inf_iSup_eq]
+            apply iSup_le; intro a
+            -- x ∈ u ⊓ (z' ∈ u ⊓ (x.bval a ⊓ z' =ᴮ x.func a)) ≤ ⨆ y, ...
+            -- z' ∈ u ⊓ z' =ᴮ x.func a ≤ x.func a ∈ u by subst_congr_mem_left
+            have h_mem : x ∈ᴮ u ⊓ (z' ∈ᴮ u ⊓ (x.bval a ⊓ z' =ᴮ x.func a)) ≤ x.func a ∈ᴮ u :=
+              calc x ∈ᴮ u ⊓ (z' ∈ᴮ u ⊓ (x.bval a ⊓ z' =ᴮ x.func a))
+                  ≤ z' ∈ᴮ u ⊓ z' =ᴮ x.func a :=
+                    le_inf (inf_le_right.trans inf_le_left)
+                           (inf_le_right.trans inf_le_right |>.trans inf_le_right)
+                _ ≤ x.func a ∈ᴮ u := by rw [inf_comm]; exact subst_congr_mem_left
+            exact le_trans h_mem (IH_spec a u)
+
 lemma regularity_aux (x : bSet 𝔹) {Γ : 𝔹} :
-    Γ ≤ ⨅ u, x ∈ᴮ u ⟹ (⨆ y, y ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ y)ᶜ)) := by
-  sorry -- TODO: port from src/bvm.lean:2345-2358 (rec_on' + bv_em_aux)
+    Γ ≤ ⨅ u, x ∈ᴮ u ⟹ (⨆ y, y ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ y)ᶜ)) :=
+  le_trans le_top (regularity_aux_top x)
 
 theorem bSet_axiom_of_regularity (x : bSet 𝔹) {Γ : 𝔹} (H : Γ ≤ (x =ᴮ ∅)ᶜ) :
     Γ ≤ ⨆ y, y ∈ᴮ x ⊓ (⨅ z', z' ∈ᴮ x ⟹ (z' ∈ᴮ y)ᶜ) := by
-  sorry -- TODO: depends on regularity_aux
+  -- From H: Γ ≤ ⨆ u, u ∈ x (nonempty)
+  have H_nonempty : Γ ≤ ⨆ u, u ∈ᴮ x := nonempty_iff_exists_mem.mp H
+  -- For each u: u ∈ x ≤ ⨆ y, y ∈ x ⊓ ⨅ z', z' ∈ x ⟹ (z' ∈ y)ᶜ
+  -- from regularity_aux_top u instantiated at x with bv_imp_elim
+  have h_each : ∀ u : bSet 𝔹, u ∈ᴮ x ≤ ⨆ y, y ∈ᴮ x ⊓ (⨅ z', z' ∈ᴮ x ⟹ (z' ∈ᴮ y)ᶜ) := fun u =>
+    le_trans
+      (le_inf (le_trans le_top (le_trans (regularity_aux_top u) (iInf_le _ x))) le_rfl)
+      bv_imp_elim
+  exact le_trans H_nonempty (iSup_le h_each)
 
 /-- ∃! x, ϕ x ↔ ∃ x ∀ y, ϕ(x) ⊓ ϕ(y) → y = x -/
 @[reducible] def bv_exists_unique (ϕ : bSet 𝔹 → 𝔹) : 𝔹 :=
