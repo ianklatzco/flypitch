@@ -1240,9 +1240,16 @@ def two_term_mixture (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u�
 @[simp] lemma two_term_mixture_bval (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u₂ : bSet 𝔹) :
     ∀ i, (two_term_mixture a₁ a₂ h_anti u₁ u₂).bval i =
       (a₁ ⊓ ((two_term_mixture a₁ a₂ h_anti u₁ u₂).func i ∈ᴮ u₁)) ⊔
-      (a₂ ⊓ ((two_term_mixture a₁ a₂ h_anti u₁ u₂).func i ∈ᴮ u₂)) := by
-  intro i
-  sorry -- TODO: port from src/bvm.lean:925-931 (ULift Bool cases)
+      (a₂ ⊓ ((two_term_mixture a₁ a₂ h_anti u₁ u₂).func i ∈ᴮ u₂)) := fun i => by
+  simp only [two_term_mixture, bval_mixture, bool_map]
+  -- bval i = ⨆ (j : ULift Bool), Bool.rec a₁ a₂ j.down ⊓ ...
+  apply le_antisymm
+  · apply iSup_le; intro ⟨j⟩; cases j
+    · exact le_sup_left
+    · exact le_sup_right
+  · apply sup_le
+    · exact le_iSup_of_le ⟨false⟩ le_rfl
+    · exact le_iSup_of_le ⟨true⟩ le_rfl
 
 -- src/bvm.lean:933
 def floris_mixture {ι : Type u} (a : ι → 𝔹) (u : ι → bSet 𝔹) : bSet 𝔹 :=
@@ -1259,8 +1266,45 @@ lemma two_term_mixture_h_star (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) 
 -- src/bvm.lean:937 — Mixing Lemma
 lemma mixing_lemma' {ι : Type u} (a : ι → 𝔹) (τ : ι → bSet 𝔹)
     (h_star : ∀ i j : ι, a i ⊓ a j ≤ τ i =ᴮ τ j) :
-    ∀ i : ι, a i ≤ (mixture a τ) =ᴮ τ i := by
-  sorry -- TODO: port from src/bvm.lean:937-951 (complex bv_eq/mem/iSup reasoning)
+    ∀ i : ι, a i ≤ (mixture a τ) =ᴮ τ i := fun i => by
+  rw [bv_eq_unfold]
+  apply le_inf
+  · -- First: ⨅ i_z, bval (mixture a τ) i_z ⟹ func (mixture a τ) i_z ∈ᴮ τ i
+    apply le_iInf; intro ⟨i_z_fst, i_z_snd⟩
+    rw [← deduction]
+    -- bval (mixture a τ) ⟨j, i_z_snd⟩ = ⨆ k, a k ⊓ (τ j).func i_z_snd ∈ᴮ τ k
+    simp only [bval_mixture, mixture, func, bval]
+    rw [inf_iSup_eq]
+    apply iSup_le; intro j
+    -- a i ⊓ a j ⊓ (τ j).func i_z_snd ∈ᴮ τ j ≤ (τ i_z_fst).func i_z_snd ∈ᴮ τ i
+    -- Note: func (mixture a τ) ⟨j, ...⟩ = (τ j).func ...
+    rw [← inf_assoc]
+    -- a i ⊓ a j ≤ τ i =ᴮ τ j, so we can subst
+    have h_eq := h_star i j
+    -- a i ⊓ a j ⊓ (τ j).func i_z_snd ∈ᴮ τ j ≤ (τ i =ᴮ τ j) ⊓ (τ j).func i_z_snd ∈ᴮ τ j
+    --   ≤ (τ j).func i_z_snd ∈ᴮ τ i  (by subst_congr_mem_right with bv_eq_symm)
+    -- goal: a i ⊓ (a j ⊓ (τ i_z_fst).func i_z_snd ∈ᴮ τ j) ≤ (τ i_z_fst).func i_z_snd ∈ᴮ τ i
+    have heq : a i ⊓ a j ≤ τ i =ᴮ τ j := h_eq
+    simp only [func, ← inf_assoc] at *
+    calc a i ⊓ a j ⊓ (τ i_z_fst).func i_z_snd ∈ᴮ τ j
+        ≤ (τ i =ᴮ τ j) ⊓ (τ i_z_fst).func i_z_snd ∈ᴮ τ j :=
+          le_inf (inf_le_left.trans heq) inf_le_right
+      _ = (τ j =ᴮ τ i) ⊓ (τ i_z_fst).func i_z_snd ∈ᴮ τ j := by rw [bv_eq_symm]
+      _ ≤ (τ i_z_fst).func i_z_snd ∈ᴮ τ i := subst_congr_mem_right
+  · -- Second: ⨅ i_z : (τ i).type, (τ i).bval i_z ⟹ (τ i).func i_z ∈ᴮ mixture a τ
+    apply le_iInf; intro i_z
+    rw [← deduction]
+    -- a i ⊓ (τ i).bval i_z ≤ (τ i).func i_z ∈ᴮ mixture a τ
+    -- Use index ⟨i, i_z⟩ in mixture: bval ⟨i, i_z⟩ ≥ a i ⊓ (τ i).bval i_z
+    -- via a i ⊓ (τ i).bval i_z ≤ a i ⊓ (τ i).func i_z ∈ᴮ τ i ≤ bval ⟨i, i_z⟩
+    -- and bval ⟨i, i_z⟩ ⊓ eq ≤ func ⟨i, i_z⟩ ∈ mixture...
+    apply le_trans _ (mem_mk' (mixture a τ) ⟨i, i_z⟩)
+    -- goal: a i ⊓ (τ i).bval i_z ≤ (mixture a τ).bval ⟨i, i_z⟩
+    simp only [bval_mixture, mixture, func]
+    -- bval ⟨i, i_z⟩ = ⨆ j, a j ⊓ (τ i).func i_z ∈ᴮ τ j
+    apply le_iSup_of_le i
+    -- a i ⊓ (τ i).bval i_z ≤ a i ⊓ (τ i).func i_z ∈ᴮ τ i
+    exact le_inf inf_le_left (inf_le_right.trans (mem_mk' (τ i) i_z))
 
 -- src/bvm.lean:954
 lemma mixing_lemma {ι : Type u} (a : ι → 𝔹) (τ : ι → bSet 𝔹)
@@ -1272,7 +1316,9 @@ lemma mixing_lemma {ι : Type u} (a : ι → 𝔹) (τ : ι → bSet 𝔹)
 lemma mixing_lemma_two_term (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u₂ : bSet 𝔹) :
     a₁ ≤ (two_term_mixture a₁ a₂ h_anti u₁ u₂ =ᴮ u₁) ∧
     a₂ ≤ (two_term_mixture a₁ a₂ h_anti u₁ u₂ =ᴮ u₂) := by
-  constructor <;> sorry -- TODO: port from src/bvm.lean:957-963 (requires mixing_lemma')
+  have h := mixing_lemma' (bool_map a₁ a₂) (bool_map u₁ u₂)
+    (two_term_mixture_h_star a₁ a₂ h_anti u₁ u₂)
+  exact ⟨h ⟨false⟩, h ⟨true⟩⟩
 
 /-! ### smallness -/
 
