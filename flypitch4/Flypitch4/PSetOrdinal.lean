@@ -1336,8 +1336,11 @@ lemma functions_2_injects_into_powerset (x : PSet.{u}) :
       (functions x (PSet.ofNat 2) : PSet.{u}) (PSet.powerset x : PSet.{u}) f := by
   refine ⟨f2ip x, ?_, ?_⟩
   · -- is_func (functions x 2) (powerset x) (f2ip x)
-    -- TODO: port from src/pSet_ordinal.lean:1355-1366
-    sorry
+    unfold f2ip
+    apply function_mk.mk_is_func
+    intro χ
+    rw [PSet.mem_powerset]
+    exact sep_subset f2ip_P_ext
   · -- is_inj (f2ip x): follows from functions_to_2_eq via mem_f2ip_iff
     intro w₁ w₂ v₁ v₂ ⟨H₁, H₂, H_eq⟩
     rw [mem_f2ip_iff] at H₁ H₂
