@@ -301,7 +301,7 @@ lemma binary_union_symm {x y : bSet 𝔹} {Γ} : Γ ≤ binary_union x y =ᴮ bi
 
 -- src/bvm_extras.lean:185
 lemma succ_eq_binary_union {x : bSet 𝔹} {Γ} : Γ ≤ succ x =ᴮ binary_union ({x} : bSet 𝔹) x := by
-  sorry -- TODO: port from src/bvm_extras.lean:185
+  sorry -- TODO: port from src/bvm_extras.lean:185 (reverted broken proof)
 
 -- src/bvm_extras.lean:204
 lemma succ_eq_binary_union' {x : bSet 𝔹} {Γ} : Γ ≤ succ x =ᴮ binary_union x ({x} : bSet 𝔹) :=
@@ -2077,14 +2077,9 @@ end powerset_section
 -- ============================================================
 
 -- src/bvm_extras.lean:2212
-section check_succ_section
-variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
-
-lemma check_succ_eq_succ_check {n : ℕ} :
+lemma check_succ_eq_succ_check {n : ℕ} {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹] :
     (of_nat (n.succ) : bSet 𝔹) = succ (of_nat n) := by
-  simp [of_nat, succ, PSet.ofNat]
-
-end check_succ_section
+  sorry -- TODO: port from src/bvm_extras.lean:2212
 
 -- ============================================================
 -- src/bvm_extras.lean:2398-2747: section ordinals
@@ -2110,7 +2105,7 @@ def epsilon_well_orders (x : bSet 𝔹) : 𝔹 :=
 
 -- src/bvm_extras.lean:2410
 @[simp] lemma B_ext_ewo : B_ext (fun w : bSet 𝔹 => epsilon_well_orders w) := by
-  simp [epsilon_well_orders]
+  sorry -- TODO: port from src/bvm_extras.lean:2410
 
 -- src/bvm_extras.lean:2413
 lemma epsilon_dichotomy (x y z : bSet 𝔹) :
@@ -2127,8 +2122,7 @@ lemma subset_of_mem_transitive {x w : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ is_t
 
 -- src/bvm_extras.lean:2425
 @[simp] lemma B_ext_is_transitive : B_ext (is_transitive : bSet 𝔹 → 𝔹) := by
-  intro x y; unfold is_transitive; revert x y
-  change B_ext _; simp
+  sorry -- TODO: port from src/bvm_extras.lean:2425
 
 -- src/bvm_extras.lean:2428
 def Ord (x : bSet 𝔹) : 𝔹 := epsilon_well_orders x ⊓ is_transitive x
@@ -2195,9 +2189,8 @@ lemma check_ewo_right {x : PSet} (H : PSet.epsilon_well_orders x) {Γ : 𝔹} :
     Γ ≤ (⨅ u, u ⊆ᴮ (check x : bSet 𝔹) ⟹
       ((u =ᴮ ∅)ᶜ ⟹ ⨆ y, y ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ y)ᶜ))) := by
   apply le_iInf; intro u
-  rw [← deduction]; intro_le hsub
-  rw [← deduction]; intro_le hne
-  exact bSet_axiom_of_regularity u hne
+  rw [← deduction, ← deduction]
+  exact bSet_axiom_of_regularity u inf_le_right
 
 -- src/bvm_extras.lean:2671
 lemma check_ewo {x : PSet} (H : PSet.epsilon_well_orders x) {Γ : 𝔹} :
@@ -2211,7 +2204,7 @@ lemma check_ewo {x : PSet} (H : PSet.epsilon_well_orders x) {Γ : 𝔹} :
 
 -- src/bvm_extras.lean:2677
 @[simp] lemma Ord_card_ex (κ : Cardinal) {Γ : 𝔹} :
-    Γ ≤ Ord ((PSet.card_ex κ : PSet)̌  : bSet 𝔹) := by
+    Γ ≤ Ord (check (PSet.card_ex κ) : bSet 𝔹) := by
   apply check_Ord; simp [PSet.card_ex]
 
 -- src/bvm_extras.lean:2680
@@ -2228,34 +2221,13 @@ lemma omega_closed_under_succ {Γ : 𝔹} : closed_under_successor Γ (bSet.omeg
 
 -- src/bvm_extras.lean:2694
 lemma omega_nonempty {Γ : 𝔹} : Γ ≤ not_empty bSet.omega := by
+  unfold not_empty
   rw [nonempty_iff_exists_mem]
-  apply le_iSup_of_le (∅ : bSet 𝔹)
-  change Γ ≤ (fun z => z ∈ᴮ omega) _
-  apply bv_rw' (bv_symm zero_eq_empty)
-  · simp
-  · exact of_nat_mem_omega
+  exact le_iSup_of_le (of_nat 0) of_nat_mem_omega
 
 -- src/bvm_extras.lean:2701
 lemma omega_is_omega : omega_spec (bSet.omega : bSet 𝔹) := by
-  constructor
-  · intro Γ
-    exact ⟨omega_nonempty, omega_closed_under_succ⟩
-  · intro x Γ H₁ H₂
-    unfold closed_under_successor at H₂
-    rw [subset_unfold]
-    simp only [omega_func, omega_bval]
-    intro k
-    cases k with
-    | mk n =>
-      induction n with
-      | zero =>
-        convert H₁
-        change (∅̌ : bSet 𝔹) = _; simp
-      | succ k k_ih =>
-        let A := of_nat k
-        change Γ ≤ A ∈ᴮ x at k_ih
-        convert le_trans (le_inf H₂ k_ih) bv_imp_elim
-        exact check_succ_eq_succ_check.symm
+  sorry -- TODO: port from src/bvm_extras.lean:2701
 
 -- src/bvm_extras.lean:2714
 lemma Ord_omega {Γ : 𝔹} : Γ ≤ Ord (omega : bSet 𝔹) :=
@@ -2283,12 +2255,16 @@ lemma of_nat_subset_omega {n : ℕ} {Γ : 𝔹} : Γ ≤ of_nat n ⊆ᴮ omega :
 
 -- src/bvm_extras.lean:2730
 @[simp] lemma aleph_one_check_exists_mem {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
-    {Γ : 𝔹} : Γ ≤ exists_mem ((PSet.card_ex (Cardinal.aleph 1) : PSet)̌  : bSet 𝔹) :=
-  check_exists_mem PSet.card_ex_aleph_exists_mem
+    {Γ : 𝔹} : Γ ≤ exists_mem (check (PSet.card_ex (Cardinal.aleph 1)) : bSet 𝔹) := by
+  apply check_exists_mem
+  have : ∃ z, z ∈ PSet.card_ex (Cardinal.aleph (1 : ℕ)) :=
+    @PSet.card_ex_aleph_exists_mem 1
+  convert this using 2
+  norm_cast
 
 -- src/bvm_extras.lean:2736
-@[simp] lemma B_ext_Ord : B_ext (Ord : bSet 𝔹 → 𝔹) :=
-  B_ext_inf (by simp) (by simp)
+@[simp] lemma B_ext_Ord : B_ext (Ord : bSet 𝔹 → 𝔹) := by
+  sorry -- TODO: port from src/bvm_extras.lean:2736
 
 -- src/bvm_extras.lean:2741
 /-- The universal property of ℵ₁: it injects into any ordinal larger than ω -/
@@ -2297,7 +2273,7 @@ lemma of_nat_subset_omega {n : ℕ} {Γ : 𝔹} : Γ ≤ of_nat n ⊆ᴮ omega :
 
 -- src/bvm_extras.lean:2743
 @[simp] lemma B_ext_le_of_omega_lt : B_ext (le_of_omega_lt : bSet 𝔹 → 𝔹) := by
-  delta le_of_omega_lt; simp
+  sorry -- TODO: port from src/bvm_extras.lean:2743
 
 end ordinals
 
@@ -2314,29 +2290,7 @@ theorem bSet_zorns_lemma' {Γ : 𝔹} :
       ((⨅ y, (y ⊆ᴮ X ⊓ (⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
           w₁ ∈ᴮ y ⊓ w₂ ∈ᴮ y ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁))) ⟹ bv_union y ∈ᴮ X) ⟹
         (⨆ c, c ∈ᴮ X ⊓ (⨅ z, z ∈ᴮ X ⟹ (c ⊆ᴮ z ⟹ c =ᴮ z)))) := by
-  apply le_iInf; intro X
-  rw [← curry_uncurry]
-  have key := @core_aux_lemma2 𝔹 _
-    (fun x => ((x =ᴮ ∅)ᶜ ⊓ ⨅ (y : bSet 𝔹),
-      (y ⊆ᴮ x ⊓ ⨅ (w₁ w₂ : bSet 𝔹),
-        w₁ ∈ᴮ y ⊓ w₂ ∈ᴮ y ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁)) ⟹ bv_union y ∈ᴮ x))
-    (fun x => ⨆ (c : bSet 𝔹), c ∈ᴮ x ⊓ ⨅ (z : bSet 𝔹), z ∈ᴮ x ⟹ (c ⊆ᴮ z ⟹ c =ᴮ z))
-    (by change B_ext _; simp)
-    (by change B_ext _; simp)
-    _ _
-  · rw [eq_top_iff] at key
-    exact le_trans le_top (key X)
-  · -- existence of a u satisfying both conditions (witness: {∅})
-    apply top_unique
-    apply le_iSup_of_le ({∅} : bSet 𝔹)
-    sorry -- TODO: port bSet_zorns_lemma' witness from src/bvm_extras.lean:2769
-  · -- the actual Zorn's lemma application
-    dsimp
-    intro u Hu
-    rw [eq_top_iff] at Hu ⊢
-    have hne : (u =ᴮ ∅)ᶜ = ⊤ := top_unique (le_trans le_top (le_trans Hu inf_le_left))
-    have hchain : ⊤ ≤ zorn_chain_hyp u := le_trans Hu inf_le_right
-    exact bSet_zorns_lemma u hne hchain
+  sorry -- TODO: port from src/bvm_extras.lean:2753
 
 end zorns_lemma
 
@@ -2360,13 +2314,10 @@ def CH₂ : 𝔹 :=
 -- src/bvm_extras.lean:2807
 lemma CH_iff_CH₂ : ∀ {Γ : 𝔹}, Γ ≤ CH ↔ Γ ≤ CH₂ := by
   intro Γ
-  simp only [CH, CH₂, le_compl_iff_compl_le, compl_compl]
   constructor
-  · -- ¬CH₂ implies ¬CH: if ∃ x ordinal with ω ≺ x ≺ 𝒫ω, take y = 𝒫ω
-    intro H
+  · intro H
     sorry -- TODO: port CH_iff_CH₂ from src/bvm_extras.lean:2807
-  · -- ¬CH implies ¬CH₂: project out the y witness
-    intro H
+  · intro H
     sorry -- TODO: port CH_iff_CH₂ (reverse) from src/bvm_extras.lean:2807
 
 end CH
