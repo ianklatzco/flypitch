@@ -832,8 +832,27 @@ lemma function_of_func'_is_function {x y f : bSet 𝔹} {Γ} (H_is_func' : Γ �
   · -- totality: for every w₁ ∈ x, ∃ w₂ ∈ y, pair w₁ w₂ ∈ f ∩ prod x y
     apply le_iInf; intro w₁; rw [← deduction, inf_comm]
     -- let Γ_1 := w₁ ∈ᴮ x ⊓ Γ
-    have H_total := is_total_of_is_func' H_is_func'
-    sorry -- TODO: port from src/bvm_extras.lean:900
+    have H_total : Γ ≤ is_total x y f := is_total_of_is_func' H_is_func'
+    -- Goal: w₁ ∈ x ⊓ Γ ≤ ⨆ w₂, w₂ ∈ y ⊓ pair w₁ w₂ ∈ (f ∩ prod x y)
+    -- From H_total: Γ ≤ is_total x y f
+    have H_total_spec : w₁ ∈ᴮ x ⊓ Γ ≤ w₁ ∈ᴮ x ⟹ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f :=
+      le_trans (le_trans inf_le_right H_total) (iInf_le _ w₁)
+    -- H_total_spec : w₁ ∈ x ⊓ Γ ≤ w₁ ∈ x ⟹ ⨆ w₂, w₂ ∈ y ⊓ pair w₁ w₂ ∈ f
+    have step : w₁ ∈ᴮ x ⊓ Γ ≤ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f :=
+      le_trans (le_inf H_total_spec (inf_le_left (b := Γ))) bv_imp_elim
+    -- Augment step with the context to include w₁ ∈ x
+    calc w₁ ∈ᴮ x ⊓ Γ
+        ≤ (⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f) ⊓ (w₁ ∈ᴮ x ⊓ Γ) := le_inf step le_rfl
+      _ ≤ ⨆ w₂, (w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f) ⊓ (w₁ ∈ᴮ x ⊓ Γ) := (iSup_inf_eq _ _).le
+      _ ≤ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ (f ∩ᴮ prod x y) := by
+            apply iSup_le; intro w₂; apply le_iSup_of_le w₂
+            refine le_inf (inf_le_left.trans inf_le_left) ?_
+            -- need: (w₂ ∈ y ⊓ pair w₁ w₂ ∈ f) ⊓ (w₁ ∈ x ⊓ Γ) ≤ pair w₁ w₂ ∈ (f ∩ prod x y)
+            apply mem_binary_inter_iff.mpr
+            constructor
+            · exact inf_le_left.trans inf_le_right
+            · exact le_trans (le_inf (inf_le_right.trans inf_le_left)
+                (inf_le_left.trans inf_le_left)) prod_mem_old
   · exact binary_inter_subset_right
 
 -- src/bvm_extras.lean:913
