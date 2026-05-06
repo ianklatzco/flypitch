@@ -2103,12 +2103,31 @@ lemma check_eq_reflect {x y : PSet} {Γ : 𝔹} (H_lt : ⊥ < Γ)
 -- src/bvm.lean:1625
 @[simp] lemma check_insert (a b : PSet) :
     check (PSet.insert a b) = (bSet.insert1 (check a) (check b) : bSet 𝔹) := by
-  sorry -- TODO: port from src/bvm.lean:1625-1626 (PSet.insert structure)
+  cases a with | mk α A => cases b with | mk β B =>
+  -- Both are bSet.mk (Option β) (fun o => ...) (fun _ => ⊤)
+  -- LHS: check (PSet.insert a b)
+  -- = check (PSet.mk (Option β) (fun o => Option.rec (PSet.mk α A) B o))
+  -- = bSet.mk (Option β) (fun o => check (Option.rec (PSet.mk α A) B o)) (fun _ => ⊤)
+  -- = bSet.mk (Option β) (fun o => Option.rec (check (PSet.mk α A)) (fun i => check (B i)) o) (fun _ => ⊤)
+  -- RHS: bSet.insert1 (check (PSet.mk α A)) (check (PSet.mk β B))
+  -- = bSet.insert (check (PSet.mk α A)) ⊤ (bSet.mk β (fun i => check (B i)) (fun _ => ⊤))
+  -- = bSet.mk (Option β) (fun o => Option.rec (check (PSet.mk α A)) (fun i => check (B i)) o) (fun _ => ⊤)
+  simp only [PSet.insert, bSet.insert1, bSet.insert, check, PSet.mk_type, PSet.mk_func]
+  congr 1
+  · funext o; cases o <;> rfl
+  · funext o; cases o <;> rfl
 
 -- src/bvm.lean:1628
 lemma mem_check_witness {y x : PSet.{u}} {Γ : 𝔹} (h_nonzero : ⊥ < Γ)
     (H : Γ ≤ check y ∈ᴮ check x) : ∃ i : x.Type, Γ ≤ check y =ᴮ check (x.Func i) := by
-  sorry -- TODO: port from src/bvm.lean:1628-1638 (supr_eq_Gamma_max + cast alignment)
+  rw [mem_unfold] at H
+  simp only [check_bval_top, top_inf_eq, check_func] at H
+  -- H : Γ ≤ ⨆ i, check y =ᴮ check (x.Func (check_cast i))
+  obtain ⟨i, hi⟩ := supr_eq_Gamma_max h_nonzero H (h_bounded := fun a H_neg => by
+    rcases @check_bv_eq_dichotomy 𝔹 _ y (x.Func (check_cast a)) with h | h
+    · exact absurd (h ▸ le_top) H_neg
+    · exact h)
+  exact ⟨check_cast i, hi⟩
 
 -- src/bvm.lean:1640
 lemma check_mem_iff {x y : PSet} :
@@ -2133,7 +2152,18 @@ lemma check_mem_iff {x y : PSet} :
 -- src/bvm.lean:1650
 lemma not_check_mem_iff {x y : PSet} :
     x ∉ y ↔ (check x : bSet 𝔹) ∈ᴮ check y = (⊥ : 𝔹) := by
-  sorry -- TODO: port from src/bvm.lean:1650-1659 (cast alignment issue)
+  constructor
+  · intro H
+    -- x ∉ y means ∀ b, ¬ PSet.Equiv x (y.Func b)
+    have H' : ∀ b : y.Type, ¬ PSet.Equiv x (y.Func b) := fun b hE => H ⟨b, hE⟩
+    rw [← le_bot_iff, mem_unfold, iSup_le_iff]
+    intro i
+    simp only [check_bval_top, check_func, top_inf_eq]
+    exact le_of_eq (check_bv_eq_bot_of_not_equiv (H' (check_cast i)))
+  · intro H h_mem
+    have htop := @check_mem_iff 𝔹 _ x y |>.mp h_mem
+    rw [H] at htop
+    exact absurd htop (by simp)
 
 -- src/bvm.lean:1662
 lemma check_not_mem {x y : PSet} : x ∉ y → ∀ {Γ : 𝔹}, Γ ≤ check x ∈ᴮ check y → Γ ≤ ⊥ := by
@@ -2181,7 +2211,12 @@ lemma check_mem_reflect {x y : PSet} {Γ : 𝔹} (H_lt : ⊥ < Γ)
 -- src/bvm.lean:1691
 @[simp] lemma check_subset_of_subset {x y : PSet} (h_subset : x ⊆ y) :
     (⊤ : 𝔹) ≤ check x ⊆ᴮ check y := by
-  sorry -- TODO: port from src/bvm.lean:1691-1697 (check_cast + PSet.subset_iff alignment)
+  rw [subset_unfold]
+  apply le_iInf; intro j
+  simp only [check_bval_top, top_imp, check_func]
+  -- Goal: ⊤ ≤ check (x.Func (check_cast j)) ∈ᴮ check y
+  obtain ⟨b, hb⟩ := h_subset (check_cast j)
+  exact check_mem ⟨b, hb⟩
 
 -- src/bvm.lean:1699
 lemma check_subset {x y : PSet} {Γ : 𝔹} (h_subset : x ⊆ y) :
@@ -2191,7 +2226,25 @@ lemma check_subset {x y : PSet} {Γ : 𝔹} (h_subset : x ⊆ y) :
 -- src/bvm.lean:1702
 lemma check_not_subset {x y : PSet} (H : ¬ x ⊆ y) {Γ} :
     (Γ : 𝔹) ≤ (check x ⊆ᴮ check y)ᶜ := by
-  sorry -- TODO: port from src/bvm.lean:1702-1711 (check_not_subset)
+  -- ¬ x ⊆ y means ∃ a, x.Func a ∉ y
+  -- PSet.Subset x y = ∀ a, ∃ b, Equiv (x.Func a) (y.Func b)
+  have H' : ∃ a : x.Type, x.Func a ∉ y := by
+    by_contra h
+    push_neg at h
+    exact H (fun a => h a)
+  obtain ⟨a, h_notmem⟩ := H'
+  -- check (x.Func a) ∈ᴮ check y = ⊥
+  have h_bot : (check (x.Func a) : bSet 𝔹) ∈ᴮ check y = ⊥ :=
+    not_check_mem_iff.mp h_notmem
+  -- check x ⊆ᴮ check y ≤ ⊥
+  have h_sub_bot : check x ⊆ᴮ check y = (⊥ : 𝔹) := by
+    rw [← le_bot_iff, subset_unfold]
+    apply le_trans (iInf_le _ (check_cast_symm a))
+    simp only [check_bval_top, top_imp, check_func, check_cast, check_cast_symm,
+               cast_cast, cast_eq]
+    rw [h_bot]
+  rw [h_sub_bot, compl_bot]
+  exact le_top
 
 -- src/bvm.lean:1713
 @[simp] lemma check_exists_mem {y : PSet} (H_exists_mem : ∃ z, z ∈ y) {Γ : 𝔹} :
@@ -2204,7 +2257,15 @@ lemma check_not_subset {x y : PSet} (H : ¬ x ⊆ y) {Γ} :
 lemma instantiate_existential_over_check_aux {ϕ : bSet 𝔹 → 𝔹} (H_congr : B_ext ϕ)
     (x : PSet) {Γ} (H_nonzero : ⊥ < Γ) (H_ex : Γ ≤ ⨆ y, (y ∈ᴮ check x ⊓ ϕ y)) :
     ∃ i : x.Type, ⊥ < (ϕ (check (x.Func i)) ⊓ Γ) := by
-  sorry -- TODO: port from src/bvm.lean:1746-1753 (check cast alignment)
+  -- Use bounded_exists to rewrite ⨆ y, y ∈ᴮ check x ⊓ ϕ y
+  -- = ⨆ i : (check x).type, (check x).bval i ⊓ ϕ ((check x).func i)
+  -- = ⨆ i, ⊤ ⊓ ϕ (check (x.Func (check_cast i)))
+  -- = ⨆ i, ϕ (check (x.Func (check_cast i)))
+  have h_cong : ∀ a b : bSet 𝔹, a =ᴮ b ⊓ ϕ a ≤ ϕ b := H_congr
+  rw [← @bounded_exists _ _ (check x) ϕ h_cong] at H_ex
+  simp only [check_bval_top, top_inf_eq, check_func] at H_ex
+  obtain ⟨i, hi⟩ := nonzero_inf_of_nonzero_le_supr H_nonzero H_ex
+  exact ⟨check_cast i, by rwa [inf_comm]⟩
 
 -- src/bvm.lean:1755
 noncomputable def instantiate_existential_over_check
@@ -2229,7 +2290,15 @@ lemma instantiate_existential_over_check_spec₂ (ϕ : bSet 𝔹 → 𝔹) (H_co
 lemma eq_check_of_mem_check {Γ : 𝔹} (h_nonzero : ⊥ < Γ) {x : PSet.{u}} {y : bSet 𝔹}
     (H_mem : Γ ≤ y ∈ᴮ check x) :
     ∃ (i : x.Type) (Γ' : 𝔹) (_ : ⊥ < Γ') (_ : Γ' ≤ Γ), Γ' ≤ y =ᴮ check (x.Func i) := by
-  sorry -- TODO: port from src/bvm.lean:1775-1785 (depends on instantiate_existential_over_check)
+  let ϕ : bSet 𝔹 → 𝔹 := fun z => y =ᴮ z
+  have H_congr : B_ext ϕ := B_ext_bv_eq_right (x := y)
+  have H_ex : Γ ≤ ⨆ z, z ∈ᴮ check x ⊓ ϕ z := by
+    apply bv_use y; exact le_inf H_mem bv_refl
+  let i : x.Type := instantiate_existential_over_check H_congr x h_nonzero H_ex
+  exact ⟨i, ϕ (check (x.Func i)) ⊓ Γ,
+         instantiate_existential_over_check_spec H_congr x h_nonzero H_ex,
+         inf_le_right,
+         inf_le_left⟩
 
 -- src/bvm.lean:1787
 lemma eq_check_of_mem_check₂ {Γ : 𝔹} (h_nonzero : ⊥ < Γ) (x : PSet.{u}) (y : bSet 𝔹)
