@@ -439,11 +439,60 @@ lemma mem_right_of_prod_mem {v w x y : bSet 𝔹} {Γ : 𝔹} :
 
 -- src/bvm_extras.lean:415
 @[simp] lemma B_congr_prod_left {y : bSet 𝔹} : B_congr (fun x => prod x y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:415
+  intro a b Γ H_eq
+  rw [bv_eq_unfold]
+  simp only [prod_type, prod_bval, prod_func]
+  -- Need two sides: prod a y ⊆ prod b y and prod b y ⊆ prod a y
+  refine le_inf (le_iInf fun ⟨i, j⟩ => ?_) (le_iInf fun ⟨i, j⟩ => ?_)
+  · -- (prod a y).bval (i,j) ⟹ pair (a.func i) (y.func j) ∈ prod b y
+    rw [← deduction]
+    -- Context: Γ ⊓ (a.bval i ⊓ y.bval j)
+    have hai : Γ ⊓ (a.bval i ⊓ y.bval j) ≤ a.func i ∈ᴮ a :=
+      le_trans inf_le_right (le_trans inf_le_left (mem_mk' a i))
+    have hab : Γ ⊓ (a.bval i ⊓ y.bval j) ≤ a.func i ∈ᴮ b :=
+      bv_rw' (bv_symm (le_trans inf_le_left H_eq)) (ϕ := fun z => a.func i ∈ᴮ z)
+        (h_congr := B_ext_mem_right) (H_new := hai)
+    have hyj : Γ ⊓ (a.bval i ⊓ y.bval j) ≤ y.func j ∈ᴮ y :=
+      le_trans inf_le_right (le_trans inf_le_right (mem_mk' y j))
+    exact prod_mem hab hyj
+  · -- (prod b y).bval (i,j) ⟹ pair (b.func i) (y.func j) ∈ prod a y
+    rw [← deduction]
+    -- Context: Γ ⊓ (b.bval i ⊓ y.bval j)
+    have hbi : Γ ⊓ (b.bval i ⊓ y.bval j) ≤ b.func i ∈ᴮ b :=
+      le_trans inf_le_right (le_trans inf_le_left (mem_mk' b i))
+    have hba : Γ ⊓ (b.bval i ⊓ y.bval j) ≤ b.func i ∈ᴮ a :=
+      bv_rw' (le_trans inf_le_left H_eq) (ϕ := fun z => b.func i ∈ᴮ z)
+        (h_congr := B_ext_mem_right) (H_new := hbi)
+    have hyj : Γ ⊓ (b.bval i ⊓ y.bval j) ≤ y.func j ∈ᴮ y :=
+      le_trans inf_le_right (le_trans inf_le_right (mem_mk' y j))
+    exact prod_mem hba hyj
 
 -- src/bvm_extras.lean:428
 @[simp] lemma B_congr_prod_right {x : bSet 𝔹} : B_congr (fun y => prod x y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:428
+  intro a b Γ H_eq
+  rw [bv_eq_unfold]
+  simp only [prod_type, prod_bval, prod_func]
+  refine le_inf (le_iInf fun ⟨i, j⟩ => ?_) (le_iInf fun ⟨i, j⟩ => ?_)
+  · -- (x.bval i ⊓ a.bval j) ⟹ pair (x.func i) (a.func j) ∈ prod x b
+    rw [← deduction]
+    have hxi : Γ ⊓ (x.bval i ⊓ a.bval j) ≤ x.func i ∈ᴮ x :=
+      le_trans inf_le_right (le_trans inf_le_left (mem_mk' x i))
+    have haj : Γ ⊓ (x.bval i ⊓ a.bval j) ≤ a.func j ∈ᴮ a :=
+      le_trans inf_le_right (le_trans inf_le_right (mem_mk' a j))
+    have hab : Γ ⊓ (x.bval i ⊓ a.bval j) ≤ a.func j ∈ᴮ b :=
+      bv_rw' (bv_symm (le_trans inf_le_left H_eq)) (ϕ := fun z => a.func j ∈ᴮ z)
+        (h_congr := B_ext_mem_right) (H_new := haj)
+    exact prod_mem hxi hab
+  · -- (x.bval i ⊓ b.bval j) ⟹ pair (x.func i) (b.func j) ∈ prod x a
+    rw [← deduction]
+    have hxi : Γ ⊓ (x.bval i ⊓ b.bval j) ≤ x.func i ∈ᴮ x :=
+      le_trans inf_le_right (le_trans inf_le_left (mem_mk' x i))
+    have hbj : Γ ⊓ (x.bval i ⊓ b.bval j) ≤ b.func j ∈ᴮ b :=
+      le_trans inf_le_right (le_trans inf_le_right (mem_mk' b j))
+    have hba : Γ ⊓ (x.bval i ⊓ b.bval j) ≤ b.func j ∈ᴮ a :=
+      bv_rw' (le_trans inf_le_left H_eq) (ϕ := fun z => b.func j ∈ᴮ z)
+        (h_congr := B_ext_mem_right) (H_new := hbj)
+    exact prod_mem hxi hba
 
 -- src/bvm_extras.lean:441
 lemma prod_congr {x₁ x₂ y₁ y₂ : bSet 𝔹} {Γ} (H₁ : Γ ≤ x₁ =ᴮ x₂) (H₂ : Γ ≤ y₁ =ᴮ y₂) :
