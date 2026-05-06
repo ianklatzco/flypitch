@@ -821,7 +821,45 @@ lemma factor_image_is_function {x y f : bSet 𝔹} {Γ} (H_is_function : Γ ≤ 
   refine le_inf ?_ ?_
   · exact factor_image_is_func' (is_func'_of_is_function H_is_function)
   · rw [subset_unfold']; apply le_iInf; intro w; rw [← deduction]
-    sorry -- TODO: port from src/bvm_extras.lean:727
+    -- Goal: Γ ⊓ w ∈ f ≤ w ∈ prod x (image x y f)
+    -- Step 1: w ∈ f → w ∈ prod x y
+    have H_sub := subset_prod_of_is_function H_is_function
+    have H_w_prod_xy : Γ ⊓ w ∈ᴮ f ≤ w ∈ᴮ prod x y :=
+      mem_of_mem_subset (le_trans inf_le_left H_sub) inf_le_right
+    -- Step 2: Augment with context to extract prod x y index
+    -- H_w_prod_xy : Γ ⊓ w ∈ f ≤ w ∈ prod x y
+    -- Unfold prod membership in the calc chain
+    have H_w_prod_unfold : Γ ⊓ w ∈ᴮ f ≤ ⨆ p : x.type × y.type,
+        (x.bval p.1 ⊓ y.bval p.2) ⊓ w =ᴮ pair (x.func p.1) (y.func p.2) := by
+      calc Γ ⊓ w ∈ᴮ f ≤ w ∈ᴮ prod x y := H_w_prod_xy
+        _ = ⨆ p : x.type × y.type, (prod x y).bval p ⊓ w =ᴮ (prod x y).func p := mem_unfold
+        _ = ⨆ p : x.type × y.type, (x.bval p.1 ⊓ y.bval p.2) ⊓ w =ᴮ pair (x.func p.1) (y.func p.2) :=
+              rfl
+    calc Γ ⊓ w ∈ᴮ f
+        ≤ (⨆ p : x.type × y.type, (x.bval p.1 ⊓ y.bval p.2) ⊓ w =ᴮ pair (x.func p.1) (y.func p.2)) ⊓
+            (Γ ⊓ w ∈ᴮ f) := le_inf H_w_prod_unfold le_rfl
+      _ ≤ ⨆ p : x.type × y.type, ((x.bval p.1 ⊓ y.bval p.2) ⊓ w =ᴮ pair (x.func p.1) (y.func p.2)) ⊓
+              (Γ ⊓ w ∈ᴮ f) := (iSup_inf_eq _ _).le
+      _ ≤ w ∈ᴮ prod x (image x y f) := by
+            apply iSup_le; intro ⟨i, j⟩
+            -- Context: ((x.bval i ⊓ y.bval j) ⊓ w =ᴮ pair (x.func i) (y.func j)) ⊓ (Γ ⊓ w ∈ f)
+            -- Abbrev and extract components
+            set L := (x.bval i ⊓ y.bval j) ⊓ w =ᴮ pair (x.func i) (y.func j)
+            set R := Γ ⊓ w ∈ᴮ f
+            -- hxb : L ⊓ R ≤ x.bval i
+            have hxb : L ⊓ R ≤ x.bval i :=
+              (inf_le_left (b := R)).trans ((inf_le_left (b := w =ᴮ pair (x.func i) (y.func j))).trans inf_le_left)
+            have hyb : L ⊓ R ≤ y.bval j :=
+              (inf_le_left (b := R)).trans ((inf_le_left (b := w =ᴮ pair (x.func i) (y.func j))).trans inf_le_right)
+            have heq : L ⊓ R ≤ w =ᴮ pair (x.func i) (y.func j) :=
+              (inf_le_left (b := R)).trans inf_le_right
+            have hw_f : L ⊓ R ≤ w ∈ᴮ f :=
+              (inf_le_right (a := L)).trans inf_le_right
+            have hpair_f := subst_congr_mem_left' heq hw_f
+            have hxi := le_trans hxb (mem_mk' x i)
+            have hyj := le_trans hyb (mem_mk' y j)
+            have himage := mem_image hpair_f hxi hyj
+            exact subst_congr_mem_left' (bv_symm heq) (prod_mem hxi himage)
 
 -- src/bvm_extras.lean:740
 lemma check_is_total {x y f : PSet.{u}} (H_total : PSet.is_total x y f) {Γ : 𝔹} :
