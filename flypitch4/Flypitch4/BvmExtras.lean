@@ -860,7 +860,19 @@ lemma function_of_func'_surj_of_surj {x y f : bSet 𝔹} {Γ}
     (H_is_func' : Γ ≤ is_func' x y f) (H_is_surj : Γ ≤ is_surj x y f) :
     Γ ≤ is_surj x y (function_of_func' H_is_func') := by
   apply le_iInf; intro z; rw [← deduction]
-  sorry -- TODO: port from src/bvm_extras.lean:913
+  -- Goal: Γ ⊓ z ∈ᴮ y ≤ ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ (f ∩ᴮ prod x y)
+  have step : Γ ⊓ z ∈ᴮ y ≤ ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f :=
+    le_trans (le_inf (le_trans (le_trans inf_le_left H_is_surj) (iInf_le _ z)) inf_le_right) bv_imp_elim
+  calc Γ ⊓ z ∈ᴮ y
+      ≤ (⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ y) := le_inf step le_rfl
+    _ ≤ ⨆ w, (w ∈ᴮ x ⊓ pair w z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ y) := (iSup_inf_eq _ _).le
+    _ ≤ ⨆ w, w ∈ᴮ x ⊓ pair w z ∈ᴮ (f ∩ᴮ prod x y) := by
+          apply iSup_le; intro w; apply le_iSup_of_le w
+          refine le_inf (inf_le_left.trans inf_le_left) ?_
+          apply mem_binary_inter_iff.mpr
+          exact ⟨inf_le_left.trans inf_le_right,
+            le_trans (le_inf (inf_le_left.trans inf_le_left) (inf_le_right.trans inf_le_right))
+              prod_mem_old⟩
 
 -- src/bvm_extras.lean:921
 lemma function_of_func'_inj_of_inj {x y f : bSet 𝔹} {Γ} {H : Γ ≤ is_func' x y f}
@@ -868,7 +880,19 @@ lemma function_of_func'_inj_of_inj {x y f : bSet 𝔹} {Γ} {H : Γ ≤ is_func'
   apply le_iInf; intro w₁; apply le_iInf; intro w₂
   apply le_iInf; intro v₁; apply le_iInf; intro v₂
   rw [← deduction]
-  sorry -- TODO: port from src/bvm_extras.lean:921
+  -- Goal: Γ ⊓ (pair w₁ v₁ ∈ᴮ (f ∩ᴮ prod x y) ⊓ pair w₂ v₂ ∈ᴮ (f ∩ᴮ prod x y) ⊓ v₁ =ᴮ v₂) ≤ w₁ =ᴮ w₂
+  -- use binary_inter_subset_left to extract pair wᵢ vᵢ ∈ f
+  -- Abbreviate the context
+  set Γ₁ := Γ ⊓ (pair w₁ v₁ ∈ᴮ (f ∩ᴮ prod x y) ⊓ pair w₂ v₂ ∈ᴮ (f ∩ᴮ prod x y) ⊓ v₁ =ᴮ v₂)
+  have hmem₁ : Γ₁ ≤ pair w₁ v₁ ∈ᴮ f :=
+    mem_of_mem_subset binary_inter_subset_left (inf_le_right.trans (inf_le_left.trans inf_le_left))
+  have hmem₂ : Γ₁ ≤ pair w₂ v₂ ∈ᴮ f :=
+    mem_of_mem_subset binary_inter_subset_left (inf_le_right.trans (inf_le_left.trans inf_le_right))
+  have hveq : Γ₁ ≤ v₁ =ᴮ v₂ := inf_le_right.trans inf_le_right
+  have hspec : Γ₁ ≤ pair w₁ v₁ ∈ᴮ f ⊓ pair w₂ v₂ ∈ᴮ f ⊓ v₁ =ᴮ v₂ ⟹ w₁ =ᴮ w₂ :=
+    le_trans inf_le_left (le_trans H_is_inj
+      ((iInf_le _ w₁).trans (iInf_le _ w₂) |>.trans (iInf_le _ v₁) |>.trans (iInf_le _ v₂)))
+  exact le_trans (le_inf hspec (le_inf (le_inf hmem₁ hmem₂) hveq)) bv_imp_elim
 
 -- src/bvm_extras.lean:931
 lemma surj_image {x y f : bSet 𝔹} {Γ} (H_func : Γ ≤ is_func' x y f) :
