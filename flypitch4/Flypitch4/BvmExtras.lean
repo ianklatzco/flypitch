@@ -804,8 +804,16 @@ lemma factor_image_is_func' {x y f : bSet 𝔹} {Γ} (H_is_func' : Γ ≤ is_fun
   -- H_total_spec : Γ ⊓ w₁ ∈ᴮ x ≤ w₁ ∈ᴮ x ⟹ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f
   have H_step := le_trans (le_inf H_total_spec H_w₁) bv_imp_elim
   -- H_step : Γ ⊓ w₁ ∈ᴮ x ≤ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f
-  -- need to upgrade w₂ ∈ᴮ y to w₂ ∈ᴮ image x y f
-  sorry -- TODO: port from src/bvm_extras.lean:716
+  -- upgrade w₂ ∈ y to w₂ ∈ image x y f using mem_image
+  calc Γ ⊓ w₁ ∈ᴮ x
+      ≤ (⨆ w₂, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f) ⊓ (Γ ⊓ w₁ ∈ᴮ x) := le_inf H_step le_rfl
+    _ ≤ ⨆ w₂, (w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f) ⊓ (Γ ⊓ w₁ ∈ᴮ x) := (iSup_inf_eq _ _).le
+    _ ≤ ⨆ w₂, w₂ ∈ᴮ image x y f ⊓ pair w₁ w₂ ∈ᴮ f := by
+          apply iSup_le; intro w₂; apply le_iSup_of_le w₂
+          -- Context: (w₂ ∈ y ⊓ pair w₁ w₂ ∈ f) ⊓ (Γ ⊓ w₁ ∈ x)
+          refine le_inf ?_ (inf_le_left.trans inf_le_right)
+          exact mem_image (inf_le_left.trans inf_le_right)
+            (inf_le_right.trans inf_le_right) (inf_le_left.trans inf_le_left)
 
 -- src/bvm_extras.lean:727
 lemma factor_image_is_function {x y f : bSet 𝔹} {Γ} (H_is_function : Γ ≤ is_function x y f) :
