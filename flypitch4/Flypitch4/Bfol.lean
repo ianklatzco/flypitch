@@ -1027,15 +1027,13 @@ lemma boolean_realize_sentence_bd_alls {n} {f : bounded_formula L n} :
 lemma consis_of_exists_bmodel [NontrivialCompleteBooleanAlgebra β] {T : SentTheory L}
     {S : bStructure L β} [H_nonempty : Nonempty S] (H : ⊤ ⊩ₜ[S] T) :
     T.is_consistent := by
-  intro H_inconsis
-  -- H_inconsis : T.fst ⊢' ⊥' = T ⊢ₛ' bd_falsum (definitionally)
-  have hforced := boolean_soundness (β := β) (A := (bd_falsum : sentence L))
-    (show T ⊢ₛ' (bd_falsum : sentence L) from H_inconsis) H_nonempty
-  rw [inf_axioms_top_of_models H] at hforced
-  -- hforced : ⊤ ⊩[S] bd_falsum, i.e., ⊤ ≤ ⟦bd_falsum⟧[S] = ⊥
-  -- Instance diamond: [CompleteBooleanAlgebra β] section variable vs
-  -- NontrivialCompleteBooleanAlgebra.toCompleteBooleanAlgebra prevent direct proof.
-  -- TODO: resolve diamond by removing section variable or using a unified instance.
+  -- TODO: port from src/bfol.lean:785-793
+  -- Logic: boolean_soundness gives T ⊨[β] bd_falsum; instantiate at S to get ⊤ ≤ ⟦⊥⟧[S] = ⊥.
+  -- This contradicts NontrivialCompleteBooleanAlgebra.bot_lt_top.
+  -- Instance diamond: section variable [CompleteBooleanAlgebra β] vs
+  -- NontrivialCompleteBooleanAlgebra.toCompleteBooleanAlgebra causes two separate
+  -- CompleteBooleanAlgebra instances for β, making the LE types mismatch.
+  -- Resolution would require removing the section variable or using instance priority.
   sorry
 
 /-! ## subst0_bounded_formula_not — src/bfol.lean:799-801 -/
