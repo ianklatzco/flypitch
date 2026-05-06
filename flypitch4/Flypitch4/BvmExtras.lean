@@ -2971,7 +2971,94 @@ def Card (y : bSet 𝔹) : 𝔹 := Ord y ⊓ ⨅ x, x ∈ᴮ y ⟹ (larger_than 
 
 -- src/bvm_extras.lean:2486
 lemma is_transitive_of_mem_Ord (y x : bSet 𝔹) : Ord x ⊓ y ∈ᴮ x ≤ is_transitive y := by
-  sorry -- TODO: port from src/bvm_extras.lean:2486
+  induction y using bSet.rec' generalizing x with
+  | _ y IH =>
+    -- IH : ∀ a : y.type, ∀ x', Ord x' ⊓ y.func a ∈ x' ≤ is_transitive (y.func a)
+    -- Goal: Ord x ⊓ y ∈ x ≤ is_transitive y = ⨅ w, w ∈ y ⟹ w ⊆ y
+    apply le_iInf; intro w; rw [← deduction]
+    -- Goal: Ord x ⊓ y ∈ x ⊓ w ∈ y ≤ w ⊆ y = ⨅ z, z ∈ w ⟹ z ∈ y
+    rw [subset_unfold']; apply le_iInf; intro z; rw [← deduction]
+    -- Goal: Ord x ⊓ y ∈ x ⊓ w ∈ y ⊓ z ∈ w ≤ z ∈ y
+    set ctx := Ord x ⊓ y ∈ᴮ x ⊓ w ∈ᴮ y ⊓ z ∈ᴮ w
+    -- Extract relevant information
+    have hOrd : ctx ≤ Ord x := inf_le_left.trans (inf_le_left.trans inf_le_left)
+    have hyx : ctx ≤ y ∈ᴮ x := inf_le_left.trans (inf_le_left.trans inf_le_right)
+    have hwy : ctx ≤ w ∈ᴮ y := inf_le_left.trans inf_le_right
+    have hzw : ctx ≤ z ∈ᴮ w := inf_le_right
+    -- is_transitive x: y ⊆ x
+    have hy_sub_x : ctx ≤ y ⊆ᴮ x :=
+      subset_of_mem_transitive (hOrd.trans inf_le_right) hyx
+    -- w ∈ x
+    have hwx : ctx ≤ w ∈ᴮ x :=
+      mem_of_mem_subset hy_sub_x hwy
+    -- is_transitive x: w ⊆ x
+    have hw_sub_x : ctx ≤ w ⊆ᴮ x :=
+      subset_of_mem_transitive (hOrd.trans inf_le_right) hwx
+    -- z ∈ x
+    have hzx : ctx ≤ z ∈ᴮ x :=
+      mem_of_mem_subset hw_sub_x hzw
+    -- Apply epsilon_dichotomy x y z with ewo x from Ord x
+    have h_tri : ctx ≤ y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y := by
+      have hewo : ctx ≤ epsilon_well_orders x := hOrd.trans inf_le_left
+      have h_step1 : ctx ≤ z ∈ᴮ x ⟹ (y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y) :=
+        le_trans (le_inf (hewo.trans (epsilon_dichotomy x y z)) hyx) bv_imp_elim
+      exact le_trans (le_inf h_step1 hzx) bv_imp_elim
+    -- Case analysis on the trichotomy using bv_or_elim_right
+    -- h_tri : ctx ≤ y =ᴮ z ⊔ y ∈ z ⊔ z ∈ y
+    calc ctx
+        ≤ (y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y) ⊓ ctx := le_inf h_tri le_rfl
+      _ ≤ z ∈ᴮ y := by
+          apply bv_or_elim_left
+          · -- (y =ᴮ z ⊔ y ∈ z) ⊓ ctx ≤ z ∈ y
+            apply bv_or_elim_left
+            · -- (y =ᴮ z) ⊓ ctx ≤ z ∈ y: get bot
+              -- z ∈ w and y =ᴮ z → y ∈ w (rewrite); w ∈ y and y ∈ w → bot
+              apply le_trans _ bot_le
+              -- Goal: (y =ᴮ z) ⊓ ctx ≤ ⊥
+              have h_yw : (y =ᴮ z) ⊓ ctx ≤ y ∈ᴮ w :=
+                bv_rw' (H := inf_le_left) (ϕ := fun v => v ∈ᴮ w) (h_congr := B_ext_mem_left)
+                  (H_new := le_trans inf_le_right hzw)
+              exact bot_of_mem_mem' y w h_yw (inf_le_right.trans hwy)
+            · -- (y ∈ z) ⊓ ctx ≤ z ∈ y: get bot
+              -- y ∈ z, z ∈ w, w ∈ y → derive bot using induction
+              apply le_trans _ bot_le
+              -- From w ∈ y: get index i_w
+              have hwmem_iSup : (y ∈ᴮ z) ⊓ ctx ≤ ⨆ i : y.type, y.bval i ⊓ w =ᴮ y.func i := by
+                calc (y ∈ᴮ z) ⊓ ctx ≤ w ∈ᴮ y := inf_le_right.trans hwy
+                  _ = ⨆ i : y.type, y.bval i ⊓ w =ᴮ y.func i := mem_unfold
+              calc (y ∈ᴮ z) ⊓ ctx
+                  ≤ (⨆ i : y.type, y.bval i ⊓ w =ᴮ y.func i) ⊓ ((y ∈ᴮ z) ⊓ ctx) :=
+                    le_inf hwmem_iSup le_rfl
+                _ ≤ ⨆ i, (y.bval i ⊓ w =ᴮ y.func i) ⊓ ((y ∈ᴮ z) ⊓ ctx) :=
+                    (iSup_inf_eq _ _).le
+                _ ≤ ⊥ := by
+                    apply iSup_le; intro i_w
+                    set ctx2 := (y.bval i_w ⊓ w =ᴮ y.func i_w) ⊓ ((y ∈ᴮ z) ⊓ ctx)
+                    have hw_eq : ctx2 ≤ w =ᴮ y.func i_w := inf_le_left.trans inf_le_right
+                    have h_hyz : ctx2 ≤ y ∈ᴮ z := inf_le_right.trans inf_le_left
+                    -- y.func i_w ∈ x from w ∈ x rewritten
+                    have hyf_x : ctx2 ≤ y.func i_w ∈ᴮ x :=
+                      bv_rw' (H := bv_symm hw_eq) (ϕ := fun v => v ∈ᴮ x) (h_congr := B_ext_mem_left)
+                        (H_new := le_trans inf_le_right (inf_le_right.trans hwx))
+                    -- Apply IH i_w x
+                    have h_ihiw : ctx2 ≤ is_transitive (y.func i_w) :=
+                      le_trans (le_inf (le_trans inf_le_right (inf_le_right.trans hOrd)) hyf_x) (IH i_w x)
+                    -- is_transitive (y.func i_w): z ∈ y.func i_w → z ⊆ y.func i_w
+                    have h_z_in_yfi : ctx2 ≤ z ∈ᴮ y.func i_w :=
+                      bv_rw' (H := bv_symm hw_eq) (ϕ := fun v => z ∈ᴮ v) (h_congr := B_ext_mem_right)
+                        (H_new := le_trans inf_le_right (inf_le_right.trans hzw))
+                    have h_ztrans : ctx2 ≤ z ⊆ᴮ y.func i_w :=
+                      subset_of_mem_transitive h_ihiw h_z_in_yfi
+                    -- y ∈ z and z ⊆ y.func i_w → y ∈ y.func i_w = y ∈ w
+                    have h_y_yfi : ctx2 ≤ y ∈ᴮ y.func i_w :=
+                      mem_of_mem_subset h_ztrans h_hyz
+                    have h_yw : ctx2 ≤ y ∈ᴮ w :=
+                      bv_rw' (H := hw_eq) (ϕ := fun v => y ∈ᴮ v) (h_congr := B_ext_mem_right)
+                        (H_new := h_y_yfi)
+                    -- y ∈ w ∧ w ∈ y → bot
+                    exact bot_of_mem_mem' y w h_yw (le_trans inf_le_right (inf_le_right.trans hwy))
+          · -- (z ∈ y) ⊓ ctx ≤ z ∈ y
+            exact inf_le_left
 
 -- src/bvm_extras.lean:2520
 lemma is_ewo_of_mem_Ord (y x : bSet 𝔹) : Ord x ⊓ y ∈ᴮ x ≤ epsilon_well_orders y := by
