@@ -2381,17 +2381,63 @@ def bv_union (u : bSet 𝔹) : bSet 𝔹 :=
 lemma bv_union_spec (u : bSet 𝔹) : ⊤ ≤ ⨅ (x : bSet 𝔹),
     (x ∈ᴮ bv_union u ⟹ ⨆ (y : u.type), u.bval y ⊓ x ∈ᴮ u.func y) ⊓
     ((⨆ (y : u.type), u.bval y ⊓ x ∈ᴮ u.func y) ⟹ x ∈ᴮ bv_union u) := by
-  sorry -- TODO: port from src/bvm.lean:1871-1886 (sigma-type membership)
+  apply le_iInf; intro x
+  apply le_inf
+  · -- Forward: x ∈ bv_union u → ⨆ y, u.bval y ⊓ x ∈ u.func y
+    rw [← deduction, top_inf_eq, mem_unfold (v := bv_union u)]
+    -- after unfolding, bval⟨a,i⟩ = ⨆ y, u.bval y ⊓ (u.func a).func i ∈ u.func y
+    -- func ⟨a,i⟩ = (u.func a).func i
+    apply iSup_le; intro ⟨a, i⟩
+    -- goal: (bv_union u).bval ⟨a,i⟩ ⊓ x =ᴮ (bv_union u).func ⟨a,i⟩ ≤ ⨆ y, u.bval y ⊓ x ∈ u.func y
+    -- (bv_union u).bval ⟨a,i⟩ = ⨆ y, u.bval y ⊓ (u.func a).func i ∈ u.func y
+    -- (bv_union u).func ⟨a,i⟩ = (u.func a).func i
+    change (⨆ y, u.bval y ⊓ (u.func a).func i ∈ᴮ u.func y) ⊓ x =ᴮ (u.func a).func i ≤ _
+    rw [iSup_inf_eq]
+    apply iSup_le; intro y
+    apply le_iSup_of_le y
+    -- (u.bval y ⊓ (u.func a).func i ∈ u.func y) ⊓ x =ᴮ (u.func a).func i ≤ u.bval y ⊓ x ∈ u.func y
+    apply le_inf (inf_le_left.trans inf_le_left)
+    -- Need: ... ≤ x ∈ u.func y via subst_congr_mem_left (u.func a).func i =ᴮ x ⊓ ... ∈ u.func y
+    exact poset_yoneda_inv _ subst_congr_mem_left
+      (le_inf (by rw [← bv_eq_symm]; exact inf_le_right) (inf_le_left.trans inf_le_right))
+  · -- Backward: ⨆ y, u.bval y ⊓ x ∈ u.func y → x ∈ bv_union u
+    rw [← deduction, top_inf_eq, mem_unfold (v := bv_union u)]
+    apply iSup_le; intro y
+    rw [mem_unfold, inf_iSup_eq]
+    apply iSup_le; intro j
+    apply le_iSup_of_le ⟨y, j⟩
+    -- goal: u.bval y ⊓ ((u.func y).bval j ⊓ x =ᴮ (u.func y).func j) ≤ bval⟨y,j⟩ ⊓ x =ᴮ func⟨y,j⟩
+    change _ ≤ (⨆ z, u.bval z ⊓ (u.func y).func j ∈ᴮ u.func z) ⊓ x =ᴮ (u.func y).func j
+    apply le_inf
+    · apply le_iSup_of_le y
+      apply le_inf inf_le_left
+      exact le_trans (inf_le_right.trans inf_le_left) (mem_mk'' le_rfl)
+    · exact inf_le_right.trans inf_le_right
 
 -- src/bvm.lean:1888
 lemma bv_union_spec' (u : bSet 𝔹) {Γ : 𝔹} : Γ ≤ ⨅ (x : bSet 𝔹),
     (x ∈ᴮ bv_union u ⟹ ⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) ⊓
     ((⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) ⟹ x ∈ᴮ bv_union u) := by
-  sorry -- TODO: depends on bv_union_spec
+  apply le_iInf; intro x
+  have hspec := bv_union_spec u |>.trans (iInf_le _ x)
+  -- derive boolean inequalities from hspec
+  have h_fwd_raw : x ∈ᴮ bv_union u ≤ ⨆ i, u.bval i ⊓ x ∈ᴮ u.func i :=
+    le_trans (le_inf (le_top.trans (hspec.trans inf_le_left)) le_rfl) bv_imp_elim
+  have h_bwd_raw : (⨆ i, u.bval i ⊓ x ∈ᴮ u.func i) ≤ x ∈ᴮ bv_union u :=
+    le_trans (le_inf (le_top.trans (hspec.trans inf_le_right)) le_rfl) bv_imp_elim
+  rw [@bounded_exists _ _ u (fun z => x ∈ᴮ z) (h_congr := fun a b => subst_congr_mem_right)] at h_fwd_raw h_bwd_raw
+  apply le_inf
+  · exact le_top.trans (le_of_eq (imp_top_iff_le.mpr h_fwd_raw).symm)
+  · exact le_top.trans (le_of_eq (imp_top_iff_le.mpr h_bwd_raw).symm)
 
 lemma bv_union_spec_split (u : bSet 𝔹) {Γ : 𝔹} (x : bSet 𝔹) :
     (Γ ≤ x ∈ᴮ bv_union u) ↔ (Γ ≤ ⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) := by
-  sorry -- TODO: depends on bv_union_spec'
+  have hspec := bv_union_spec' u (Γ := Γ) |>.trans (iInf_le _ x)
+  constructor
+  · intro H
+    exact poset_yoneda_inv Γ bv_imp_elim (le_inf (hspec.trans inf_le_left) H)
+  · intro H
+    exact poset_yoneda_inv Γ bv_imp_elim (le_inf (hspec.trans inf_le_right) H)
 
 lemma mem_bv_union_iff {u : bSet 𝔹} {Γ : 𝔹} {x : bSet 𝔹} :
     (Γ ≤ x ∈ᴮ bv_union u) ↔ (Γ ≤ ⨆ y, y ∈ᴮ u ⊓ x ∈ᴮ y) :=
@@ -2400,11 +2446,46 @@ lemma mem_bv_union_iff {u : bSet 𝔹} {Γ : 𝔹} {x : bSet 𝔹} :
 /-- For every x ∈ u, x ⊆ᴮ ⋃ u. -/
 -- src/bvm.lean:1915
 lemma bv_union_spec'' (u : bSet 𝔹) : ⊤ ≤ ⨅ (x : bSet 𝔹), (x ∈ᴮ u) ⟹ (x ⊆ᴮ bv_union u) := by
-  sorry -- TODO: port from src/bvm.lean:1915-1932
+  apply le_iInf; intro x
+  rw [← deduction, top_inf_eq, subset_unfold']
+  apply le_iInf; intro v
+  rw [← deduction]
+  -- goal: x ∈ u ⊓ v ∈ x ≤ v ∈ bv_union u
+  rw [bv_union_spec_split]
+  -- goal: x ∈ u ⊓ v ∈ x ≤ ⨆ y, y ∈ u ⊓ v ∈ y
+  exact le_iSup_of_le x (le_inf inf_le_left inf_le_right)
 
 lemma bv_union_congr {x y : bSet 𝔹} {Γ : 𝔹} (H_eq : Γ ≤ x =ᴮ y) :
     Γ ≤ bv_union x =ᴮ bv_union y := by
-  sorry -- TODO: port from src/bvm.lean:1934-1966
+  -- helper: Γ ⊓ (w ∈ a ⊓ z ∈ w) ≤ w ∈ b ⊓ z ∈ w given Γ ≤ a =ᴮ b
+  have aux : ∀ (a b : bSet 𝔹) (H : Γ ≤ a =ᴮ b) (z w : bSet 𝔹),
+      Γ ⊓ (w ∈ᴮ a ⊓ z ∈ᴮ w) ≤ w ∈ᴮ b ⊓ z ∈ᴮ w := fun a b H z w =>
+    le_inf
+      (le_trans (le_inf (inf_le_left.trans H) (inf_le_right.trans inf_le_left)) subst_congr_mem_right)
+      (inf_le_right.trans inf_le_right)
+  apply mem_ext
+  · apply le_iInf; intro z
+    rw [← deduction]
+    -- Γ ⊓ z ∈ bv_union x ≤ z ∈ bv_union y
+    have hx : z ∈ᴮ bv_union x = ⨆ w, w ∈ᴮ x ⊓ z ∈ᴮ w :=
+      le_antisymm ((bv_union_spec_split x z (Γ := z ∈ᴮ bv_union x)).mp le_rfl)
+                  ((bv_union_spec_split x z (Γ := ⨆ w, w ∈ᴮ x ⊓ z ∈ᴮ w)).mpr le_rfl)
+    have hy : z ∈ᴮ bv_union y = ⨆ w, w ∈ᴮ y ⊓ z ∈ᴮ w :=
+      le_antisymm ((bv_union_spec_split y z (Γ := z ∈ᴮ bv_union y)).mp le_rfl)
+                  ((bv_union_spec_split y z (Γ := ⨆ w, w ∈ᴮ y ⊓ z ∈ᴮ w)).mpr le_rfl)
+    rw [hx, hy, inf_iSup_eq]
+    exact iSup_le fun w => le_iSup_of_le w (aux x y H_eq z w)
+  · apply le_iInf; intro z
+    rw [← deduction]
+    have hx : z ∈ᴮ bv_union x = ⨆ w, w ∈ᴮ x ⊓ z ∈ᴮ w :=
+      le_antisymm ((bv_union_spec_split x z (Γ := z ∈ᴮ bv_union x)).mp le_rfl)
+                  ((bv_union_spec_split x z (Γ := ⨆ w, w ∈ᴮ x ⊓ z ∈ᴮ w)).mpr le_rfl)
+    have hy : z ∈ᴮ bv_union y = ⨆ w, w ∈ᴮ y ⊓ z ∈ᴮ w :=
+      le_antisymm ((bv_union_spec_split y z (Γ := z ∈ᴮ bv_union y)).mp le_rfl)
+                  ((bv_union_spec_split y z (Γ := ⨆ w, w ∈ᴮ y ⊓ z ∈ᴮ w)).mpr le_rfl)
+    rw [hy, hx, inf_iSup_eq]
+    exact iSup_le fun w => le_iSup_of_le w
+      (aux y x (H_eq.trans (le_of_eq bv_eq_symm)) z w)
 
 @[simp] lemma B_congr_bv_union : B_congr (bv_union : bSet 𝔹 → bSet 𝔹) :=
   fun H => bv_union_congr H
