@@ -2478,8 +2478,20 @@ def bounded_preformula.rec1 {C : ∀ n l, bounded_preformula L (n + 1) l → Sor
     (H5 : ∀ {n} (f : bounded_formula L (n + 2)) (ih : C (n + 1) 0 f),
           C n 0 (bd_all f)) :
     ∀ {{n l : ℕ}} (f : bounded_preformula L (n + 1) l), C n l f :=
-  -- TODO: port from src/fol.lean:1984-2004 (bounded_preformula.rec1, dependent type matching)
-  fun n l f => by exact sorry
+  -- Port from src/fol.lean:1984-2004: define C' with n=0 case = PUnit, then use full rec
+  let C' : ∀ n l, bounded_preformula L n l → Sort v := fun n =>
+    match n with
+    | 0     => fun _l _f => PUnit
+    | k + 1 => C k
+  let rec key : ∀ (n l : ℕ) (f : bounded_preformula L n l), C' n l f
+    | 0, _, _ => PUnit.unit
+    | n + 1, _, bd_falsum => H0
+    | n + 1, _, bd_equal t₁ t₂ => H1 t₁ t₂
+    | n + 1, _, bd_rel R => H2 R
+    | n + 1, _, bd_apprel f t => H3 f t (key (n + 1) _ f)
+    | n + 1, _, bd_imp f₁ f₂ => H4 f₁ f₂ (key (n + 1) _ f₁) (key (n + 1) _ f₂)
+    | n + 1, _, bd_all f => H5 f (key (n + 2) _ f)
+  fun {{n}} {{_l}} f => key (n + 1) _ f
 
 /-- Recursor for bounded_formula at n+1 (fully applied). -/
 def bounded_formula.rec1 {C : ∀ n, bounded_formula L (n + 1) → Sort v}
@@ -2692,8 +2704,19 @@ lemma realize_bounded_formula_bd_apps_rel {S : Structure L}
     {f : bounded_formula L n} {v : DVec S m} :
     realize_bounded_formula v (f.cast h) DVec.nil =
     realize_bounded_formula (v.trunc n h) f DVec.nil := by
-  -- TODO: port from src/fol.lean:2164-2175 (realize_cast_bounded_formula)
-  sorry
+  -- Case split: n = m or n < m
+  by_cases hn : n = m
+  · -- n = m: cast is identity, trunc is identity
+    subst hn; simp [bounded_preformula.cast_rfl]
+  · -- n < m
+    have hnlt : n < m := Nat.lt_of_le_of_ne h hn
+    apply propext
+    apply realize_bounded_formula_irrel'
+    · -- Show v.nth k (hk : k < m) = (v.trunc n h).nth k (hk' : k < n) when k < n
+      intro k hkn hkm
+      rw [DVec.trunc_nth]
+    · -- Show (f.cast h).fst = f.fst
+      simp [bounded_preformula.cast_fst]
 
 lemma realize_sentence_bd_apps_rel' {S : Structure L}
     {l} (f : presentence L l) (ts : DVec (closed_term L) l) :
