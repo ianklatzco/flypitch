@@ -2401,7 +2401,16 @@ lemma bv_powerset_congr {Γ : 𝔹} {x y : bSet 𝔹} (H : Γ ≤ x =ᴮ y) :
 -- src/bvm.lean:2102
 @[simp] lemma set_of_indicator_subset {x : bSet 𝔹} {χ : x.type → 𝔹} {Γ : 𝔹}
     (H_χ : ∀ i, χ i ≤ x.bval i) : Γ ≤ set_of_indicator χ ⊆ᴮ x := by
-  sorry -- TODO: port from src/bvm.lean:2102-2106
+  rw [subset_unfold']
+  apply le_iInf; intro z
+  rw [← deduction]
+  -- Γ ⊓ z ∈ᴮ set_of_indicator χ ≤ z ∈ᴮ x
+  apply le_trans inf_le_right
+  -- z ∈ᴮ set_of_indicator χ ≤ z ∈ᴮ x
+  simp only [mem_unfold, set_of_indicator_bval, set_of_indicator_func]
+  apply iSup_le; intro i
+  apply le_iSup_of_le i
+  exact inf_le_inf_right _ (H_χ i)
 
 -- src/bvm.lean:2108
 @[reducible, simp] def subset.mk {u : bSet 𝔹} (χ : u.type → 𝔹) : bSet 𝔹 :=
@@ -2412,14 +2421,18 @@ lemma bv_powerset_congr {Γ : 𝔹} {x y : bSet 𝔹} (H : Γ ≤ x =ᴮ y) :
   apply set_of_indicator_subset; intro i; simp
 
 lemma check_set_of_indicator_subset {x : PSet} {χ : (check x).type → 𝔹} {Γ : 𝔹} :
-    Γ ≤ set_of_indicator χ ⊆ᴮ check x := by
-  sorry -- TODO: depends on set_of_indicator_subset with check bval = ⊤
+    Γ ≤ set_of_indicator χ ⊆ᴮ check x :=
+  set_of_indicator_subset (fun i => by rw [check_bval_top]; exact le_top)
 
 -- src/bvm.lean:2122
 lemma mem_set_of_indicator_iff {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹}
     (H_χ : ∀ i, χ i ≤ x.bval i) :
     Γ ≤ z ∈ᴮ set_of_indicator χ ↔ Γ ≤ ⨆ (i : x.type), z =ᴮ x.func i ⊓ χ i := by
-  sorry -- TODO: port from src/bvm.lean:2122-2130
+  -- z ∈ᴮ set_of_indicator χ = ⨆ i, χ i ⊓ z =ᴮ x.func i = ⨆ i, z =ᴮ x.func i ⊓ χ i
+  rw [mem_unfold]
+  simp only [set_of_indicator_bval, set_of_indicator_func]
+  constructor <;> intro H <;> apply le_trans H <;> apply iSup_le <;> intro i <;>
+    apply le_iSup_of_le i <;> simp [inf_comm]
 
 -- src/bvm.lean:2132
 lemma mem_subset.mk_iff {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹} :
@@ -2430,7 +2443,12 @@ lemma mem_subset.mk_iff {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {
 -- src/bvm.lean:2137
 lemma mem_subset.mk_iff₂ {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ z ∈ᴮ subset.mk χ ↔ Γ ≤ ⨆ (i : x.type), x.bval i ⊓ (z =ᴮ x.func i ⊓ χ i) := by
-  sorry -- TODO: port from src/bvm.lean:2137-2139 (ac_refl)
+  rw [mem_subset.mk_iff]
+  -- reorder: z =ᴮ x.func i ⊓ (χ i ⊓ x.bval i) = x.bval i ⊓ (z =ᴮ x.func i ⊓ χ i)
+  have heq : (⨆ i : x.type, z =ᴮ x.func i ⊓ (χ i ⊓ x.bval i)) =
+             (⨆ i : x.type, x.bval i ⊓ (z =ᴮ x.func i ⊓ χ i)) :=
+    iSup_congr fun i => by rw [← inf_assoc, inf_comm (z =ᴮ x.func i ⊓ χ i)]
+  rw [heq]
 
 @[simp] lemma mem_of_mem_subset.mk {x : bSet 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} {Γ : 𝔹}
     (Hz : Γ ≤ z ∈ᴮ subset.mk χ) : Γ ≤ z ∈ᴮ x :=
@@ -2448,7 +2466,14 @@ lemma check_mem_set_of_indicator_iff {x : PSet}
 -- src/bvm.lean:2163
 lemma subset_of_pointwise_bounded {Γ : 𝔹} {x : bSet 𝔹} {p p' : x.type → 𝔹}
     (H_bd : ∀ i : x.type, p i ≤ p' i) : Γ ≤ set_of_indicator p ⊆ᴮ set_of_indicator p' := by
-  sorry -- TODO: port from src/bvm.lean:2163-2167
+  rw [subset_unfold]
+  apply le_iInf; intro j
+  rw [← deduction]
+  -- Goal: Γ ⊓ p j ≤ x.func j ∈ᴮ set_of_indicator p'
+  -- x.func j ∈ᴮ set_of_indicator p' = ⨆ k, p' k ⊓ x.func j =ᴮ x.func k
+  -- Use k = j: p' j ⊓ x.func j =ᴮ x.func j
+  apply le_iSup_of_le j
+  exact le_inf (le_trans inf_le_right (H_bd j)) bv_refl
 
 -- src/bvm.lean:2169
 lemma pointwise_bounded_of_check_subset_check {x : PSet} {p₁ p₂ : (check x).type → 𝔹}
@@ -2763,12 +2788,63 @@ lemma mem_comprehend_iff : ∀ {z : bSet 𝔹} {Γ : 𝔹}, Γ ≤ z ∈ᴮ comp
     Γ ≤ ⨆ (i : x.type), x.bval i ⊓ (z =ᴮ x.func i ⊓ (fun i : x.type => ϕ (x.func i)) i) := by
   intros; exact mem_subset.mk_iff₂
 
+include H_congr in
 lemma mem_comprehend_iff₂ : ∀ {z : bSet 𝔹} {Γ : 𝔹}, Γ ≤ z ∈ᴮ comprehend ϕ x ↔
     Γ ≤ ⨆ w, w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w) := by
-  sorry -- TODO: port from src/bvm.lean:2497-2501
+  intro z Γ
+  rw [mem_comprehend_iff]
+  -- Use bounded_exists: ⨆ i, x.bval i ⊓ ψ (x.func i) = ⨆ w, w ∈ᴮ x ⊓ ψ w
+  -- where ψ w = z =ᴮ w ⊓ ϕ w
+  have h_cong : ∀ a b : bSet 𝔹, a =ᴮ b ⊓ (z =ᴮ a ⊓ ϕ a) ≤ z =ᴮ b ⊓ ϕ b := by
+    intro a b
+    apply le_inf
+    · -- a =ᴮ b ⊓ z =ᴮ a ≤ z =ᴮ b (by bv_eq_trans: z =ᴮ a ⊓ a =ᴮ b ≤ z =ᴮ b)
+      calc a =ᴮ b ⊓ (z =ᴮ a ⊓ ϕ a)
+          ≤ a =ᴮ b ⊓ z =ᴮ a := inf_le_inf_left _ inf_le_left
+        _ = z =ᴮ a ⊓ a =ᴮ b := by rw [inf_comm]
+        _ ≤ z =ᴮ b := bv_eq_trans
+    · exact le_trans (inf_le_inf_left _ inf_le_right) (H_congr a b)
+  rw [← @bounded_exists _ _ x (fun w => z =ᴮ w ⊓ ϕ w) (h_congr := h_cong)]
 
+include H_congr in
 lemma B_congr_comprehend : B_congr (fun x : bSet 𝔹 => comprehend ϕ x) := by
-  sorry -- TODO: port from src/bvm.lean:2503-2510
+  intro a b Γ H_eq
+  apply mem_ext
+  · -- ⊆: Γ ≤ ⨅ z, z ∈ comprehend ϕ a ⟹ z ∈ comprehend ϕ b
+    apply le_iInf; intro z; rw [← deduction]
+    -- Goal: Γ ⊓ z ∈ᴮ comprehend ϕ a ≤ z ∈ᴮ comprehend ϕ b
+    -- Rewrite LHS via mem_comprehend_iff₂ and RHS via its mpr
+    have ha : z ∈ᴮ comprehend ϕ a = ⨆ w, w ∈ᴮ a ⊓ (z =ᴮ w ⊓ ϕ w) :=
+      le_antisymm ((mem_comprehend_iff₂ ϕ a H_congr (Γ := _)).mp le_rfl)
+                  ((mem_comprehend_iff₂ ϕ a H_congr (Γ := _)).mpr le_rfl)
+    have hb : z ∈ᴮ comprehend ϕ b = ⨆ w, w ∈ᴮ b ⊓ (z =ᴮ w ⊓ ϕ w) :=
+      le_antisymm ((mem_comprehend_iff₂ ϕ b H_congr (Γ := _)).mp le_rfl)
+                  ((mem_comprehend_iff₂ ϕ b H_congr (Γ := _)).mpr le_rfl)
+    rw [ha, hb, inf_iSup_eq]
+    apply iSup_le; intro w; apply le_iSup_of_le w
+    -- Goal: Γ ⊓ (w ∈ᴮ a ⊓ (z =ᴮ w ⊓ ϕ w)) ≤ w ∈ᴮ b ⊓ (z =ᴮ w ⊓ ϕ w)
+    apply le_inf
+    · calc Γ ⊓ (w ∈ᴮ a ⊓ (z =ᴮ w ⊓ ϕ w))
+          ≤ Γ ⊓ w ∈ᴮ a := inf_le_inf_left _ inf_le_left
+        _ ≤ a =ᴮ b ⊓ w ∈ᴮ a := inf_le_inf_right _ H_eq
+        _ ≤ w ∈ᴮ b := subst_congr_mem_right
+    · exact le_trans (inf_le_inf_left _ inf_le_right) inf_le_right
+  · apply le_iInf; intro z; rw [← deduction]
+    have ha : z ∈ᴮ comprehend ϕ a = ⨆ w, w ∈ᴮ a ⊓ (z =ᴮ w ⊓ ϕ w) :=
+      le_antisymm ((mem_comprehend_iff₂ ϕ a H_congr (Γ := _)).mp le_rfl)
+                  ((mem_comprehend_iff₂ ϕ a H_congr (Γ := _)).mpr le_rfl)
+    have hb : z ∈ᴮ comprehend ϕ b = ⨆ w, w ∈ᴮ b ⊓ (z =ᴮ w ⊓ ϕ w) :=
+      le_antisymm ((mem_comprehend_iff₂ ϕ b H_congr (Γ := _)).mp le_rfl)
+                  ((mem_comprehend_iff₂ ϕ b H_congr (Γ := _)).mpr le_rfl)
+    rw [hb, ha, inf_iSup_eq]
+    apply iSup_le; intro w; apply le_iSup_of_le w
+    -- Goal: Γ ⊓ (w ∈ᴮ b ⊓ (z =ᴮ w ⊓ ϕ w)) ≤ w ∈ᴮ a ⊓ (z =ᴮ w ⊓ ϕ w)
+    apply le_inf
+    · calc Γ ⊓ (w ∈ᴮ b ⊓ (z =ᴮ w ⊓ ϕ w))
+          ≤ Γ ⊓ w ∈ᴮ b := inf_le_inf_left _ inf_le_left
+        _ ≤ b =ᴮ a ⊓ w ∈ᴮ b := inf_le_inf_right _ (H_eq.trans (le_of_eq bv_eq_symm))
+        _ ≤ w ∈ᴮ a := subst_congr_mem_right
+    · exact le_trans (inf_le_inf_left _ inf_le_right) inf_le_right
 
 variable {ϕ} {H_congr}
 
@@ -2777,10 +2853,37 @@ lemma comprehend_subset {Γ : 𝔹} : Γ ≤ comprehend ϕ x ⊆ᴮ x := by
 
 variable (ϕ) (H_congr)
 
+include H_congr in
 /-- For any ϕ and x, there is a subset y of x such that ∀ z, z ∈ y ↔ z ∈ x ∧ ϕ z -/
 lemma bSet_axiom_of_comprehension {Γ : 𝔹} :
     Γ ≤ ⨆ y, (y ⊆ᴮ x ⊓ ⨅ z, ((z ∈ᴮ y) ⇔ (z ∈ᴮ x ⊓ ϕ z))) := by
-  sorry -- TODO: port from src/bvm.lean:2523-2536
+  apply bv_use (comprehend ϕ x)
+  apply le_inf
+  · exact @comprehend_subset 𝔹 _ ϕ x Γ
+  · apply le_iInf; intro z
+    rw [bv_biimp_iff]
+    intro Γ' _
+    constructor
+    · intro H
+      -- Forward: z ∈ comprehend ϕ x → z ∈ x ∧ ϕ z
+      -- Use mem_comprehend_iff₂ to get ⨆ w, w ∈ x ⊓ (z =ᴮ w ⊓ ϕ w)
+      have hsupr := (mem_comprehend_iff₂ ϕ x H_congr (Γ := Γ')).mp H
+      -- hsupr : Γ' ≤ ⨆ w, w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w)
+      apply le_trans (a := Γ') hsupr
+      apply iSup_le; intro w
+      -- Goal: w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w) ≤ z ∈ᴮ x ⊓ ϕ z
+      have hmem : w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w) ≤ w ∈ᴮ x := inf_le_left
+      have heq : w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w) ≤ z =ᴮ w := inf_le_right.trans inf_le_left
+      have hϕ : w ∈ᴮ x ⊓ (z =ᴮ w ⊓ ϕ w) ≤ ϕ w := inf_le_right.trans inf_le_right
+      exact le_inf
+        (bv_rw' (H := heq) (h_congr := B_ext_mem_left (y := x)) (H_new := hmem))
+        (bv_rw' (H := heq) (h_congr := H_congr) (H_new := hϕ))
+    · intro H
+      -- Backward: z ∈ x ∧ ϕ z → z ∈ comprehend ϕ x
+      -- Use mem_comprehend_iff₂: take w = z
+      apply (mem_comprehend_iff₂ ϕ x H_congr (Γ := Γ')).mpr
+      apply le_iSup_of_le z
+      exact le_inf (H.trans inf_le_left) (le_inf bv_refl (H.trans inf_le_right))
 
 end comprehension
 
