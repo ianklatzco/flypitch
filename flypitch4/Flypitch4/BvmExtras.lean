@@ -725,7 +725,25 @@ def preimage (x y f : bSet 𝔹) : bSet 𝔹 :=
 @[simp] lemma mem_preimage {x y a b f : bSet 𝔹} {Γ}
     (H_mem : Γ ≤ pair a b ∈ᴮ f) (H_mem'' : Γ ≤ a ∈ᴮ x) (H_mem' : Γ ≤ b ∈ᴮ y) :
     Γ ≤ a ∈ᴮ preimage x y f := by
-  sorry -- TODO: port from src/bvm_extras.lean:673
+  unfold preimage; rw [mem_subset.mk_iff]
+  rw [mem_unfold] at H_mem''
+  -- H_mem'' : Γ ≤ ⨆ i, x.bval i ⊓ a =ᴮ x.func i
+  -- Goal: Γ ≤ ⨆ i, a =ᴮ x.func i ⊓ ((⨆ b', b' ∈ y ⊓ pair (x.func i) b' ∈ f) ⊓ x.bval i)
+  calc Γ ≤ (⨆ i, x.bval i ⊓ a =ᴮ x.func i) ⊓ Γ := le_inf H_mem'' le_rfl
+    _ ≤ ⨆ i, (x.bval i ⊓ a =ᴮ x.func i) ⊓ Γ := (iSup_inf_eq _ _).le
+    _ ≤ ⨆ i, a =ᴮ x.func i ⊓ ((⨆ b', b' ∈ᴮ y ⊓ pair (x.func i) b' ∈ᴮ f) ⊓ x.bval i) := by
+          apply iSup_le; intro i
+          apply le_iSup_of_le i
+          set A := a =ᴮ x.func i
+          -- Context: (x.bval i ⊓ A) ⊓ Γ
+          refine le_inf (inf_le_left.trans inf_le_right) (le_inf ?_ (inf_le_left.trans inf_le_left))
+          -- Need: _ ≤ ⨆ b', b' ∈ y ⊓ pair (x.func i) b' ∈ f
+          apply le_iSup_of_le b
+          refine le_inf (inf_le_right.trans H_mem') ?_
+          -- pair (x.func i) b ∈ f from pair a b ∈ f and a =ᴮ x.func i
+          -- bv_rw' with x.func i =ᴮ a, ϕ = fun w => pair w b ∈ f, H_new = pair a b ∈ f
+          exact bv_rw' (bv_symm (inf_le_left.trans inf_le_right)) (ϕ := fun w => pair w b ∈ᴮ f)
+            (h_congr := B_ext_pair_mem_left) (H_new := inf_le_right.trans H_mem)
 
 /-- f is a function x → y if it is extensional, total, and is a subset of the product of x and y -/
 -- src/bvm_extras.lean:684
