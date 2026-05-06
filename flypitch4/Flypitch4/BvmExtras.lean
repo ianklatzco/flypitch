@@ -1325,10 +1325,12 @@ lemma AE_of_check_func_check (x y : PSet.{u}) {f : bSet 𝔹} {Γ : 𝔹}
 -- src/bvm_extras.lean:1692
 lemma exists_surjection_of_surjects_onto {x y : bSet 𝔹} {Γ : 𝔹}
     (H_surj : Γ ≤ surjects_onto x y) :
-    Γ ≤ ⨆ f, is_function x y f ⊓ is_surj x y f := by
-  -- H_surj : Γ ≤ ⨆ f, is_func' x y f ⊓ is_surj x y f
-  -- Need to extract witness from iSup - requires sorry
-  sorry -- TODO: port from src/bvm_extras.lean:1692
+    Γ ≤ ⨆ f, is_function x y f ⊓ is_surj x y f :=
+  -- Extract witness from surjects_onto = ⨆ f, is_func' x y f ⊓ is_surj x y f
+  H_surj.trans (iSup_le fun f' =>
+    le_iSup_of_le (function_of_func' inf_le_left)
+      (le_inf (function_of_func'_is_function inf_le_left)
+        (function_of_func'_surj_of_surj inf_le_left inf_le_right)))
 
 -- src/bvm_extras.lean:1700
 def functions (x y : bSet 𝔹) : bSet 𝔹 :=
@@ -1378,7 +1380,23 @@ lemma functionMk'_is_total {x y : bSet 𝔹} {Γ : 𝔹}
     (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
     (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
     Γ ≤ is_total x y (functionMk' F χ H_ext H_mem) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1767
+  -- Work in the is_total' form since it uses x.bval/x.func indices
+  rw [is_total_iff_is_total']
+  unfold is_total'
+  apply le_iInf; intro i; rw [← deduction]
+  -- Goal: Γ ⊓ x.bval i ≤ ⨆ j, y.bval j ⊓ pair (x.func i) (y.func j) ∈ᴮ (functionMk' ...)
+  obtain ⟨hyF, hχ⟩ := H_mem i inf_le_right
+  apply le_iSup_of_le (F i)
+  -- Goal: Γ ⊓ x.bval i ≤ y.bval (F i) ⊓ pair (x.func i) (y.func (F i)) ∈ᴮ (functionMk' ...)
+  refine le_inf hyF ?_
+  rw [mem_unfold]
+  apply le_iSup_of_le (i, F i)
+  -- Goal: Γ ⊓ x.bval i ≤ (χ i ⊓ y.func (F i) =ᴮ y.func (F i)) ⊓
+  --   pair (x.func i) (y.func (F i)) =ᴮ pair (x.func (i, F i).1) (y.func (i, F i).2)
+  -- (functionMk' ...).bval (i, F i) = (χ i ⊓ y.func (F i) =ᴮ y.func (F i)) ⊓ (x.bval i ⊓ y.bval (F i))
+  -- (functionMk' ...).func (i, F i) = pair (x.func i) (y.func (F i))
+  simp only [functionMk', subset.mk, set_of_indicator_bval, set_of_indicator_func, prod_func, prod_bval]
+  refine le_inf (le_inf (le_inf hχ bv_refl) (le_inf inf_le_right hyF)) bv_refl
 
 -- src/bvm_extras.lean:1774
 lemma functionMk'_is_subset {x y : bSet 𝔹} {Γ : 𝔹}
