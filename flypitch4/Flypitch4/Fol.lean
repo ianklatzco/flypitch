@@ -1474,9 +1474,14 @@ lemma realize_formula_subst {S : Structure L} :
       -- = subst_realize (subst_realize v x 0) (realize_term v (lift_term s n) []) (n+1) k (by subst_realize2_0)
       -- And realize_term v (lift_term s n) [] = realize_term (subst_realize v x 0) (lift_term_at s 1 0 ↑ n) []
       --   since s ↑ n+1 applied then subst at 0 cancels the lift-at-0.
-      -- This direction is complex; use sorry for now.
-      -- TODO: port from src/fol.lean:1178-1181
-      sorry
+      -- Port from src/fol.lean:1178-1181:
+      -- rw [subst_realize2_0, ←realize_term_subst_lift v x 0, lift_term_def, lift_term2]
+      rw [subst_realize2_0]
+      congr 1
+      -- Goal: realize_term v (lift_term s n) [] = realize_term (subst_realize v x 0) (lift_term s (n+1)) []
+      rw [← realize_term_subst_lift v x 0 (lift_term s n) DVec.nil]
+      simp only [lift_term_def]
+      rw [← lift_term2 s n 1]
 
 lemma realize_formula_subst0 {S : Structure L} {l} (v : ℕ → S) (f : @preformula L l)
     (s : term L) (xs : DVec S l) :
