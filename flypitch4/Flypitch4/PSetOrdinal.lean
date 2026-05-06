@@ -1001,15 +1001,43 @@ lemma mk_mem {x : PSet.{u}} {ψ : x.Type → PSet.{u}}
 lemma mk_is_func {x y : PSet.{u}} (ψ : x.Type → PSet.{u})
     {H_ext : ∀ i j, Equiv (x.Func i) (x.Func j) → Equiv (ψ i) (ψ j)}
     (H_im : ∀ i, ψ i ∈ y) : is_func x y (mk ψ H_ext) := by
-  -- TODO: port from src/pSet_ordinal.lean:1089
-  sorry
+  rw [is_func_iff]
+  constructor
+  · apply subset_of_all_mem
+    intro w hw
+    rw [mem_unfold] at hw ⊢
+    obtain ⟨i, hi⟩ := hw
+    obtain ⟨j, hj⟩ := mem_unfold.mp (H_im i)
+    refine ⟨⟨i, j⟩, ?_⟩
+    apply PSet.Equiv.trans hi
+    show PSet.Equiv (pSet_pair (x.Func i) (ψ i)) (pSet_pair (x.Func i) (y.Func j))
+    exact equiv_iff_eq_pSet_pair.mp ⟨PSet.Equiv.refl _, hj⟩
+  · intro z hz
+    obtain ⟨i, hi⟩ := mem_unfold.mp hz
+    refine ⟨ψ i, ?_, ?_⟩
+    · rw [mem_unfold]; refine ⟨i, ?_⟩
+      show PSet.Equiv (pSet_pair z (ψ i)) (pSet_pair (x.Func i) (ψ i))
+      exact equiv_iff_eq_pSet_pair.mp ⟨hi, PSet.Equiv.refl _⟩
+    · intro v hv
+      rw [mem_unfold] at hv
+      obtain ⟨k, hk⟩ := hv
+      have ⟨hzk, hvk⟩ := equiv_iff_eq_pSet_pair.mpr hk
+      have hki : PSet.Equiv (x.Func k) (x.Func i) := hzk.symm.trans hi
+      exact PSet.Equiv.trans hvk (H_ext k i hki)
 
 lemma mk_inj_of_inj {x : PSet.{u}} (ψ : x.Type → PSet.{u})
     (H_ext : ∀ i j, Equiv (x.Func i) (x.Func j) → Equiv (ψ i) (ψ j))
     (H_inj : ∀ i₁ i₂, Equiv (ψ i₁) (ψ i₂) → Equiv (x.Func i₁) (x.Func i₂)) :
     is_inj (mk ψ H_ext) := by
-  -- TODO: port from src/pSet_ordinal.lean:1125
-  sorry
+  intro w₁ w₂ v₁ v₂ ⟨Hpr₁, Hpr₂, H_eq⟩
+  rw [mem_unfold] at Hpr₁ Hpr₂
+  obtain ⟨i, Hi⟩ := Hpr₁
+  obtain ⟨j, Hj⟩ := Hpr₂
+  have ⟨hw₁xi, hv₁ψi⟩ := equiv_iff_eq_pSet_pair.mpr Hi
+  have ⟨hw₂xj, hv₂ψj⟩ := equiv_iff_eq_pSet_pair.mpr Hj
+  have hψiψj : PSet.Equiv (ψ i) (ψ j) := hv₁ψi.symm.trans (H_eq.trans hv₂ψj)
+  have hxixj : PSet.Equiv (x.Func i) (x.Func j) := H_inj i j hψiψj
+  exact hw₁xi.trans (hxixj.trans hw₂xj.symm)
 
 end function_mk
 
@@ -1031,9 +1059,10 @@ def P_ext : (PSet → Prop) → Prop := fun χ => ∀ x y, Equiv x y → χ x �
 @[simp] lemma P_ext_injects_into_left {y : PSet.{u}} : P_ext (fun x => injects_into x y) := by
   intro x₁ x₂ H_eq ⟨f, Hf₁, Hf₂⟩
   refine ⟨f, ?_, Hf₂⟩
-  -- is_func x₂ y f given is_func x₁ y f and x₁ ≡ x₂
-  -- TODO: port from src/pSet_ordinal.lean:1157
-  sorry
+  unfold is_func at *
+  have h : ZFSet.mk x₁ = ZFSet.mk x₂ := equiv_iff_eq.mp H_eq
+  rw [← h]
+  exact Hf₁
 
 /-! ### mem_sep_iff (src line 1163) -/
 
