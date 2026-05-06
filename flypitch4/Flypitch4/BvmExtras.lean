@@ -1280,8 +1280,24 @@ lemma injective_function_comp_is_function {𝔹' : Type u} [NontrivialCompleteBo
 -- src/bvm_extras.lean:1628
 lemma injects_into_trans {x y z : bSet 𝔹} {Γ : 𝔹}
     (H₁ : Γ ≤ injects_into x y) (H₂ : Γ ≤ injects_into y z) :
-    Γ ≤ injects_into x z := by
-  sorry -- TODO: port from src/bvm_extras.lean:1628 (needs iSup witness extraction)
+    Γ ≤ injects_into x z :=
+  -- Extract witnesses f and g from the two iSup conditions, then compose
+  calc Γ ≤ (⨆ f, is_func' x y f ⊓ is_inj f) ⊓ (⨆ g, is_func' y z g ⊓ is_inj g) :=
+          le_inf H₁ H₂
+    _ ≤ ⨆ f, (is_func' x y f ⊓ is_inj f) ⊓ (⨆ g, is_func' y z g ⊓ is_inj g) :=
+          (iSup_inf_eq _ _).le
+    _ ≤ ⨆ f, ⨆ g, (is_func' x y f ⊓ is_inj f) ⊓ (is_func' y z g ⊓ is_inj g) := by
+          apply iSup_le; intro f
+          rw [inf_iSup_eq' (a := is_func' x y f ⊓ is_inj f)
+            (s := fun g => is_func' y z g ⊓ is_inj g)]
+          exact iSup_le (fun g => le_iSup_of_le f (le_iSup_of_le g le_rfl))
+    _ ≤ ⨆ h, is_func' x z h ⊓ is_inj h := by
+          apply iSup_le; intro f; apply iSup_le; intro g
+          apply le_iSup_of_le (is_func'_comp (inf_le_left.trans inf_le_left) (inf_le_right.trans inf_le_left))
+          exact le_inf
+            (is_func'_comp_is_func' (inf_le_left.trans inf_le_left) (inf_le_right.trans inf_le_left))
+            (is_func'_comp_inj (inf_le_left.trans inf_le_left) (inf_le_right.trans inf_le_left)
+              (inf_le_left.trans inf_le_right) (inf_le_right.trans inf_le_right))
 
 -- src/bvm_extras.lean:1636
 lemma injection_into_trans {x y z : bSet 𝔹} {Γ : 𝔹}
