@@ -469,9 +469,158 @@ theorem subset_ext {x y : bSet 𝔹} {Γ : 𝔹} (h₁ : Γ ≤ x ⊆ᴮ y) (h�
   rw [eq_iff_subset_subset]; exact le_inf h₁ h₂
 
 -- src/bvm.lean:413
--- Complex induction using bv_intro patterns; sorry-stubbed for Task 10a
 theorem bv_eq_trans {x y z : bSet 𝔹} : (x =ᴮ y ⊓ y =ᴮ z) ≤ x =ᴮ z := by
-  sorry -- TODO: port from src/bvm.lean:413-470 (complex induction, bv_intro)
+  induction x generalizing y z with
+  | mk α A B ih =>
+  induction y with
+  | mk α' A' B' =>
+  induction z with
+  | mk α'' A'' B'' =>
+  -- IH: for each a : α, the prop bv_eq_trans holds for A a as the "x"
+  -- Core transitivity for elements: A a ≈ A' a' ≈ A'' a'' → A a ≈ A'' a''
+  have trans_fwd : ∀ (a : α) (a' : α') (a'' : α''),
+      A a =ᴮ A' a' ⊓ A' a' =ᴮ A'' a'' ≤ A a =ᴮ A'' a'' := by
+    intro a a' a''
+    exact @ih a (A' a') (A'' a'')
+  -- Core transitivity for elements backwards: A'' ≈ A' ≈ A → A'' ≈ A
+  have trans_bwd : ∀ (a'' : α'') (a' : α') (a : α),
+      A'' a'' =ᴮ A' a' ⊓ A' a' =ᴮ A a ≤ A'' a'' =ᴮ A a := by
+    intro a'' a' a
+    have h := trans_fwd a a' a''
+    -- h : A a =ᴮ A' a' ⊓ A' a' =ᴮ A'' a'' ≤ A a =ᴮ A'' a''
+    have eq1 : A'' a'' =ᴮ A' a' = A' a' =ᴮ A'' a'' := bv_eq_symm
+    have eq2 : A' a' =ᴮ A a = A a =ᴮ A' a' := bv_eq_symm
+    have eq3 : A a =ᴮ A'' a'' = A'' a'' =ᴮ A a := bv_eq_symm
+    calc A'' a'' =ᴮ A' a' ⊓ A' a' =ᴮ A a
+        = A' a' =ᴮ A'' a'' ⊓ A a =ᴮ A' a' := by rw [eq1, eq2]
+      _ = A a =ᴮ A' a' ⊓ A' a' =ᴮ A'' a'' := by rw [inf_comm]
+      _ ≤ A a =ᴮ A'' a'' := h
+      _ = A'' a'' =ᴮ A a := eq3
+  simp only [bv_eq]
+  apply le_inf
+  · -- Forward direction: ⨅ a, B a ⟹ ⨆ a'', B'' a'' ⊓ A a =ᴮ A'' a''
+    apply le_iInf; intro i
+    rw [← deduction]
+    -- Need: (xy_eq ⊓ yz_eq) ⊓ B i ≤ A i ∈ᴮ mk α'' A'' B''
+    -- Step 1: xy_eq ⊓ B i ≤ A i ∈ᴮ mk α' A' B' (from left component of bv_eq)
+    have mem_y : (mk α A B =ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'') ⊓ B i
+        ≤ A i ∈ᴮ mk α' A' B' := by
+      calc (mk α A B =ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'') ⊓ B i
+          ≤ mk α A B =ᴮ mk α' A' B' ⊓ B i :=
+            le_inf (inf_le_left.trans inf_le_left) inf_le_right
+        _ ≤ A i ∈ᴮ mk α' A' B' := by
+            rw [deduction]; exact inf_le_left.trans (iInf_le _ i)
+    -- Step 2: yz_eq is also available
+    have yz_eq_avail : (mk α A B =ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'') ⊓ B i
+        ≤ mk α' A' B' =ᴮ mk α'' A'' B'' :=
+      inf_le_left.trans inf_le_right
+    -- Chain them: A i ∈ mk α' A' B' and yz_eq, then use each element of the sup
+    -- A i ∈ mk α' A' B' = ⨆ a', B' a' ⊓ A i =ᴮ A' a'
+    -- For each a', use B' a' ⟹ ⨆ a'', B'' a'' ⊓ A' a' =ᴮ A'' a'' (from yz_eq)
+    -- Then for each a'', use trans_fwd i a' a'' to get A i =ᴮ A'' a''
+    suffices h : A i ∈ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'' ≤ A i ∈ᴮ mk α'' A'' B'' by
+      exact le_trans (le_inf mem_y yz_eq_avail) h
+    simp only [mem, bv_eq, func]
+    rw [iSup_inf_eq]
+    apply iSup_le; intro a'
+    -- Goal: B' a' ⊓ A i =ᴮ A' a' ⊓ ((⨅ ⟹ ⨆) ⊓ (⨅ ⟹ ⨆)) ≤ ⨆ a'', B'' a'' ⊓ A i =ᴮ A'' a''
+    -- Use left ⨅ component to get B' a' ⟹ ⨆ a'', B'' a'' ⊓ A' a' =ᴮ A'' a''
+    have elim_a' : B' a' ⊓ A i =ᴮ A' a' ⊓
+        ((⨅ a_1, B' a_1 ⟹ ⨆ a'', B'' a'' ⊓ A' a_1 =ᴮ A'' a'') ⊓
+         (⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a''))
+        ≤ A i =ᴮ A' a' ⊓ ⨆ a'', B'' a'' ⊓ A' a' =ᴮ A'' a'' := by
+      apply le_inf (inf_le_left.trans inf_le_right)
+      have h_imp : B' a' ⊓ A i =ᴮ A' a' ⊓
+          ((⨅ a_1, B' a_1 ⟹ ⨆ a'', B'' a'' ⊓ A' a_1 =ᴮ A'' a'') ⊓
+           (⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a''))
+          ≤ (B' a' ⟹ ⨆ a'', B'' a'' ⊓ A' a' =ᴮ A'' a'') ⊓ B' a' :=
+        le_inf (inf_le_right.trans inf_le_left |>.trans (iInf_le _ a'))
+               (inf_le_left.trans inf_le_left)
+      exact le_trans h_imp bv_imp_elim
+    calc B' a' ⊓ A i =ᴮ A' a' ⊓
+        ((⨅ a_1, B' a_1 ⟹ ⨆ a'', B'' a'' ⊓ A' a_1 =ᴮ A'' a'') ⊓
+         (⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a''))
+        ≤ A i =ᴮ A' a' ⊓ ⨆ a'', B'' a'' ⊓ A' a' =ᴮ A'' a'' := elim_a'
+      _ ≤ ⨆ a'', B'' a'' ⊓ A i =ᴮ A'' a'' := by
+          rw [inf_iSup_eq]
+          apply iSup_le; intro a''
+          apply le_iSup_of_le a''
+          -- Goal: A i =ᴮ A' a' ⊓ (B'' a'' ⊓ A' a' =ᴮ A'' a'') ≤ B'' a'' ⊓ A i =ᴮ A'' a''
+          apply le_inf (inf_le_right.trans inf_le_left)
+          calc A i =ᴮ A' a' ⊓ (B'' a'' ⊓ A' a' =ᴮ A'' a'')
+              ≤ A i =ᴮ A' a' ⊓ A' a' =ᴮ A'' a'' :=
+                le_inf inf_le_left (inf_le_right.trans inf_le_right)
+            _ ≤ A i =ᴮ A'' a'' := trans_fwd i a' a''
+  · -- Backward direction: ⨅ a'', B'' a'' ⟹ ⨆ a, B a ⊓ A a =ᴮ A'' a''
+    -- Goal (after simp [bv_eq]): (x=y ⊓ y=z) ≤ ⨅ a'', B'' a'' ⟹ ⨆ a, B a ⊓ A a =ᴮ A'' a''
+    apply le_iInf; intro i''
+    rw [← deduction]
+    -- Goal: (x=y ⊓ y=z) ⊓ B'' i'' ≤ ⨆ a, B a ⊓ A a =ᴮ A'' i''
+    -- Step 1: extract yz_eq ⊓ B'' i'' to get A'' i'' ∈ mk α' A' B' (= ⨆ a', B' a' ⊓ A'' i'' =ᴮ A' a')
+    -- The second component of y=z: ⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a''
+    -- So B'' i'' ⊓ yz_eq ≤ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' i''
+    -- Step 2: for each a', use xy_eq to chain A'' i'' ≈ A' a' ≈ A a to get A'' i'' ≈ A a
+    -- and B' a' ⟹ ⨆ a, B a ⊓ A a =ᴮ A' a' to get B a
+    -- Let's directly unfold and work with the raw forms
+    -- The second component of yz_eq gives: B'' i'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' i''
+    -- (by taking the second component and specializing at i'')
+    have yz_step : (mk α A B =ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'') ⊓ B'' i''
+        ≤ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' i'' := by
+      -- From second component of y=z: ⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a''
+      -- specialized at i'', plus B'' i''
+      simp only [bv_eq, func]
+      calc (((⨅ a, B a ⟹ ⨆ a', B' a' ⊓ A a =ᴮ A' a') ⊓
+             (⨅ a', B' a' ⟹ ⨆ a, B a ⊓ A a =ᴮ A' a')) ⊓
+            ((⨅ a', B' a' ⟹ ⨆ a'', B'' a'' ⊓ A' a' =ᴮ A'' a'') ⊓
+             (⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a''))) ⊓ B'' i''
+          ≤ (⨅ a'', B'' a'' ⟹ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' a'') ⊓ B'' i'' := by
+            apply le_inf
+            · exact inf_le_left.trans (inf_le_right.trans inf_le_right)
+            · exact inf_le_right
+        _ ≤ ⨆ a', B' a' ⊓ A' a' =ᴮ A'' i'' :=
+            le_trans (inf_le_inf_right _ (iInf_le _ i'')) bv_imp_elim
+    -- Now: ⨆ a', B' a' ⊓ A' a' =ᴮ A'' i'' ⊓ xy_eq ≤ ⨆ a, B a ⊓ A a =ᴮ A'' i''
+    have xy_eq_avail : (mk α A B =ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'') ⊓ B'' i''
+        ≤ mk α A B =ᴮ mk α' A' B' :=
+      inf_le_left.trans inf_le_left
+    -- Chain: yz_step ⊓ xy_eq_avail → for each a', use xy_eq to chain
+    calc (mk α A B =ᴮ mk α' A' B' ⊓ mk α' A' B' =ᴮ mk α'' A'' B'') ⊓ B'' i''
+        ≤ (⨆ a', B' a' ⊓ A' a' =ᴮ A'' i'') ⊓ mk α A B =ᴮ mk α' A' B' :=
+          le_inf yz_step xy_eq_avail
+      _ ≤ ⨆ a, B a ⊓ A a =ᴮ A'' i'' := by
+          rw [iSup_inf_eq]
+          apply iSup_le; intro a'
+          -- Goal: B' a' ⊓ A' a' =ᴮ A'' i'' ⊓ xy_eq ≤ ⨆ a, B a ⊓ A a =ᴮ A'' i''
+          -- From xy_eq, second component: B' a' ⟹ ⨆ a, B a ⊓ A a =ᴮ A' a'
+          simp only [bv_eq, func]
+          -- Extract ⨆ a, B a ⊓ A a =ᴮ A' a' using B' a' and xy_eq's second component
+          have xy_step2 : B' a' ⊓ A' a' =ᴮ A'' i'' ⊓
+              ((⨅ a, B a ⟹ ⨆ a', B' a' ⊓ A a =ᴮ A' a') ⊓
+               (⨅ a', B' a' ⟹ ⨆ a, B a ⊓ A a =ᴮ A' a'))
+              ≤ A' a' =ᴮ A'' i'' ⊓ ⨆ a, B a ⊓ A a =ᴮ A' a' := by
+            refine le_inf (inf_le_left.trans inf_le_right) ?_
+            exact le_trans
+              (le_inf (inf_le_right.trans inf_le_right |>.trans (iInf_le _ a'))
+                      (inf_le_left.trans inf_le_left))
+              bv_imp_elim
+          calc B' a' ⊓ A' a' =ᴮ A'' i'' ⊓
+              ((⨅ a, B a ⟹ ⨆ a', B' a' ⊓ A a =ᴮ A' a') ⊓
+               (⨅ a', B' a' ⟹ ⨆ a, B a ⊓ A a =ᴮ A' a'))
+              ≤ A' a' =ᴮ A'' i'' ⊓ ⨆ a, B a ⊓ A a =ᴮ A' a' := xy_step2
+            _ ≤ ⨆ a, B a ⊓ A a =ᴮ A'' i'' := by
+                rw [inf_iSup_eq]
+                apply iSup_le; intro a
+                apply le_iSup_of_le a
+                -- Goal: A' a' =ᴮ A'' i'' ⊓ (B a ⊓ A a =ᴮ A' a') ≤ B a ⊓ A a =ᴮ A'' i''
+                apply le_inf (inf_le_right.trans inf_le_left)
+                -- Need: A' a' =ᴮ A'' i'' ⊓ (B a ⊓ A a =ᴮ A' a') ≤ A a =ᴮ A'' i''
+                -- A a =ᴮ A' a' ⊓ A' a' =ᴮ A'' i'' ≤ A a =ᴮ A'' i'' (trans_fwd a a' i'')
+                calc A' a' =ᴮ A'' i'' ⊓ (B a ⊓ A a =ᴮ A' a')
+                    ≤ A a =ᴮ A' a' ⊓ A' a' =ᴮ A'' i'' := by
+                      apply le_inf
+                      · exact (inf_le_right.trans inf_le_right)
+                      · exact inf_le_left
+                  _ ≤ A a =ᴮ A'' i'' := trans_fwd a a' i''
 
 -- src/bvm.lean:472
 lemma bv_trans {Γ : 𝔹} {a₁ a₂ a₃ : bSet 𝔹} (H₁ : Γ ≤ a₁ =ᴮ a₂) (H₂ : Γ ≤ a₂ =ᴮ a₃) :
@@ -499,7 +648,18 @@ lemma bv_rw {x y : bSet 𝔹} (H : x =ᴮ y = ⊤) (ϕ : bSet 𝔹 → 𝔹)
 -- src/bvm.lean:485
 /-- If u = v and u ∈ w, then this implies that v ∈ w -/
 lemma subst_congr_mem_left {u v w : bSet 𝔹} : u =ᴮ v ⊓ u ∈ᴮ w ≤ v ∈ᴮ w := by
-  sorry -- TODO: port from src/bvm.lean:485-491 (requires bv_eq_trans)
+  simp only [mem_unfold]
+  rw [inf_iSup_eq]
+  apply iSup_le; intro i
+  apply le_iSup_of_le i
+  -- Goal: u =ᴮ v ⊓ (w.bval i ⊓ u =ᴮ w.func i) ≤ w.bval i ⊓ v =ᴮ w.func i
+  apply le_inf (inf_le_right.trans inf_le_left)
+  -- Need: u =ᴮ v ⊓ (w.bval i ⊓ u =ᴮ w.func i) ≤ v =ᴮ w.func i
+  -- Use bv_eq_trans with v =ᴮ u ⊓ u =ᴮ w.func i ≤ v =ᴮ w.func i
+  calc u =ᴮ v ⊓ (w.bval i ⊓ u =ᴮ w.func i)
+      ≤ u =ᴮ v ⊓ u =ᴮ w.func i := le_inf inf_le_left (inf_le_right.trans inf_le_right)
+    _ = v =ᴮ u ⊓ u =ᴮ w.func i := by rw [bv_eq_symm]
+    _ ≤ v =ᴮ w.func i := bv_eq_trans
 
 -- src/bvm.lean:493
 @[simp] lemma subst_congr_mem_left' {Γ : 𝔹} {u v w : bSet 𝔹} :
@@ -509,7 +669,32 @@ lemma subst_congr_mem_left {u v w : bSet 𝔹} : u =ᴮ v ⊓ u ∈ᴮ w ≤ v �
 -- src/bvm.lean:504
 /-- If v = w and u ∈ v, then this implies that u ∈ w -/
 lemma subst_congr_mem_right {u v w : bSet 𝔹} : (v =ᴮ w ⊓ u ∈ᴮ v) ≤ u ∈ᴮ w := by
-  sorry -- TODO: port from src/bvm.lean:504-512 (requires subst_congr_mem_left)
+  cases v with | mk vα vA vB =>
+  rw [mem_unfold (v := mk vα vA vB)]
+  rw [inf_iSup_eq]
+  apply iSup_le; intro i
+  -- Goal: mk vα vA vB =ᴮ w ⊓ (vB i ⊓ u =ᴮ vA i) ≤ u ∈ᴮ w
+  -- Step 1: vA i ∈ᴮ w using v =ᴮ w ⊓ vB i
+  have mem_w : mk vα vA vB =ᴮ w ⊓ vB i ≤ vA i ∈ᴮ w := by
+    rw [deduction]
+    -- Goal: mk vα vA vB =ᴮ w ≤ vB i ⟹ vA i ∈ᴮ w
+    calc mk vα vA vB =ᴮ w
+        ≤ ⨅ j, vB j ⟹ vA j ∈ᴮ w := by rw [bv_eq_unfold]; exact inf_le_left
+      _ ≤ vB i ⟹ vA i ∈ᴮ w := iInf_le _ i
+  -- Step 2: vA i =ᴮ u ⊓ vA i ∈ᴮ w ≤ u ∈ᴮ w (by subst_congr_mem_left)
+  -- chain: mk vα vA vB =ᴮ w ⊓ (vB i ⊓ u =ᴮ vA i) ≤ vA i ∈ᴮ w ⊓ u =ᴮ vA i ≤ u ∈ᴮ w
+  have step1 : mk vα vA vB =ᴮ w ⊓ (vB i ⊓ u =ᴮ vA i) ≤ vA i ∈ᴮ w ⊓ u =ᴮ vA i :=
+    le_inf (le_trans (le_inf inf_le_left (inf_le_right.trans inf_le_left)) mem_w)
+           (inf_le_right.trans inf_le_right)
+  have step2 : vA i ∈ᴮ w ⊓ u =ᴮ vA i ≤ u ∈ᴮ w := by
+    -- Use subst_congr_mem_left: vA i =ᴮ u ⊓ vA i ∈ᴮ w ≤ u ∈ᴮ w
+    have h : vA i =ᴮ u ⊓ vA i ∈ᴮ w ≤ u ∈ᴮ w := subst_congr_mem_left
+    have heq : vA i ∈ᴮ w ⊓ u =ᴮ vA i = vA i =ᴮ u ⊓ vA i ∈ᴮ w := by
+      rw [inf_comm (a := vA i ∈ᴮ w)]
+      congr 1
+      exact bv_eq_symm
+    rw [heq]; exact h
+  exact le_trans step1 step2
 
 -- src/bvm.lean:514
 @[simp] lemma subst_congr_mem_right' {Γ : 𝔹} {u v w : bSet 𝔹} :
@@ -564,9 +749,12 @@ lemma bounded_exists {v : bSet 𝔹} {ϕ : bSet 𝔹 → 𝔹}
       exact le_trans this (h_congr x (v.func i_x))
 
 -- src/bvm.lean:544
--- Uses bv_eq_trans (sorried) — sorry-stubbed
 lemma mem_unfold' {u v : bSet 𝔹} : u ∈ᴮ v = ⨆ z, z ∈ᴮ v ⊓ u =ᴮ z := by
-  sorry -- TODO: port from src/bvm.lean:544-547 (requires bv_eq_trans)
+  -- Use bounded_exists with ϕ = fun z => u =ᴮ z
+  -- h_congr: x =ᴮ y ⊓ u =ᴮ x ≤ u =ᴮ y (by bv_eq_trans + inf_comm)
+  rw [← @bounded_exists _ _ v (fun z => u =ᴮ z)
+        (h_congr := fun x y => by rw [inf_comm]; exact bv_eq_trans),
+      mem_unfold]
 
 -- src/bvm.lean:549
 lemma subset_unfold' {x u : bSet 𝔹} : x ⊆ᴮ u = ⨅ (w : bSet 𝔹), w ∈ᴮ x ⟹ w ∈ᴮ u := by
@@ -618,12 +806,38 @@ lemma mem_of_mem_subset {x y z : bSet 𝔹} {Γ : 𝔹}
 -- src/bvm.lean:603
 lemma subst_congr_subset_left {x v u : bSet 𝔹} :
     ((v ⊆ᴮ u) ⊓ (x =ᴮ v) : 𝔹) ≤ (x ⊆ᴮ u) := by
-  sorry -- TODO: port from src/bvm.lean:603-614
+  rw [subset_unfold' (x := x), subset_unfold' (x := v)]
+  apply le_iInf; intro z
+  rw [← deduction]
+  -- Goal: (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ⊓ x =ᴮ v ⊓ z ∈ x ≤ z ∈ u
+  have h_mem : (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ⊓ x =ᴮ v ⊓ z ∈ᴮ x ≤ z ∈ᴮ v := by
+    calc (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ⊓ x =ᴮ v ⊓ z ∈ᴮ x
+        ≤ x =ᴮ v ⊓ z ∈ᴮ x :=
+          le_inf (inf_le_left.trans inf_le_right) inf_le_right
+      _ ≤ z ∈ᴮ v := subst_congr_mem_right
+  have h_sub : (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ⊓ z ∈ᴮ v ≤ z ∈ᴮ u := by
+    have hspec : (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ≤ z ∈ᴮ v ⟹ z ∈ᴮ u := iInf_le _ z
+    exact le_trans (le_inf (inf_le_left.trans hspec) inf_le_right) bv_imp_elim
+  calc (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ⊓ x =ᴮ v ⊓ z ∈ᴮ x
+      ≤ (⨅ w, w ∈ᴮ v ⟹ w ∈ᴮ u) ⊓ z ∈ᴮ v :=
+        le_inf (inf_le_left.trans inf_le_left) h_mem
+    _ ≤ z ∈ᴮ u := h_sub
 
 -- src/bvm.lean:616
 lemma subst_congr_subset_right {x v u : bSet 𝔹} :
     ((v ⊆ᴮ u) ⊓ (u =ᴮ x) : 𝔹) ≤ (v ⊆ᴮ x) := by
-  sorry -- TODO: port from src/bvm.lean:616-622
+  rw [subset_unfold, subset_unfold]
+  apply le_iInf; intro j
+  rw [← deduction]
+  -- Goal: (⨅ j', bval v j' ⟹ func v j' ∈ u) ⊓ u =ᴮ x ⊓ bval v j ≤ func v j ∈ x
+  calc (⨅ j', v.bval j' ⟹ v.func j' ∈ᴮ u) ⊓ u =ᴮ x ⊓ v.bval j
+      ≤ (v.bval j ⟹ v.func j ∈ᴮ u) ⊓ v.bval j ⊓ u =ᴮ x :=
+        le_inf (le_inf ((inf_le_left.trans inf_le_left).trans (iInf_le _ j)) inf_le_right)
+               (inf_le_left.trans inf_le_right)
+    _ ≤ v.func j ∈ᴮ u ⊓ u =ᴮ x :=
+        le_inf (le_trans inf_le_left bv_imp_elim) inf_le_right
+    _ ≤ v.func j ∈ᴮ x := by
+        rw [inf_comm]; exact subst_congr_mem_right
 
 -- src/bvm.lean:626
 lemma bv_rw'₀ {x y : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ x =ᴮ y) {ϕ : bSet 𝔹 → 𝔹}
