@@ -2253,7 +2253,22 @@ lemma functionMk_inj_of_inj {u : bSet 𝔹} {F : u.type → bSet 𝔹}
 
 -- src/bvm_extras.lean:2080
 lemma bot_of_mem_self {x : bSet 𝔹} : (⊤ : 𝔹) ≤ (x ∈ᴮ x ⟹ ⊥) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2080 (inductive proof)
+  induction x using bSet.rec' with
+  | _ x IH =>
+    -- IH : ∀ a : x.type, ⊤ ≤ (x.func a ∈ᴮ x.func a ⟹ ⊥)
+    rw [← deduction, top_inf_eq]
+    -- Goal: x ∈ x ≤ ⊥
+    rw [mem_unfold]; apply iSup_le; intro i
+    -- LHS: x.bval i ⊓ x =ᴮ x.func i
+    -- From x.bval i: x.func i ∈ x (by mem_mk'')
+    -- From x =ᴮ x.func i and x.func i ∈ x: x.func i ∈ x.func i (by subst_congr_mem_right)
+    have h_mem : x.bval i ⊓ x =ᴮ x.func i ≤ x.func i ∈ᴮ x :=
+      le_trans inf_le_left (mem_mk'' le_rfl)
+    have h_self_mem : x.bval i ⊓ x =ᴮ x.func i ≤ x.func i ∈ᴮ x.func i :=
+      le_trans (le_inf inf_le_right h_mem) subst_congr_mem_right
+    have h_bot_iff : (⊤ : 𝔹) ≤ x.func i ∈ᴮ x.func i ⟹ ⊥ := IH i
+    rw [← deduction, top_inf_eq] at h_bot_iff
+    exact le_trans h_self_mem h_bot_iff
 
 -- src/bvm_extras.lean:2093
 lemma bot_of_mem_self' {x : bSet 𝔹} {Γ} (H : Γ ≤ (x ∈ᴮ x)) : Γ ≤ ⊥ := by
@@ -2272,7 +2287,86 @@ lemma bot_of_zero_eq_one {Γ : 𝔹} (H : Γ ≤ (0 : bSet 𝔹) =ᴮ 1) : Γ �
 
 -- src/bvm_extras.lean:2110
 lemma bot_of_mem_mem (x y : bSet 𝔹) : (⊤ : 𝔹) ≤ ((x ∈ᴮ y ⊓ y ∈ᴮ x) ⟹ ⊥) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2110 (double induction)
+  induction x using bSet.rec' generalizing y with
+  | _ x IHx =>
+    induction y using bSet.rec' with
+    | _ y IHy =>
+      -- IHx : ∀ a' : x.type, ∀ z, ⊤ ≤ (x.func a' ∈ z ⊓ z ∈ x.func a' ⟹ ⊥)
+      -- IHy : ∀ a'' : y.type, ⊤ ≤ (x ∈ y.func a'' ⊓ y.func a'' ∈ x ⟹ ⊥)
+      rw [← deduction, top_inf_eq]
+      -- Goal: x ∈ y ⊓ y ∈ x ≤ ⊥
+      -- Unfold x ∈ y and y ∈ x
+      rw [mem_unfold (v := y), mem_unfold (v := x)]
+      -- x ∈ y = ⨆ a'', y.bval a'' ⊓ x =ᴮ y.func a''
+      -- y ∈ x = ⨆ a', x.bval a' ⊓ y =ᴮ x.func a'
+      -- (⨆ a'', ...) ⊓ (⨆ a', ...) ≤ ⊥
+      calc (⨆ a'' : y.type, y.bval a'' ⊓ x =ᴮ y.func a'') ⊓
+            (⨆ a' : x.type, x.bval a' ⊓ y =ᴮ x.func a')
+          ≤ ⨆ a'' : y.type, (y.bval a'' ⊓ x =ᴮ y.func a'') ⊓
+              (⨆ a' : x.type, x.bval a' ⊓ y =ᴮ x.func a') := (iSup_inf_eq _ _).le
+        _ ≤ ⊥ := by
+            apply iSup_le; intro a''
+            calc (y.bval a'' ⊓ x =ᴮ y.func a'') ⊓
+                (⨆ a' : x.type, x.bval a' ⊓ y =ᴮ x.func a')
+                ≤ ⨆ a' : x.type, (x.bval a' ⊓ y =ᴮ x.func a') ⊓
+                    (y.bval a'' ⊓ x =ᴮ y.func a'') := by
+                      rw [inf_comm]; exact (iSup_inf_eq _ _).le
+              _ ≤ ⊥ := by
+                  apply iSup_le; intro a'
+                  -- Context: (x.bval a' ⊓ y =ᴮ x.func a') ⊓ (y.bval a'' ⊓ x =ᴮ y.func a'')
+                  -- From x.bval a': x.func a' ∈ x (by mem_mk'')
+                  -- From y =ᴮ x.func a' and ... : convert
+                  -- We need x.func a' ∈ y.func a'' ⊓ y.func a'' ∈ x.func a'
+                  -- Apply IHx a' (y.func a'')
+                  have h_IH := IHx a' (y.func a'')
+                  rw [← deduction, top_inf_eq] at h_IH
+                  apply le_trans _ h_IH
+                  -- Need: ctx ≤ x.func a' ∈ y.func a'' ⊓ y.func a'' ∈ x.func a'
+                  -- From y =ᴮ x.func a': convert (x ∈ y) to (x ∈ x.func a')
+                  -- From x =ᴮ y.func a'': convert (y ∈ x) to (y ∈ y.func a'')
+                  -- From x.bval a' ≤ x.func a' ∈ x and y =ᴮ x.func a' → subst
+                  refine le_inf ?_ ?_
+                  · -- x.func a' ∈ y.func a''
+                    -- Have: x =ᴮ y.func a'' (from a''-context, inf_right.trans inf_right)
+                    -- Have: x.func a' ∈ x (from a'-context: x.bval a' ≤ x.func a' ∈ x)
+                    -- Wait, x.func a' ∈ y.func a'' from... let me think
+                    -- We have y.bval a'' ≤ y.func a'' ∈ y (by mem_mk'')
+                    -- And x =ᴮ y.func a'' (inf_right.trans inf_right)
+                    -- So y.func a'' ∈ y → y.func a'' ∈ x via x =ᴮ y.func a'' (bv_symm + subst)
+                    -- Not quite. We need x.func a' ∈ y.func a''.
+                    -- From y =ᴮ x.func a' and x.func a' ∈ y... wait
+                    -- x.func a' ∈ y by: y.bval a'' ⊓ ... from y and x.func a' ??? No.
+                    -- Actually: x.func a' ∈ y iff in context (y =ᴮ x.func a'), (something) ∈ x.func a'
+                    -- We have y.bval a'' ≤ y.func a'' ∈ y. And x =ᴮ y.func a''.
+                    -- x ∈ y (from original?) but we've unfolded it...
+                    -- Let me use: y.bval a'' ⊓ x =ᴮ y.func a'' ≤ x.func a' ∈ y.func a''
+                    -- From y =ᴮ x.func a' and y.func a'' ∈ x.func a' (via y.bval a'' ≤ y.func a'' ∈ y and y =ᴮ x.func a')
+                    -- Hmm. This approach is getting complicated.
+                    -- From IHy a'': ⊤ ≤ x ∈ y.func a'' ⊓ y.func a'' ∈ x ⟹ ⊥
+                    -- We need x.func a' ∈ y.func a''.
+                    -- Simpler: from y =ᴮ x.func a' and y.func a'' ∈ y → y.func a'' ∈ x.func a'
+                    -- And from x =ᴮ y.func a'' and x.func a' ∈ x → x.func a' ∈ y.func a''? No
+                    -- Let's be careful:
+                    -- ctx = (x.bval a' ⊓ y =ᴮ x.func a') ⊓ (y.bval a'' ⊓ x =ᴮ y.func a'')
+                    -- From x.bval a': mem_mk'' → x.func a' ∈ x
+                    -- From x =ᴮ y.func a'': subst_congr_mem_right → x.func a' ∈ y.func a''
+                    have h1 : (x.bval a' ⊓ y =ᴮ x.func a') ⊓ (y.bval a'' ⊓ x =ᴮ y.func a'') ≤
+                        x.func a' ∈ᴮ x :=
+                      inf_le_left.trans (inf_le_left.trans (mem_mk'' le_rfl))
+                    have h2 : (x.bval a' ⊓ y =ᴮ x.func a') ⊓ (y.bval a'' ⊓ x =ᴮ y.func a'') ≤
+                        x =ᴮ y.func a'' := inf_le_right.trans inf_le_right
+                    -- x.func a' ∈ x and x =ᴮ y.func a'' → x.func a' ∈ y.func a''
+                    exact le_trans (le_inf h2 h1) subst_congr_mem_right
+                  · -- y.func a'' ∈ x.func a'
+                    -- From y.bval a'': mem_mk'' → y.func a'' ∈ y
+                    -- From y =ᴮ x.func a'': subst_congr_mem_right → y.func a'' ∈ x.func a'
+                    have h3 : (x.bval a' ⊓ y =ᴮ x.func a') ⊓ (y.bval a'' ⊓ x =ᴮ y.func a'') ≤
+                        y.func a'' ∈ᴮ y :=
+                      inf_le_right.trans (inf_le_left.trans (mem_mk'' le_rfl))
+                    have h4 : (x.bval a' ⊓ y =ᴮ x.func a') ⊓ (y.bval a'' ⊓ x =ᴮ y.func a'') ≤
+                        y =ᴮ x.func a' := inf_le_left.trans inf_le_right
+                    -- y.func a'' ∈ y and y =ᴮ x.func a' → y.func a'' ∈ x.func a'
+                    exact le_trans (le_inf h4 h3) subst_congr_mem_right
 
 -- src/bvm_extras.lean:2131
 lemma bot_of_mem_mem' (x y : bSet 𝔹) {Γ} (H : Γ ≤ x ∈ᴮ y) (H' : Γ ≤ y ∈ᴮ x) : Γ ≤ ⊥ := by
@@ -2391,7 +2485,14 @@ end powerset_section
 -- src/bvm_extras.lean:2212
 lemma check_succ_eq_succ_check {n : ℕ} {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹] :
     (of_nat (n.succ) : bSet 𝔹) = succ (of_nat n) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2212
+  -- of_nat m = check (PSet.ofNat m), succ = insert1
+  simp only [of_nat, succ]
+  -- check (PSet.ofNat (n+1)) = check (PSet.succ_ord (PSet.ofNat n)) = check (PSet.insert ... ...)
+  -- = insert1 (check (PSet.ofNat n)) (check (PSet.ofNat n))
+  have h : PSet.ofNat n.succ = PSet.insert (PSet.ofNat n) (PSet.ofNat n) := by
+    rw [Nat.succ_eq_add_one, PSet.ofNat_succ]; rfl
+  conv_lhs => rw [h]
+  exact check_insert (PSet.ofNat n) (PSet.ofNat n)
 
 -- ============================================================
 -- src/bvm_extras.lean:2398-2747: section ordinals
@@ -2488,13 +2589,101 @@ theorem Ord_of_mem_Ord {x y : bSet 𝔹} {Γ : 𝔹} (H_mem : Γ ≤ x ∈ᴮ y)
 -- src/bvm_extras.lean:2638
 lemma check_is_transitive {x : PSet} (H : PSet.is_transitive x) {Γ : 𝔹} :
     Γ ≤ is_transitive (check x : bSet 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2638
+  -- is_transitive (check x) = ⨅ y, y ∈ check x ⟹ y ⊆ check x
+  apply le_iInf; intro y; rw [← deduction]
+  -- Goal: Γ ⊓ y ∈ check x ≤ y ⊆ check x
+  -- Extract the iSup from y ∈ check x
+  -- y ∈ check x = ⨆ i : x.Type, y =ᴮ check (x.Func i) (after simp on bval=⊤)
+  have h_ymem : Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ≤
+      ⨆ i : x.Type, y =ᴮ check (x.Func i) := by
+    calc Γ ⊓ y ∈ᴮ (check x : bSet 𝔹)
+        ≤ y ∈ᴮ (check x : bSet 𝔹) := inf_le_right
+      _ = y ∈ᴮ bSet.mk x.Type (fun i => check (x.Func i)) (fun _ => ⊤) := by rw [check_unfold]
+      _ = ⨆ i : x.Type, ⊤ ⊓ y =ᴮ check (x.Func i) := mem_unfold
+      _ = ⨆ i : x.Type, y =ᴮ check (x.Func i) := by simp only [top_inf_eq]
+  -- Carry context through iSup
+  calc Γ ⊓ y ∈ᴮ (check x : bSet 𝔹)
+      ≤ (⨆ i : x.Type, y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹)) :=
+        le_inf h_ymem le_rfl
+    _ ≤ ⨆ i : x.Type, (y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹)) :=
+        (iSup_inf_eq _ _).le
+    _ ≤ y ⊆ᴮ (check x : bSet 𝔹) := by
+        apply iSup_le; intro i
+        -- Context: (y =ᴮ check (x.Func i)) ⊓ ctx ≤ y ⊆ check x
+        -- Use bv_rw' with y =ᴮ check (x.Func i) and check (x.Func i) ⊆ check x
+        apply bv_rw' (H := inf_le_left) (ϕ := fun z => z ⊆ᴮ check x)
+          (h_congr := B_ext_subset_left)
+        -- Goal: ... ≤ check (x.Func i) ⊆ check x
+        exact check_subset (H (x.Func i) (PSet.func_mem x i))
 
 -- src/bvm_extras.lean:2647
 lemma check_ewo_left {x : PSet} (H : PSet.epsilon_well_orders x) {Γ : 𝔹} :
     Γ ≤ (⨅ y, y ∈ᴮ (check x : bSet 𝔹) ⟹
       (⨅ z, z ∈ᴮ (check x : bSet 𝔹) ⟹ (y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y))) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2647
+  apply le_iInf; intro y; rw [← deduction]
+  apply le_iInf; intro z; rw [← deduction]
+  -- Goal: Γ ⊓ y ∈ check x ⊓ z ∈ check x ≤ y =ᴮ z ⊔ y ∈ z ⊔ z ∈ y
+  -- Unfold memberships
+  have hy : Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹) ≤
+      ⨆ i : x.Type, y =ᴮ check (x.Func i) :=
+    calc Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹)
+        ≤ y ∈ᴮ (check x : bSet 𝔹) := inf_le_left.trans inf_le_right
+      _ = y ∈ᴮ bSet.mk x.Type (fun i => check (x.Func i)) (fun _ => ⊤) := by rw [check_unfold]
+      _ = ⨆ i : x.Type, ⊤ ⊓ y =ᴮ check (x.Func i) := mem_unfold
+      _ = ⨆ i : x.Type, y =ᴮ check (x.Func i) := by simp only [top_inf_eq]
+  have hz : Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹) ≤
+      ⨆ j : x.Type, z =ᴮ check (x.Func j) :=
+    calc Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹)
+        ≤ z ∈ᴮ (check x : bSet 𝔹) := inf_le_right
+      _ = z ∈ᴮ bSet.mk x.Type (fun i => check (x.Func i)) (fun _ => ⊤) := by rw [check_unfold]
+      _ = ⨆ j : x.Type, ⊤ ⊓ z =ᴮ check (x.Func j) := mem_unfold
+      _ = ⨆ j : x.Type, z =ᴮ check (x.Func j) := by simp only [top_inf_eq]
+  -- Double iSup distribution
+  calc Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹)
+      ≤ (⨆ i, y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹)) :=
+        le_inf hy le_rfl
+    _ ≤ ⨆ i, (y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹)) :=
+        (iSup_inf_eq _ _).le
+    _ ≤ y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y := by
+        apply iSup_le; intro i
+        -- Context: (y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ check x ⊓ z ∈ check x)
+        -- Use hz to get ⨆ j, z =ᴮ check (x.Func j), then apply it
+        calc (y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹))
+            ≤ (⨆ j, z =ᴮ check (x.Func j)) ⊓
+                ((y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹))) :=
+              le_inf (inf_le_right.trans hz) le_rfl
+          _ ≤ ⨆ j, (z =ᴮ check (x.Func j)) ⊓
+                ((y =ᴮ check (x.Func i)) ⊓ (Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹))) :=
+              (iSup_inf_eq _ _).le
+          _ ≤ y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y := by
+              apply iSup_le; intro j
+              -- Context: (z =ᴮ check (x.Func j)) ⊓ ((y =ᴮ check (x.Func i)) ⊓ ctx)
+              have h_tri := H.1 (x.Func i) (PSet.func_mem x i) (x.Func j) (PSet.func_mem x j)
+              set ctx3 := Γ ⊓ y ∈ᴮ (check x : bSet 𝔹) ⊓ z ∈ᴮ (check x : bSet 𝔹)
+              have hy_eq : (z =ᴮ check (x.Func j)) ⊓ ((y =ᴮ check (x.Func i)) ⊓ ctx3) ≤
+                  y =ᴮ check (x.Func i) := inf_le_right.trans inf_le_left
+              have hz_eq : (z =ᴮ check (x.Func j)) ⊓ ((y =ᴮ check (x.Func i)) ⊓ ctx3) ≤
+                  z =ᴮ check (x.Func j) := inf_le_left
+              set ctx2 := (z =ᴮ check (x.Func j)) ⊓ ((y =ᴮ check (x.Func i)) ⊓ ctx3)
+              rcases h_tri with h_eq | h_mem_ij | h_mem_ji
+              · -- Equiv (x.Func i) (x.Func j), so y =ᴮ z
+                -- y =ᴮ z via chain y =ᴮ check(Func i) =ᴮ check(Func j) =ᴮ z (symm)
+                have h_yz := bv_trans hy_eq (bv_trans (le_top.trans (check_bv_eq h_eq)) (bv_symm hz_eq))
+                exact h_yz.trans (le_sup_left.trans le_sup_left)
+              · -- x.Func i ∈ x.Func j, so y ∈ z
+                -- check(Func i) ∈ check(Func j) from h_mem_ij
+                have h_cm : ctx2 ≤ check (x.Func i) ∈ᴮ check (x.Func j) :=
+                  le_top.trans (check_mem h_mem_ij)
+                -- y ∈ z using mem_congr
+                have h_ymemz := mem_congr (bv_symm hy_eq) (bv_symm hz_eq) h_cm
+                exact h_ymemz.trans (le_sup_right.trans le_sup_left)
+              · -- x.Func j ∈ x.Func i, so z ∈ y
+                -- check(Func j) ∈ check(Func i) from h_mem_ji
+                have h_cm : ctx2 ≤ check (x.Func j) ∈ᴮ check (x.Func i) :=
+                  le_top.trans (check_mem h_mem_ji)
+                -- z ∈ y using mem_congr:
+                -- H₁ : check(Func j) =ᴮ z, H₂ : check(Func i) =ᴮ y, H₃ : check(Func j) ∈ check(Func i)
+                exact (mem_congr (bv_symm hz_eq) (bv_symm hy_eq) h_cm).trans le_sup_right
 
 -- src/bvm_extras.lean:2665
 lemma check_ewo_right {x : PSet} (H : PSet.epsilon_well_orders x) {Γ : 𝔹} :
