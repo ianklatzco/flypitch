@@ -183,7 +183,14 @@ lemma bv_context_apply {β : Type*} [CompleteBooleanAlgebra β] {Γ a₁ a₂ : 
 -- src/bvm.lean:152
 lemma bv_Or_imp {Γ : 𝔹} {ι} {ϕ₁ ϕ₂ : ι → 𝔹} (H_sub : Γ ≤ ⨅ x, ϕ₁ x ⟹ ϕ₂ x)
     (H : Γ ≤ ⨆ x, ϕ₁ x) : Γ ≤ ⨆ x, ϕ₂ x := by
-  sorry -- TODO: port from src/bvm.lean:152-153 (uses bv_cases_at which is a deferred tactic)
+  -- For each x, if ϕ₁ x holds and Γ holds, then ϕ₂ x holds (from H_sub)
+  -- Since Γ ≤ ⨆ x, ϕ₁ x, apply distributivity
+  calc Γ ≤ (⨅ x, ϕ₁ x ⟹ ϕ₂ x) ⊓ ⨆ x, ϕ₁ x := le_inf H_sub H
+    _ ≤ ⨆ x, ϕ₂ x := by
+        rw [inf_iSup_eq]
+        apply iSup_le; intro x
+        exact le_trans (le_inf (inf_le_left.trans (iInf_le _ x)) inf_le_right)
+          (le_trans bv_imp_elim (le_iSup _ x))
 
 -- src/bvm.lean:155
 lemma bv_iff_neg {b₁ b₂ : 𝔹} (H : ∀ {Γ : 𝔹}, Γ ≤ b₁ ↔ Γ ≤ b₂) :
@@ -1289,7 +1296,20 @@ noncomputable def B_small_witness : bSet 𝔹 :=
 -- src/bvm.lean:998
 lemma B_small_witness_supr :
     (⨆ (x : bSet 𝔹), ϕ x) = ⨆ (b : (@B_small_witness _ _ ϕ).type), ϕ (B_small_witness.func b) := by
-  sorry -- TODO: port from src/bvm.lean:998-1004
+  apply le_antisymm
+  · apply iSup_le; intro x
+    let b : (@B_small_witness _ _ ϕ).type :=
+      ⟨ϕ x, Set.mem_image_of_mem _ (Set.mem_univ _)⟩
+    apply le_iSup_of_le b
+    -- ϕ x ≤ ϕ (B_small_witness.func b): note B_small_witness_spec b : ϕ (func b) = b.val = ϕ x
+    have h := @B_small_witness_spec _ _ ϕ b
+    -- h : ϕ (B_small_witness.func b) = b.val = ϕ x
+    simp only [b, Subtype.coe_mk] at h
+    exact h.symm.le
+  · apply iSup_le; intro b
+    apply le_iSup_of_le (fiber_lift b).val
+    simp only [B_small_witness, func]
+    exact le_rfl
 
 -- src/bvm.lean:1007
 @[reducible, simp] def not_b (b : 𝔹) : Set 𝔹 := fun y => y ≠ b
