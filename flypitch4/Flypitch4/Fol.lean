@@ -457,8 +457,50 @@ lemma subst_term2 : ∀ {l} (t : preterm L l) (s₁ s₂ : term L) (n₁ n₂ : 
     subst_term (subst_term t s₁ n₁) s₂ (n₁ + n₂) =
     subst_term (subst_term t s₂ (n₁ + n₂ + 1)) (subst_term s₁ s₂ n₂) n₁
   | _, preterm.var k, s₁, s₂, n₁, n₂ => by
-      -- TODO: port from src/fol.lean:456-476 (complex case analysis)
-      sorry
+      -- Case analysis: k < n₁ | k = n₁ | n₁ < k
+      -- Then for n₁ < k, further: k < n₁+n₂+1 | k = n₁+n₂+1 | k > n₁+n₂+1
+      rcases Nat.lt_trichotomy k n₁ with hk | hk | hk
+      · -- k < n₁: both sides give &k
+        have hkn : k < n₁ + n₂ := Nat.lt_of_lt_of_le hk (Nat.le_add_right _ _)
+        rw [subst_term_var_lt s₁ hk, subst_term_var_lt s₂ (Nat.lt_succ_of_lt hkn),
+            subst_term_var_lt _ hkn, subst_term_var_lt _ hk]
+      · -- k = n₁: LHS = subst_term (lift_term s₁ n₁) s₂ (n₁+n₂) = lift_term (s₁[s₂//n₂]) n₁
+        --         RHS = subst_term (var n₁) (s₁[s₂//n₂]) n₁ = lift_term (s₁[s₂//n₂]) n₁
+        subst hk
+        rw [subst_term_var_lt s₂ (by omega : k < k + n₂ + 1),
+            subst_term_var_eq (subst_term s₁ s₂ n₂) k,
+            subst_term_var_eq s₁ k,
+            lift_subst_term_large']
+      · -- n₁ < k
+        rcases Nat.lt_trichotomy k (n₁ + n₂ + 1) with hk' | hk' | hk'
+        · -- n₁ < k < n₁+n₂+1: both sides give &(k-1)
+          have hk1lt : k - 1 < n₁ + n₂ := by omega
+          have hk1n1 : n₁ < k - 1 ∨ k - 1 = n₁ := by omega
+          have hkn1 : ¬(k - 1 < n₁) := by omega
+          rw [subst_term_var_gt s₁ hk, subst_term_var_lt s₂ hk',
+              subst_term_var_lt s₂ hk1lt, subst_term_var_gt (subst_term s₁ s₂ n₂) hk]
+        · -- k = n₁+n₂+1:
+          -- LHS: subst_term (var (n₁+n₂)) s₂ (n₁+n₂) = lift_term_at s₂ (n₁+n₂) 0
+          -- RHS: subst_term (lift_term_at s₂ (n₁+n₂+1) 0) (s₁[s₂//n₂]) n₁ = lift_term_at s₂ (n₁+n₂) 0
+          subst hk'
+          rw [subst_term_var_gt s₁ hk, show n₁ + n₂ + 1 - 1 = n₁ + n₂ from by omega,
+              subst_term_var_eq s₂ (n₁ + n₂)]
+          -- LHS = lift_term_at s₂ (n₁+n₂) 0
+          -- RHS: subst_term (subst_term (var (n₁+n₂+1)) s₂ (n₁+n₂+1)) (s₁[s₂//n₂]) n₁
+          --    = subst_term (lift_term_at s₂ (n₁+n₂+1) 0) (s₁[s₂//n₂]) n₁
+          --    = lift_term_at s₂ (n₁+n₂) 0 [lift_subst_term_medium]
+          rw [subst_term_var_eq s₂ (n₁ + n₂ + 1), lift_subst_term_medium]
+        · -- k > n₁+n₂+1: both sides give &(k-2)
+          have hkgt : n₁ + n₂ + 1 < k := hk'
+          have hk1gt : n₁ + n₂ < k - 1 := by omega
+          have hn1lt : n₁ < k - 1 := by omega
+          rw [subst_term_var_gt s₁ hk, subst_term_var_gt s₂ hk']
+          -- LHS: subst_term (var (k-1)) s₂ (n₁+n₂)
+          --   k-1 > n₁+n₂ (since k > n₁+n₂+1), so gives var (k-1-1) = var (k-2)
+          rw [subst_term_var_gt s₂ hk1gt]
+          -- RHS: subst_term (var (k-1)) (s₁[s₂//n₂]) n₁
+          --   k-1 > n₁, so gives var (k-1-1) = var (k-2)
+          rw [subst_term_var_gt (subst_term s₁ s₂ n₂) hn1lt]
   | _, preterm.func _, _, _, _, _ => rfl
   | _, preterm.app t₁ t₂, s₁, s₂, n₁, n₂ => by
       simp [subst_term2 t₁ s₁ s₂ n₁ n₂, subst_term2 t₂ s₁ s₂ n₁ n₂]
@@ -578,10 +620,13 @@ lemma formula.rec_apps_rel {C : formula L → Sort v}
     (himp : ∀ {{f₁ f₂ : formula L}} (ih₁ : C f₁) (ih₂ : C f₂), C (f₁ ⟹ f₂))
     (hall : ∀ {{f : formula L}} (ih : C f), C (∀' f))
     {l} (R : L.relations l) (ts : DVec (term L) l) :
-    @formula.rec L C hfalsum hequal hrel himp hall (apps_rel (preformula.rel R) ts) = hrel R ts := by
-  -- TODO: port from src/fol.lean:607-608
-  -- formula.rec unfolds via apps_rel_zero ▸; need to show this is hrel R ts via formula.rec'_apps_rel
-  sorry
+    @formula.rec L C hfalsum hequal hrel himp hall (apps_rel (preformula.rel R) ts) = hrel R ts :=
+  -- formula.rec f = apps_rel_zero f [] ▸ formula.rec' ... 0 f []
+  -- This is definitionally equal to: (apps_rel_zero ...).symm ▸ formula.rec'_apps_rel ▸ hrel R ts
+  show (apps_rel_zero (apps_rel (preformula.rel R) ts) DVec.nil ▸
+    @formula.rec' L C hfalsum hequal hrel himp hall 0 (apps_rel (preformula.rel R) ts) DVec.nil) = hrel R ts by
+  rw [formula.rec'_apps_rel]
+  rfl
 
 /-! ## lift_formula_at — lifting variables in formulas -/
 
