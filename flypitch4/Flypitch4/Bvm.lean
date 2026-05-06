@@ -786,4 +786,539 @@ lemma bv_cc_mk_mem {Γ : 𝔹} {x y : bSet 𝔹} (H : Γ ≤ x ∈ᴮ y) :
     b_setoid_mem Γ (@Quotient.mk (bSet 𝔹) (b_setoid Γ) x) (@Quotient.mk (bSet 𝔹) (b_setoid Γ) y) :=
   bv_cc_mk_mem_iff.mp H
 
+-- ============================================================
+-- Task 10b: src/bvm.lean lines 750-1400
+-- is_definite, empty lemmas, insert1 congr, singletons,
+-- mixture, mixing_lemma, smallness, well_ordering,
+-- mixing_corollaries, smallness', cores
+-- ============================================================
+
+-- src/bvm.lean:817
+def is_definite (u : bSet 𝔹) : Prop := ∀ i : u.type, u.bval i = ⊤
+
+-- src/bvm.lean:819
+lemma eq_empty {u : bSet 𝔹} : u =ᴮ ∅ = (⨆ i, u.bval i)ᶜ := by
+  sorry -- TODO: port from src/bvm.lean:819-823 (complex simp/lattice)
+
+-- src/bvm.lean:825
+@[simp] lemma empty_subset {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ ∅ ⊆ᴮ x := by
+  rw [subset_unfold]
+  apply le_iInf; intro i
+  exact i.down.elim
+
+-- src/bvm.lean:828
+lemma empty_spec {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ (x ∈ᴮ ∅)ᶜ := by
+  sorry -- TODO: port from src/bvm.lean:828 (empty membership)
+
+-- src/bvm.lean:830
+lemma bot_of_mem_empty {x : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ x ∈ᴮ ∅) : Γ ≤ ⊥ := by
+  sorry -- TODO: port from src/bvm.lean:830-831 (empty membership)
+
+-- src/bvm.lean:833
+@[simp] lemma subst_congr_insert1_left {u w v : bSet 𝔹} :
+    u =ᴮ w ≤ bSet.insert1 u v =ᴮ bSet.insert1 w v := by
+  sorry -- TODO: port from src/bvm.lean:833-838
+
+-- src/bvm.lean:839
+@[simp] lemma subst_congr_insert1_left' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
+    c ≤ bSet.insert1 u v =ᴮ bSet.insert1 w v :=
+  le_trans h subst_congr_insert1_left
+
+-- src/bvm.lean:845
+@[simp] lemma subst_congr_insert1_right {u w v : bSet 𝔹} :
+    u =ᴮ w ≤ bSet.insert1 v u =ᴮ bSet.insert1 v w := by
+  sorry -- TODO: port from src/bvm.lean:845-851
+
+-- src/bvm.lean:852
+@[simp] lemma subst_congr_insert1_right' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
+    c ≤ bSet.insert1 v u =ᴮ bSet.insert1 v w :=
+  le_trans h subst_congr_insert1_right
+
+-- src/bvm.lean:842
+@[simp] lemma subst_congr_insert1_left'' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
+    c ≤ (bSet.insert1 v (bSet.insert1 u ∅)) =ᴮ (bSet.insert1 v (bSet.insert1 w ∅)) :=
+  subst_congr_insert1_right' (subst_congr_insert1_left' h)
+
+-- src/bvm.lean:855
+@[simp] lemma subst_congr_insert1_right'' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
+    c ≤ (bSet.insert1 u (bSet.insert1 v ∅)) =ᴮ (bSet.insert1 w (bSet.insert1 v ∅)) := by
+  sorry -- TODO: port from src/bvm.lean:855
+
+/-! ### singleton lemmas -/
+
+-- src/bvm.lean:860
+@[simp] lemma eq_singleton_of_eq {x y : bSet 𝔹} {c : 𝔹} (h : c ≤ x =ᴮ y) :
+    c ≤ (bSet.insert1 x ∅) =ᴮ (bSet.insert1 y ∅) :=
+  subst_congr_insert1_left' h
+
+-- src/bvm.lean:863
+lemma eq_of_eq_singleton {x y : bSet 𝔹} {c : 𝔹} (h : c ≤ (bSet.insert1 x ∅) =ᴮ (bSet.insert1 y ∅)) :
+    c ≤ x =ᴮ y := by
+  sorry -- TODO: port from src/bvm.lean:863-873 (simp loops on bv_eq_unfold/mem_unfold)
+
+-- src/bvm.lean:874
+lemma eq_singleton_iff_eq {x y : bSet 𝔹} {c : 𝔹} :
+    c ≤ (bSet.insert1 x ∅) =ᴮ (bSet.insert1 y ∅) ↔ c ≤ x =ᴮ y :=
+  ⟨fun h => eq_of_eq_singleton h, fun h => eq_singleton_of_eq h⟩
+
+-- src/bvm.lean:877
+lemma singleton_unfold {x : bSet 𝔹} : (insert x (∅ : bSet 𝔹)) = bSet.insert1 x ∅ := rfl
+
+-- src/bvm.lean:879
+@[simp] lemma singleton_type {x : bSet 𝔹} :
+    (type (bSet.insert1 x ∅)) = Option (ULift Empty) := by
+  simp only [bSet.insert1, bSet.insert, bSet.type, empty, bSet.mk.injEq]
+  rfl
+
+-- src/bvm.lean:881
+@[simp] lemma singleton_func {x : bSet 𝔹} {o : Option (ULift Empty)} :
+    func (bSet.insert1 x ∅) o = Option.casesOn o x (fun e => e.down.elim) := by
+  simp only [bSet.insert1, bSet.insert]
+  cases o with
+  | none => rfl
+  | some e => exact (e.down.elim)
+
+-- src/bvm.lean:883
+@[simp] lemma singleton_bval {x : bSet 𝔹} {o : Option (ULift Empty)} :
+    bval (bSet.insert1 x ∅) o = Option.casesOn o ⊤ (fun e => e.down.elim) := by
+  simp only [bSet.insert1, bSet.insert]
+  cases o with
+  | none => rfl
+  | some e => exact (e.down.elim)
+
+-- src/bvm.lean:885
+@[simp] lemma singleton_bval_none {x : bSet 𝔹} : bval (bSet.insert1 x ∅) none = ⊤ := by
+  have := singleton_bval (x := x) (o := none)
+  simp at this; exact this
+
+/-! ### mixture / mixing lemma -/
+
+-- src/bvm.lean:899
+def mixture {ι : Type u} (a : ι → 𝔹) (u : ι → bSet 𝔹) : bSet 𝔹 :=
+  ⟨Σ (i : ι), (u i).type, fun x => (u x.1).func x.2,
+    fun x => ⨆ (j : ι), a j ⊓ (u x.1).func x.2 ∈ᴮ u j⟩
+
+-- src/bvm.lean:904
+/-- Given a₁ a₂ : 𝔹, return the canonical map from ULift Bool to 𝔹 given by false ↦ a₁, true ↦ a₂ -/
+@[reducible] def bool_map {α : Type*} (a₁ a₂ : α) : ULift Bool → α :=
+  fun x => Bool.rec a₁ a₂ x.down
+
+-- src/bvm.lean:908
+def two_term_mixture (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u₂ : bSet 𝔹) : bSet 𝔹 :=
+  @mixture 𝔹 _ (ULift Bool) (bool_map a₁ a₂) (bool_map u₁ u₂)
+
+-- src/bvm.lean:921
+@[simp] lemma bval_mixture {ι : Type u} {a : ι → 𝔹} {u : ι → bSet 𝔹} :
+    (mixture a u).bval = fun x => ⨆ (j : ι), a j ⊓ (u x.1).func x.2 ∈ᴮ u j := rfl
+
+-- src/bvm.lean:925
+@[simp] lemma two_term_mixture_bval (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u₂ : bSet 𝔹) :
+    ∀ i, (two_term_mixture a₁ a₂ h_anti u₁ u₂).bval i =
+      (a₁ ⊓ ((two_term_mixture a₁ a₂ h_anti u₁ u₂).func i ∈ᴮ u₁)) ⊔
+      (a₂ ⊓ ((two_term_mixture a₁ a₂ h_anti u₁ u₂).func i ∈ᴮ u₂)) := by
+  intro i
+  sorry -- TODO: port from src/bvm.lean:925-931 (ULift Bool cases)
+
+-- src/bvm.lean:933
+def floris_mixture {ι : Type u} (a : ι → 𝔹) (u : ι → bSet 𝔹) : bSet 𝔹 :=
+  ⟨Σ (i : ι), (u i).type, fun x => (u x.1).func x.2, fun x => a x.1 ⊓ (u x.1).bval x.2⟩
+
+-- src/bvm.lean:914
+lemma two_term_mixture_h_star (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u₂ : bSet 𝔹) :
+    ∀ i j : ULift Bool, (bool_map a₁ a₂) i ⊓ (bool_map a₁ a₂) j ≤
+      (bool_map u₁ u₂) i =ᴮ (bool_map u₁ u₂) j := by
+  intro ⟨bi⟩ ⟨bj⟩
+  cases bi <;> cases bj <;> simp [bool_map, bv_eq_refl]
+  all_goals simp [bool_map, h_anti, inf_comm]
+
+-- src/bvm.lean:937 — Mixing Lemma
+lemma mixing_lemma' {ι : Type u} (a : ι → 𝔹) (τ : ι → bSet 𝔹)
+    (h_star : ∀ i j : ι, a i ⊓ a j ≤ τ i =ᴮ τ j) :
+    ∀ i : ι, a i ≤ (mixture a τ) =ᴮ τ i := by
+  sorry -- TODO: port from src/bvm.lean:937-951 (complex bv_eq/mem/iSup reasoning)
+
+-- src/bvm.lean:954
+lemma mixing_lemma {ι : Type u} (a : ι → 𝔹) (τ : ι → bSet 𝔹)
+    (h_star : ∀ i j : ι, a i ⊓ a j ≤ τ i =ᴮ τ j) :
+    ∃ x, ∀ i : ι, a i ≤ x =ᴮ τ i :=
+  ⟨mixture a τ, fun i => mixing_lemma' a τ h_star i⟩
+
+-- src/bvm.lean:957
+lemma mixing_lemma_two_term (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (u₁ u₂ : bSet 𝔹) :
+    a₁ ≤ (two_term_mixture a₁ a₂ h_anti u₁ u₂ =ᴮ u₁) ∧
+    a₂ ≤ (two_term_mixture a₁ a₂ h_anti u₁ u₂ =ᴮ u₂) := by
+  constructor <;> sorry -- TODO: port from src/bvm.lean:957-963 (requires mixing_lemma')
+
+/-! ### smallness -/
+
+section smallness
+variable {ϕ : bSet 𝔹 → 𝔹}
+
+-- src/bvm.lean:988
+@[reducible, simp] noncomputable def fiber_lift (b : ϕ '' Set.univ) :=
+  Classical.indefiniteDescription (fun a : bSet 𝔹 => ϕ a = b.val) (by
+    obtain ⟨x, _, hx⟩ := b.2
+    exact ⟨x, hx⟩)
+
+-- src/bvm.lean:992
+noncomputable def B_small_witness : bSet 𝔹 :=
+  ⟨ϕ '' Set.univ, fun b => (fiber_lift b).val, fun _ => ⊤⟩
+
+-- src/bvm.lean:995
+@[simp] lemma B_small_witness_spec : ∀ b, ϕ ((@B_small_witness _ _ ϕ).func b) = b.val :=
+  fun b => (fiber_lift b).2
+
+-- src/bvm.lean:998
+lemma B_small_witness_supr :
+    (⨆ (x : bSet 𝔹), ϕ x) = ⨆ (b : (@B_small_witness _ _ ϕ).type), ϕ (B_small_witness.func b) := by
+  sorry -- TODO: port from src/bvm.lean:998-1004
+
+-- src/bvm.lean:1007
+@[reducible, simp] def not_b (b : 𝔹) : Set 𝔹 := fun y => y ≠ b
+
+/-! ### well_ordering -/
+
+section well_ordering
+variable {α : Type*} (r : α → α → Prop) [IsWellOrder α r]
+local infix:50 " ≺ " => r
+
+-- src/bvm.lean:1013
+def down_set (a : α) : Set α := {a' | a' ≺ a}
+
+-- src/bvm.lean:1015
+def down_set' (a : α) : Set α := insert a (down_set r a)
+
+-- src/bvm.lean:1017
+lemma down_set_trans {a b : α} (h : a ≺ b) : down_set r a ⊆ down_set r b := by
+  intro x (H : r x a)
+  exact (inferInstance : IsTrans α r).trans x a b H h
+
+end well_ordering
+
+variable (r : type (@B_small_witness _ _ ϕ) → type (@B_small_witness _ _ ϕ) → Prop)
+variable [IsWellOrder _ r]
+local infix:50 " ≺ " => r
+
+-- src/bvm.lean:1029
+lemma down_set_mono_supr {a b : type B_small_witness} (h : r a b)
+    {s : type (@B_small_witness _ _ ϕ) → 𝔹} :
+    (⨆ i ∈ down_set r a, s i) ≤ (⨆ i ∈ down_set r b, s i) :=
+  biSup_mono (fun i H => down_set_trans r h H)
+
+-- src/bvm.lean:1036
+lemma down_set'_mono_supr {a b : type B_small_witness} (h : r a b)
+    {s : type (@B_small_witness _ _ ϕ) → 𝔹} :
+    (⨆ i ∈ down_set' r a, s i) ≤ (⨆ i ∈ down_set' r b, s i) :=
+  biSup_mono (fun i H => by
+    rcases H with rfl | H
+    · exact Or.inr h
+    · exact Or.inr (down_set_trans r h H))
+
+-- src/bvm.lean:1045
+def witness_antichain (b : type (@B_small_witness _ _ ϕ)) : 𝔹 :=
+  b.val \ ⨆ (b' : ↑(down_set r b)), b'.val.val
+
+-- src/bvm.lean:1048
+lemma r_trichotomy (x y : type B_small_witness) : r x y ∨ x = y ∨ r y x :=
+  @trichotomous _ r _ x y
+
+-- src/bvm.lean:1050
+lemma dichotomy_of_neq (x y : type B_small_witness) : x ≠ y → r x y ∨ r y x := by
+  intro h
+  rcases r_trichotomy r x y with h1 | rfl | h1
+  · exact Or.inl h1
+  · exact absurd rfl h
+  · exact Or.inr h1
+
+-- src/bvm.lean:1053
+lemma not_ge_of_in_down_set (a b : type B_small_witness) : a ∈ down_set r b → ¬ r b a := by
+  intro H H'
+  have H'' : r a b := H
+  have : r a a := Trans.trans H'' H'
+  exact absurd this (irrefl a)
+
+-- src/bvm.lean:1060
+lemma witness_antichain_index {i j : type B_small_witness} (h_neq : i ≠ j) :
+    witness_antichain r i ⊓ witness_antichain r j = ⊥ := by
+  sorry -- TODO: port from src/bvm.lean:1060-1073 (complex sdiff/compl reasoning)
+
+-- src/bvm.lean:1075
+lemma witness_antichain_antichain :
+    IsAntichain (· ≤ ·) (Set.range (witness_antichain r)) := by
+  sorry -- TODO: port from src/bvm.lean:1075-1080
+
+-- src/bvm.lean:1082
+lemma witness_antichain_property : ∀ b : type (@B_small_witness _ _ ϕ), witness_antichain r b ≤ b.val := by
+  intro b; unfold witness_antichain; exact sdiff_le
+
+-- src/bvm.lean:1085
+lemma supr_antichain2_contains :
+    (⨆ (b' : type (@B_small_witness _ _ ϕ)), ϕ (func (@B_small_witness _ _ ϕ) b')) ≤
+    ⨆ (b : type (@B_small_witness _ _ ϕ)), witness_antichain r b := by
+  sorry -- TODO: port from src/bvm.lean:1085-1104
+
+end smallness
+
+/-! ### maximum principle and AE_convert -/
+
+-- src/bvm.lean:1107
+lemma maximum_principle (ϕ : bSet 𝔹 → 𝔹) (h_congr : B_ext ϕ) : ∃ u, (⨆ (x : bSet 𝔹), ϕ x) = ϕ u := by
+  sorry -- TODO: port from src/bvm.lean:1107-1128 (depends on witness_antichain sorried lemmas)
+
+-- src/bvm.lean:1131
+/-- Extract an element witnessing a 𝔹-valued existential -/
+lemma exists_convert {ϕ : bSet 𝔹 → 𝔹} {Γ : 𝔹} (H : Γ ≤ ⨆ x, ϕ x)
+    (H_congr : B_ext ϕ) : ∃ u, Γ ≤ ϕ u := by
+  obtain ⟨u, Hu⟩ := maximum_principle ϕ H_congr
+  exact ⟨u, Hu ▸ H⟩
+
+-- src/bvm.lean:1134
+lemma maximum_principle_verbose {ϕ : bSet 𝔹 → 𝔹}
+    {h_congr : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y} {b : 𝔹}
+    (h_eq_top : (⨆ (x : bSet 𝔹), ϕ x) = b) : ∃ u, ϕ u = b := by
+  obtain ⟨w, h⟩ := maximum_principle ϕ h_congr
+  exact ⟨w, h.symm ▸ h_eq_top⟩
+
+-- src/bvm.lean:1138
+/-- "∃ x ∈ u, ϕ x implies ∃ x : bSet 𝔹, ϕ x", in Boolean -/
+lemma weaken_ex_scope {α : Type*} (A : α → bSet 𝔹) (ϕ : bSet 𝔹 → 𝔹) :
+    (⨆ (a : α), ϕ (A a)) ≤ (⨆ (x : bSet 𝔹), ϕ x) :=
+  iSup_le fun a => le_iSup_of_le (A a) le_rfl
+
+-- src/bvm.lean:1141
+lemma maximum_principle_bounded_top {ϕ : bSet 𝔹 → 𝔹}
+    {h_congr : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y} {α : Type*} {A : α → bSet 𝔹}
+    (h_eq_top : (⨆ (a : α), ϕ (A a)) = ⊤) : ∃ u, ϕ u = ⊤ := by
+  apply @maximum_principle_verbose 𝔹 _ ϕ h_congr
+  have h := weaken_ex_scope A ϕ
+  apply le_antisymm le_top
+  rw [← h_eq_top]
+  exact h
+
+-- src/bvm.lean:1155
+lemma AE_convert {α : Type*} (A : α → bSet 𝔹)
+    (B : α → 𝔹) (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹) (h_congr : ∀ z, B_ext (fun x => ϕ z x)) :
+    ∀ i : α, ∃ y : bSet 𝔹, (⨅ (j : α), (B j ⟹ ⨆ (z : bSet 𝔹), ϕ (A j) z)) ≤
+      (B i ⟹ ϕ (A i) y) := by
+  intro i
+  obtain ⟨u', H'⟩ := maximum_principle (fun y => ϕ (A i) y) (h_congr (A i))
+  exact ⟨u', le_trans (iInf_le (fun j => (B j ⟹ ⨆ (z : bSet 𝔹), ϕ (A j) z)) i)
+    (@imp_le_of_right_le 𝔹 _ _ _ _ (le_of_eq H'))⟩
+
+-- src/bvm.lean:1164
+lemma AE_convert' (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹) (h_congr : ∀ z, B_ext (fun x => ϕ z x))
+    (x : bSet 𝔹) :
+    ∀ v : bSet 𝔹, ∃ w : bSet 𝔹, ∀ {Γ : 𝔹},
+      (Γ ≤ ⨅ z, z ∈ᴮ x ⟹ ⨆ w, ϕ z w) → Γ ≤ v ∈ᴮ x → Γ ≤ ϕ v w := by
+  intro v
+  obtain ⟨u, Hu⟩ := maximum_principle (fun y => ϕ v y) (h_congr v)
+  exact ⟨u, fun H_AE H_mem => by
+    rw [← Hu]
+    exact le_trans (le_inf (le_trans H_AE (iInf_le _ v)) H_mem) bv_imp_elim⟩
+
+/-! ### mixing corollaries -/
+
+section mixing_corollaries
+
+-- src/bvm.lean:1175-1208
+variable (X u₁ u₂ : bSet 𝔹) (a₁ a₂ : 𝔹) (h_anti : a₁ ⊓ a₂ = ⊥) (h_partition : a₁ ⊔ a₂ = ⊤)
+
+-- src/bvm.lean:1178
+lemma two_term_mixture_mem_top (h₁ : u₁ ∈ᴮ X = ⊤) (h₂ : u₂ ∈ᴮ X = ⊤) :
+    two_term_mixture a₁ a₂ h_anti u₁ u₂ ∈ᴮ X = ⊤ := by
+  sorry -- TODO: port from src/bvm.lean:1178-1190 (requires mixing_lemma_two_term)
+
+-- src/bvm.lean:1192
+lemma two_term_mixture_subset_top (H : a₁ = u₂ ⊆ᴮ u₁) :
+    ⊤ ≤ u₂ ⊆ᴮ (two_term_mixture a₁ a₂ h_anti u₁ u₂) := by
+  sorry -- TODO: port from src/bvm.lean:1192-1207 (complex bv_imp reasoning)
+
+end mixing_corollaries
+
+/-! ### core_aux_lemma -/
+
+-- src/bvm.lean:1210
+lemma core_aux_lemma (ϕ : bSet 𝔹 → 𝔹) (h_congr : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y)
+    (h_definite : (⨆ (w : bSet 𝔹), ϕ w) = ⊤) (v : bSet 𝔹) :
+    ∃ u : bSet 𝔹, ϕ u = ⊤ ∧ ϕ v = u =ᴮ v := by
+  sorry -- TODO: port from src/bvm.lean:1210-1227 (requires mixing_lemma_two_term and compl notation)
+
+-- src/bvm.lean:1229
+lemma core_aux_lemma2 (ϕ ψ : bSet 𝔹 → 𝔹) (h_congrϕ : ∀ x y, x =ᴮ y ⊓ ϕ x ≤ ϕ y)
+    (h_congrψ : ∀ x y, x =ᴮ y ⊓ ψ x ≤ ψ y) (h_sub : ∀ u, ϕ u = ⊤ → ψ u = ⊤)
+    (h_definite : (⨆ (w : bSet 𝔹), ϕ w) = ⊤) :
+    (⨅ (x : bSet 𝔹), ϕ x ⟹ ψ x) = ⊤ := by
+  sorry -- TODO: port from src/bvm.lean:1229-1238 (requires core_aux_lemma)
+
+/-! ### smallness' -/
+
+section smallness'
+variable {α : Type u} (ϕ' : bSet 𝔹 → α)
+
+-- src/bvm.lean:1243
+@[reducible, simp] noncomputable def fiber_lift' (b : ϕ' '' Set.univ) :
+    { x : bSet 𝔹 // ϕ' x = b.val } :=
+  Classical.indefiniteDescription (fun a : bSet 𝔹 => ϕ' a = b.val) (by
+    obtain ⟨x, _, hx⟩ := b.2; exact ⟨x, hx⟩)
+
+end smallness'
+
+/-! ### cores -/
+
+section cores
+
+-- src/bvm.lean:1250
+@[reducible] def pullback_eq_rel {α β : Type*} (f : α → β) (E : β → β → Prop) :
+    α → α → Prop :=
+  fun a₁ a₂ => E (f a₁) (f a₂)
+
+-- src/bvm.lean:1253
+def core {α : Type u} (u : bSet 𝔹) (S : α → bSet 𝔹) : Prop :=
+  (∀ x : α, S x ∈ᴮ u = ⊤) ∧
+  (∀ y : bSet 𝔹, y ∈ᴮ u = ⊤ → ∃! x_y : α, y =ᴮ S x_y = ⊤)
+
+-- src/bvm.lean:1256
+noncomputable def core_witness {α : Type u} {u : bSet 𝔹} {S : α → bSet 𝔹}
+    (h_core : core u S) (x : bSet 𝔹) (h_X : x ∈ᴮ u = ⊤) :
+    Σ' (x_y : α), x =ᴮ S x_y = ⊤ := by
+  have h := h_core.2 x h_X
+  exact ⟨h.choose, h.choose_spec.1⟩
+
+-- src/bvm.lean:1262
+lemma core_inj {α : Type u} (u : bSet 𝔹) (S : α → bSet 𝔹) (h_core : core u S) :
+    Function.Injective S := by
+  intro x y H
+  have h_left₁ := h_core.1 x
+  have he := h_core.2 (S x) h_left₁
+  obtain ⟨w1, H1, H2⟩ := he
+  have hSxSy : S x =ᴮ S y = ⊤ := by
+    have : S y = S x := H.symm; rw [this]; exact bv_eq_refl (S x)
+  have Q2 : y = w1 := H2 y hSxSy
+  have Q3 : x = w1 := H2 x (bv_eq_refl (S x))
+  exact Q3.trans Q2.symm
+
+-- src/bvm.lean:1272
+lemma core_inj' {α : Type u} {u : bSet 𝔹} {S : α → bSet 𝔹} (h_core : core u S) :
+    ∀ a b : α, S a =ᴮ S b = ⊤ → a = b := by
+  intro x y H
+  have h_left₁ := h_core.1 x
+  obtain ⟨w1, H1, H2⟩ := h_core.2 (S x) h_left₁
+  have Q2 : y = w1 := H2 y H
+  have Q3 : x = w1 := H2 x (bv_eq_refl (S x))
+  exact Q3.trans Q2.symm
+
+-- src/bvm.lean:1282
+def core.mk_ϕ (u : bSet 𝔹) : bSet 𝔹 → (u.type → 𝔹) :=
+  fun x => fun a => u.bval a ⊓ x =ᴮ u.func a
+
+-- src/bvm.lean:1285
+lemma core.mk_ϕ_inj (u : bSet 𝔹) (x y : bSet 𝔹)
+    (h₁ : x ∈ᴮ u = ⊤) (h₂ : y ∈ᴮ u = ⊤) (H : core.mk_ϕ u x = core.mk_ϕ u y) :
+    x =ᴮ y = ⊤ := by
+  sorry -- TODO: port from src/bvm.lean:1285-1294 (complex bv_trans reasoning)
+
+-- src/bvm.lean:1296
+noncomputable def core.S' (u : bSet 𝔹) : (core.mk_ϕ u '' Set.univ) → bSet 𝔹 :=
+  fun x => (fiber_lift' (core.mk_ϕ u) x).val
+
+-- src/bvm.lean:1299
+def core.α_S'' (u : bSet 𝔹) : Type u :=
+  { i : core.mk_ϕ u '' Set.univ // core.S' u i ∈ᴮ u = ⊤ }
+
+-- src/bvm.lean:1301
+noncomputable def core.S'' (u : bSet 𝔹) : core.α_S'' u → bSet 𝔹 :=
+  fun x => core.S' u x.val
+
+-- src/bvm.lean:1303
+lemma core.S'_spec (u : bSet 𝔹) (x : core.mk_ϕ u '' Set.univ) :
+    core.mk_ϕ u (core.S' u x) = x.val :=
+  (fiber_lift' (core.mk_ϕ u) x).2
+
+-- src/bvm.lean:1306
+def core.bv_eq_top : bSet 𝔹 → bSet 𝔹 → Prop :=
+  fun x₁ x₂ => x₁ =ᴮ x₂ = ⊤
+
+-- src/bvm.lean:1309
+def core.bv_eq_top_setoid : Setoid (bSet 𝔹) where
+  r := core.bv_eq_top
+  iseqv := {
+    refl := fun _ => bv_eq_refl _
+    symm := fun h => by simp only [core.bv_eq_top] at *; rwa [bv_eq_symm]
+    trans := fun h1 h2 => by
+      simp only [core.bv_eq_top] at *
+      exact top_unique (le_trans (by rw [h1, h2]; simp) bv_eq_trans)
+  }
+
+-- src/bvm.lean:1320
+instance core.S''_setoid (u : bSet 𝔹) : Setoid (core.α_S'' u) where
+  r := pullback_eq_rel (core.S'' u) core.bv_eq_top
+  iseqv := {
+    refl := fun x => bv_eq_refl _
+    symm := fun h => by simp only [pullback_eq_rel, core.bv_eq_top] at *; rwa [bv_eq_symm]
+    trans := fun h1 h2 => by
+      simp only [pullback_eq_rel, core.bv_eq_top] at *
+      exact top_unique (le_trans (by rw [h1, h2]; simp) bv_eq_trans)
+  }
+
+-- src/bvm.lean:1331
+noncomputable def core.mk_aux (u : bSet 𝔹) :
+    (Quotient (@core.S''_setoid 𝔹 _ u)) → bSet 𝔹 :=
+  fun x => (core.S'' u) (Quotient.out x)
+
+-- src/bvm.lean:1334
+@[reducible] private def image_mk {α β : Type*} {f : α → β} (a : α) : f '' Set.univ :=
+  ⟨f a, Set.mem_image_of_mem _ (Set.mem_univ _)⟩
+
+-- src/bvm.lean:1337
+lemma core.mk (u : bSet 𝔹) : ∃ α : Type u, ∃ S : α → bSet 𝔹, core u S := by
+  sorry -- TODO: port from src/bvm.lean:1337-1372 (complex quotient/core reasoning)
+
+-- src/bvm.lean:1376
+/-- Given a subset C of α, and an α-indexed core S, return the bSet whose underlying type is C -/
+def bSet_of_core_set {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (h : core u S)
+    (C : Set α) : bSet 𝔹 :=
+  ⟨C, fun x => S x, fun _ => ⊤⟩
+
+-- src/bvm.lean:1379
+def bSet_of_core {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (h : core u S) : bSet 𝔹 :=
+  bSet_of_core_set h Set.univ
+
+-- src/bvm.lean:1382
+@[simp] lemma of_core_type {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} {h : core u S}
+    {C : Set α} : (bSet_of_core_set h C).type = C := rfl
+
+-- src/bvm.lean:1384
+@[simp] lemma of_core_bval {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} {h : core u S}
+    {C : Set α} {i : C} : (bSet_of_core_set h C).bval i = ⊤ := rfl
+
+-- src/bvm.lean:1387
+lemma of_core_mem {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} {h : core u S}
+    {C : Set α} {i : C} : ⊤ ≤ (bSet_of_core_set h C).func i ∈ᴮ u :=
+  top_le_iff.mpr (h.1 _)
+
+-- src/bvm.lean:1392
+/-- Given a core S for u, pull back the ordering -/
+def subset' {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (h : core u S) : α → α → Prop :=
+  fun a₁ a₂ => S a₁ ⊆ᴮ S a₂ = ⊤
+
+-- src/bvm.lean:1397
+def subset'_partial_order {u : bSet 𝔹} {α : Type u} {S : α → bSet 𝔹} (h : core u S) :
+    PartialOrder α where
+  le := subset' h
+  le_refl := by intro a; simp [subset', bv_eq_refl]
+  le_trans := by
+    intro a b c
+    simp only [subset']
+    intro h₁ h₂
+    rw [eq_top_iff] at h₁ h₂ ⊢
+    exact subset_trans' h₁ h₂
+  le_antisymm := by
+    intro a b H₁ H₂
+    apply core_inj' h
+    simp only [subset'] at H₁ H₂
+    rw [eq_top_iff] at H₁ H₂ ⊢
+    exact subset_ext H₁ H₂
+
+end cores
+
 end bSet
