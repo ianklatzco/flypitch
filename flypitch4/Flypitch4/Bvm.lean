@@ -1012,7 +1012,31 @@ def is_definite (u : bSet 𝔹) : Prop := ∀ i : u.type, u.bval i = ⊤
 
 -- src/bvm.lean:819
 lemma eq_empty {u : bSet 𝔹} : u =ᴮ ∅ = (⨆ i, u.bval i)ᶜ := by
-  sorry -- TODO: port from src/bvm.lean:819-823 (complex simp/lattice)
+  apply le_antisymm
+  · -- u =ᴮ ∅ ≤ (⨆ i, u.bval i)ᶜ = ⨅ i, (u.bval i)ᶜ
+    rw [compl_iSup]
+    apply le_iInf; intro i
+    -- u =ᴮ ∅ ≤ (u.bval i)ᶜ, i.e., u =ᴮ ∅ ⊓ u.bval i ≤ ⊥
+    rw [← imp_bot, ← deduction]
+    -- u.func i ∈ᴮ ∅ = ⊥ (since ∅ has no elements)
+    have h2 : u.func i ∈ᴮ ∅ = ⊥ := by
+      rw [mem_unfold]; exact exists_over_empty _
+    -- u =ᴮ ∅ ≤ u.bval i ⟹ u.func i ∈ᴮ ∅ = u.bval i ⟹ ⊥
+    have h1 : u =ᴮ ∅ ≤ u.bval i ⟹ u.func i ∈ᴮ ∅ := by
+      rw [bv_eq_unfold]; exact inf_le_left.trans (iInf_le _ i)
+    rw [h2] at h1
+    -- h1 : u =ᴮ ∅ ≤ u.bval i ⟹ ⊥ = (u.bval i)ᶜ
+    rw [imp_bot] at h1
+    exact le_trans (le_inf (inf_le_left.trans h1) inf_le_right) disjoint_compl_left.le_bot
+  · -- (⨆ i, u.bval i)ᶜ ≤ u =ᴮ ∅
+    rw [bv_eq_unfold]
+    apply le_inf
+    · apply le_iInf; intro j
+      -- Goal: (⨆ i, u.bval i)ᶜ ≤ u.bval j ⟹ u.func j ∈ᴮ ∅
+      have : u.func j ∈ᴮ ∅ = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+      rw [this, imp_bot]
+      exact compl_le_compl (le_iSup _ j)
+    · apply le_iInf; intro j; exact j.down.elim
 
 -- src/bvm.lean:825
 @[simp] lemma empty_subset {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ ∅ ⊆ᴮ x := by
@@ -1022,16 +1046,56 @@ lemma eq_empty {u : bSet 𝔹} : u =ᴮ ∅ = (⨆ i, u.bval i)ᶜ := by
 
 -- src/bvm.lean:828
 lemma empty_spec {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ (x ∈ᴮ ∅)ᶜ := by
-  sorry -- TODO: port from src/bvm.lean:828 (empty membership)
+  have : x ∈ᴮ ∅ = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+  rw [this, compl_bot]; exact le_top
 
 -- src/bvm.lean:830
 lemma bot_of_mem_empty {x : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ x ∈ᴮ ∅) : Γ ≤ ⊥ := by
-  sorry -- TODO: port from src/bvm.lean:830-831 (empty membership)
+  have hmem : x ∈ᴮ ∅ = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+  rw [hmem] at H; exact H
 
 -- src/bvm.lean:833
 @[simp] lemma subst_congr_insert1_left {u w v : bSet 𝔹} :
     u =ᴮ w ≤ bSet.insert1 u v =ᴮ bSet.insert1 w v := by
-  sorry -- TODO: port from src/bvm.lean:833-838
+  cases v with | mk α A B =>
+  simp only [bSet.insert1, bSet.insert, bv_eq, mem, iInf_option, iSup_option,
+    top_inf_eq, inf_top_eq]
+  apply le_inf
+  · -- Forward
+    apply le_inf
+    · -- u =ᴮ w ≤ ⊤ ⟹ (u =ᴮ w ⊔ ⨆ b, B b ⊓ u =ᴮ A b)
+      -- ⊤ ⟹ X = X (since ⊤ᶜ = ⊥, ⊥ ⊔ X = X)
+      have : (⊤ : 𝔹) ⟹ (u =ᴮ w ⊔ ⨆ b, B b ⊓ u =ᴮ A b) = u =ᴮ w ⊔ ⨆ b, B b ⊓ u =ᴮ A b := by
+        unfold imp; simp
+      rw [this]; exact le_sup_left
+    · apply le_iInf; intro i
+      -- B i ⟹ (A i =ᴮ w ⊔ ⨆ b, B b ⊓ A i =ᴮ A b)
+      -- Need: u =ᴮ w ≤ B i ⟹ (...)
+      -- B i ≤ A i ∈ᴮ v ≤ A i ∈ᴮ v ⊔ (A i =ᴮ w) by le_sup_right
+      -- Wait, we need: u =ᴮ w ⊓ B i ≤ A i =ᴮ w ⊔ ⨆ b, B b ⊓ A i =ᴮ A b
+      rw [← deduction]
+      exact le_trans inf_le_right (le_trans (mem_mk' (mk α A B) i) le_sup_right)
+  · -- Backward: second component (⨅ j) of bv_eq
+    apply le_inf
+    · -- ⊤ component: u =ᴮ w ≤ ⊤ ⟹ X where X = u =ᴮ w ⊔ ... (after simp)
+      -- ⊤ ⟹ X = X since ⊤ᶜ = ⊥, ⊥ ⊔ X = X
+      -- So need u =ᴮ w ≤ X = u =ᴮ w ⊔ ... which is le_sup_left
+      -- Use imp_self_eq_top or directly show ⊤ ⟹ X = X
+      have : (⊤ : 𝔹) ⟹ (u =ᴮ w ⊔ ⨆ b, B b ⊓ A b =ᴮ w) = u =ᴮ w ⊔ ⨆ b, B b ⊓ A b =ᴮ w := by
+        unfold imp; simp
+      rw [this]; exact le_sup_left
+    · apply le_iInf; intro i
+      rw [← deduction]
+      -- After simp, backward ⨅ i component:
+      -- u =ᴮ w ⊓ B i ≤ u =ᴮ A i ⊔ ⨆ b, B b ⊓ A b =ᴮ A i  (approx)
+      -- Use B i ≤ A i ∈ᴮ v = ⨆ b, B b ⊓ A i =ᴮ A b
+      -- but simp might have reordered to A b =ᴮ A i
+      -- Use inf_le_right to get B i, then mem_mk' to get the iSup
+      -- Goal (after simp): u =ᴮ w ⊓ B i ≤ u =ᴮ A i ⊔ ⨆ b, B b ⊓ A b =ᴮ A i
+      -- B i ≤ B i ⊓ (A i =ᴮ A i = ⊤) ≤ ⨆ b, B b ⊓ A b =ᴮ A i ≤ u =ᴮ A i ⊔ ...
+      apply le_trans inf_le_right
+      apply le_trans _ le_sup_right
+      exact le_iSup_of_le i (by simp [bv_eq_refl])
 
 -- src/bvm.lean:839
 @[simp] lemma subst_congr_insert1_left' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
@@ -1041,7 +1105,25 @@ lemma bot_of_mem_empty {x : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ x ∈ᴮ ∅) : �
 -- src/bvm.lean:845
 @[simp] lemma subst_congr_insert1_right {u w v : bSet 𝔹} :
     u =ᴮ w ≤ bSet.insert1 v u =ᴮ bSet.insert1 v w := by
-  sorry -- TODO: port from src/bvm.lean:845-851
+  rw [eq_iff_subset_subset (x := bSet.insert1 v u) (y := bSet.insert1 v w)]
+  apply le_inf
+  · -- insert1 v u ⊆ insert1 v w
+    rw [subset_unfold']
+    apply le_iInf; intro z
+    rw [← deduction, show z ∈ᴮ bSet.insert1 v u = z =ᴮ v ⊔ z ∈ᴮ u from mem_insert1,
+        show z ∈ᴮ bSet.insert1 v w = z =ᴮ v ⊔ z ∈ᴮ w from mem_insert1]
+    apply bv_or_elim_right
+    · exact le_trans inf_le_right le_sup_left
+    · apply le_trans _ le_sup_right; exact subst_congr_mem_right
+  · -- insert1 v w ⊆ insert1 v u
+    rw [subset_unfold']
+    apply le_iInf; intro z
+    rw [← deduction, show z ∈ᴮ bSet.insert1 v w = z =ᴮ v ⊔ z ∈ᴮ w from mem_insert1,
+        show z ∈ᴮ bSet.insert1 v u = z =ᴮ v ⊔ z ∈ᴮ u from mem_insert1]
+    apply bv_or_elim_right
+    · exact le_trans inf_le_right le_sup_left
+    · apply le_trans _ le_sup_right
+      rw [bv_eq_symm]; exact subst_congr_mem_right
 
 -- src/bvm.lean:852
 @[simp] lemma subst_congr_insert1_right' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
@@ -1055,8 +1137,8 @@ lemma bot_of_mem_empty {x : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ x ∈ᴮ ∅) : �
 
 -- src/bvm.lean:855
 @[simp] lemma subst_congr_insert1_right'' {u w v : bSet 𝔹} {c : 𝔹} (h : c ≤ u =ᴮ w) :
-    c ≤ (bSet.insert1 u (bSet.insert1 v ∅)) =ᴮ (bSet.insert1 w (bSet.insert1 v ∅)) := by
-  sorry -- TODO: port from src/bvm.lean:855
+    c ≤ (bSet.insert1 u (bSet.insert1 v ∅)) =ᴮ (bSet.insert1 w (bSet.insert1 v ∅)) :=
+  le_trans h subst_congr_insert1_left
 
 /-! ### singleton lemmas -/
 
@@ -1068,7 +1150,29 @@ lemma bot_of_mem_empty {x : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ x ∈ᴮ ∅) : �
 -- src/bvm.lean:863
 lemma eq_of_eq_singleton {x y : bSet 𝔹} {c : 𝔹} (h : c ≤ (bSet.insert1 x ∅) =ᴮ (bSet.insert1 y ∅)) :
     c ≤ x =ᴮ y := by
-  sorry -- TODO: port from src/bvm.lean:863-873 (simp loops on bv_eq_unfold/mem_unfold)
+  -- {x} =ᴮ {y} ≤ x =ᴮ y via membership reasoning
+  have mem_eq : x ∈ᴮ bSet.insert1 y ∅ = x =ᴮ y := by
+    show x ∈ᴮ bSet.insert1 y ∅ = x =ᴮ y
+    rw [show bSet.insert1 y ∅ = insert y ∅ from rfl, mem_insert1]
+    have : x ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by rw [mem_unfold]; exact exists_over_empty _
+    rw [this, sup_bot_eq]
+  -- From bSet.insert1 x ∅ =ᴮ bSet.insert1 y ∅, we get:
+  -- bSet.insert1 x ∅ ⊆ bSet.insert1 y ∅, which gives x ∈ {y}
+  -- since x ∈ {x} (by bval none = ⊤)
+  have h1 : bSet.insert1 x ∅ =ᴮ bSet.insert1 y ∅ ≤ bSet.insert1 x ∅ ⊆ᴮ bSet.insert1 y ∅ := by
+    rw [bv_eq_unfold]; exact inf_le_left
+  have h2 : bSet.insert1 x ∅ ⊆ᴮ bSet.insert1 y ∅ ≤ x ∈ᴮ bSet.insert1 y ∅ := by
+    rw [subset_unfold']
+    apply iInf_le_of_le x
+    -- Goal: x ∈ {x} ⟹ x ∈ {y} ≤ x ∈ {y}
+    -- x ∈ {x} = ⊤, so ⊤ ⟹ x ∈ {y} = x ∈ {y}
+    have hmem : x ∈ᴮ bSet.insert1 x ∅ = ⊤ := by
+      rw [show bSet.insert1 x ∅ = insert x ∅ from rfl, mem_insert1]
+      simp [bv_eq_refl, mem_unfold, exists_over_empty]
+    unfold imp
+    rw [hmem, compl_top, bot_sup_eq]
+  rw [mem_eq] at h2
+  exact le_trans (le_trans h h1) h2
 
 -- src/bvm.lean:874
 lemma eq_singleton_iff_eq {x y : bSet 𝔹} {c : 𝔹} :
