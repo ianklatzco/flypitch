@@ -121,10 +121,20 @@ lemma boolean_realize_term_subst (v : ℕ → S) :
 
 lemma boolean_realize_term_subst_lift (v : ℕ → S) (x : S) (m : ℕ) :
     ∀ {l} (t : @preterm L l) (xs : DVec S l),
-    boolean_realize_term (subst_realize v x 0) (lift_term_at t 1 m) xs =
-    boolean_realize_term v t xs := by
-  -- TODO: port from src/bfol.lean:95-104
-  sorry
+    boolean_realize_term (subst_realize v x m) (lift_term_at t 1 m) xs =
+    boolean_realize_term v t xs
+  | _, preterm.var k, DVec.nil => by
+      simp only [boolean_realize_term, lift_term_at]
+      by_cases h : m ≤ k
+      · have hmk1 : m < k + 1 := Nat.lt_succ_of_le h
+        simp only [if_pos h, subst_realize_gt _ _ hmk1, Nat.add_sub_cancel]
+      · have hkm : k < m := Nat.lt_of_not_le h
+        simp only [if_neg h, boolean_realize_term, subst_realize_lt _ _ hkm]
+  | _, preterm.func _, _ => rfl
+  | _, preterm.app t₁ t₂, xs => by
+      simp only [boolean_realize_term, lift_term_at]
+      rw [boolean_realize_term_subst_lift v x m t₂ DVec.nil,
+          boolean_realize_term_subst_lift v x m t₁]
 
 lemma boolean_realize_term_congr_gen (v v' : ℕ → S) :
     ∀ {l} (t : @preterm L l) (xs xs' : DVec S l),
@@ -200,23 +210,56 @@ lemma boolean_realize_formula_subst : ∀ {l} (v : ℕ → S) (m : ℕ) (f : @pr
     (s : term L) (xs : DVec S l),
     boolean_realize_formula
       (subst_realize v (boolean_realize_term v (lift_term s m) DVec.nil) m) f xs =
-    boolean_realize_formula v (subst_formula f s m) xs := by
-  -- TODO: port from src/bfol.lean:160-172 (boolean_realize_formula_subst)
-  sorry
+    boolean_realize_formula v (subst_formula f s m) xs
+  | _, v, m, preformula.falsum, s, xs => rfl
+  | _, v, m, preformula.equal t₁ t₂, s, xs => by
+      simp [boolean_realize_term_subst]
+  | _, v, m, preformula.rel R, s, xs => rfl
+  | _, v, m, preformula.apprel f t, s, xs => by
+      simp only [boolean_realize_formula, subst_formula, boolean_realize_term_subst]
+      rw [boolean_realize_formula_subst v m f s]
+  | _, v, m, preformula.imp f₁ f₂, s, xs => by
+      simp only [boolean_realize_formula, subst_formula]
+      congr 1
+      · rw [boolean_realize_formula_subst v m f₁ s xs]
+      · rw [boolean_realize_formula_subst v m f₂ s xs]
+  | _, v, m, preformula.all f, s, xs => by
+      simp only [boolean_realize_formula, subst_formula]
+      congr 1; funext x
+      rw [← boolean_realize_formula_subst (subst_realize v x 0) (m + 1) f s xs]
+      apply boolean_realize_formula_congr'
+      intro k
+      rw [subst_realize2_0, ← boolean_realize_term_subst_lift v x 0, lift_term_def, lift_term2]
 
 lemma boolean_realize_formula_subst0 {l} (v : ℕ → S) (f : @preformula L l)
     (s : term L) (xs : DVec S l) :
     boolean_realize_formula (subst_realize v (boolean_realize_term v s DVec.nil) 0) f xs =
     boolean_realize_formula v (subst_formula f s 0) xs := by
-  -- TODO: port from src/bfol.lean:174-176 (boolean_realize_formula_subst0)
-  sorry
+  have h := boolean_realize_formula_subst v 0 f s
+  simp only [lift_term_zero] at h
+  exact h xs
 
 lemma boolean_realize_formula_subst_lift : ∀ {l} (v : ℕ → S) (x : S) (m : ℕ)
     (f : @preformula L l) (xs : DVec S l),
-    boolean_realize_formula (subst_realize v x 0) (lift_formula_at f 1 m) xs =
-    boolean_realize_formula v f xs := by
-  -- TODO: port from src/bfol.lean:178-191 (boolean_realize_formula_subst_lift)
-  sorry
+    boolean_realize_formula (subst_realize v x m) (lift_formula_at f 1 m) xs =
+    boolean_realize_formula v f xs
+  | _, v, x, m, preformula.falsum, xs => rfl
+  | _, v, x, m, preformula.equal t₁ t₂, xs => by
+      simp [boolean_realize_term_subst_lift]
+  | _, v, x, m, preformula.rel R, xs => rfl
+  | _, v, x, m, preformula.apprel f t, xs => by
+      simp only [boolean_realize_formula, lift_formula_at, boolean_realize_term_subst_lift]
+      rw [boolean_realize_formula_subst_lift v x m f]
+  | _, v, x, m, preformula.imp f₁ f₂, xs => by
+      simp only [boolean_realize_formula, lift_formula_at]
+      congr 1
+      · exact boolean_realize_formula_subst_lift v x m f₁ xs
+      · exact boolean_realize_formula_subst_lift v x m f₂ xs
+  | _, v, x, m, preformula.all f, xs => by
+      simp only [boolean_realize_formula, lift_formula_at]
+      congr 1; funext x'
+      rw [boolean_realize_formula_congr' (subst_realize2_0 v x' x m) (lift_formula_at f 1 (m + 1)) xs]
+      exact boolean_realize_formula_subst_lift (subst_realize v x' 0) x (m + 1) f xs
 
 lemma boolean_realize_formula_congr_gen : ∀ (v v' : ℕ → S) {l} (f : @preformula L l)
     (xs xs' : DVec S l),
