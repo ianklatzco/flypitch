@@ -939,10 +939,28 @@ lemma funext {x y f g : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ is_function x y f)
   have H_sub₁ := subset_prod_of_is_function H₁
   have H_sub₂ := subset_prod_of_is_function H₂
   apply mem_ext
-  all_goals {
+  -- Each branch: Γ ⊓ z ∈ f ≤ z ∈ g or Γ ⊓ z ∈ g ≤ z ∈ f
+  · -- f ⊆ g direction
     apply le_iInf; intro z; rw [← deduction]
-    sorry -- TODO: port from src/bvm_extras.lean:879
-  }
+    -- Context: Γ ⊓ z ∈ f
+    have hz_prod : Γ ⊓ z ∈ᴮ f ≤ z ∈ᴮ prod x y :=
+      mem_of_mem_subset (le_trans inf_le_left H_sub₁) inf_le_right
+    have hpeq_spec : Γ ⊓ z ∈ᴮ f ≤ z ∈ᴮ prod x y ⟹ (z ∈ᴮ f ⇔ z ∈ᴮ g) :=
+      le_trans inf_le_left (le_trans H_peq (iInf_le _ z))
+    have hiff := le_trans (le_inf hpeq_spec hz_prod) bv_imp_elim
+    -- hiff : Γ ⊓ z ∈ f ≤ z ∈ f ⇔ z ∈ g = (z ∈ f ⟹ z ∈ g) ⊓ (z ∈ g ⟹ z ∈ f)
+    have hfwd : Γ ⊓ z ∈ᴮ f ≤ z ∈ᴮ f ⟹ z ∈ᴮ g := le_trans hiff inf_le_left
+    exact le_trans (le_inf hfwd inf_le_right) bv_imp_elim
+  · -- g ⊆ f direction
+    apply le_iInf; intro z; rw [← deduction]
+    -- Context: Γ ⊓ z ∈ g
+    have hz_prod : Γ ⊓ z ∈ᴮ g ≤ z ∈ᴮ prod x y :=
+      mem_of_mem_subset (le_trans inf_le_left H_sub₂) inf_le_right
+    have hpeq_spec : Γ ⊓ z ∈ᴮ g ≤ z ∈ᴮ prod x y ⟹ (z ∈ᴮ f ⇔ z ∈ᴮ g) :=
+      le_trans inf_le_left (le_trans H_peq (iInf_le _ z))
+    have hiff := le_trans (le_inf hpeq_spec hz_prod) bv_imp_elim
+    have hbwd : Γ ⊓ z ∈ᴮ g ≤ z ∈ᴮ g ⟹ z ∈ᴮ f := le_trans hiff inf_le_right
+    exact le_trans (le_inf hbwd inf_le_right) bv_imp_elim
 
 -- src/bvm_extras.lean:891
 /-- A relation f is surjective if for every w ∈ y there is a v ∈ x such that (v,w) ∈ f. -/
