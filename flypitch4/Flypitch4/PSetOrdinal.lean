@@ -604,8 +604,7 @@ lemma two_eq_succ_one : (2 : Ordinal) = Order.succ 1 := by
 
 open Cardinal in
 lemma add_one_lt_add_one {a b : Ordinal} : a < b ↔ a + 1 < b + 1 := by
-  -- TODO: port from src/pSet_ordinal.lean:671; Ordinal addition is not comm
-  sorry
+  simp
 
 open Cardinal in
 lemma one_lt_two : (1 : Ordinal) < 2 := _root_.one_lt_two
@@ -823,8 +822,33 @@ def pSet_prod (x y : PSet.{u}) : PSet.{u} :=
 
 lemma pSet_prod_sound {x y : PSet.{u}} :
     ZFSet.mk (pSet_prod x y) = ZFSet.prod (ZFSet.mk x) (ZFSet.mk y) := by
-  -- TODO: port from src/pSet_ordinal.lean:960
-  sorry
+  apply ZFSet.ext
+  intro z
+  rw [ZFSet.mem_prod]
+  constructor
+  · intro hz
+    rw [← ZFSet.mk_out z, ZFSet.mk_mem_iff, PSet.mem_def] at hz
+    obtain ⟨⟨i, j⟩, hij⟩ := hz
+    exact ⟨ZFSet.mk (x.Func i),
+           by rw [ZFSet.mk_mem_iff]; exact PSet.func_mem x i,
+           ZFSet.mk (y.Func j),
+           by rw [ZFSet.mk_mem_iff]; exact PSet.func_mem y j,
+           by rw [← pSet_pair_sound, ← ZFSet.mk_out z]; exact ZFSet.sound hij⟩
+  · rintro ⟨a, ha, b, hb, hab⟩
+    rw [hab, ← ZFSet.mk_out a, ← ZFSet.mk_out b]
+    rw [← ZFSet.mk_out a, ZFSet.mk_mem_iff, PSet.mem_def] at ha
+    rw [← ZFSet.mk_out b, ZFSet.mk_mem_iff, PSet.mem_def] at hb
+    obtain ⟨i, hi⟩ := ha
+    obtain ⟨j, hj⟩ := hb
+    have h_pair : (ZFSet.mk a.out).pair (ZFSet.mk b.out) = ZFSet.mk (pSet_pair a.out b.out) :=
+      pSet_pair_sound.symm
+    rw [h_pair, ZFSet.mk_mem_iff, PSet.mem_def]
+    refine ⟨⟨i, j⟩, ?_⟩
+    show PSet.Equiv (pSet_pair a.out b.out) (pSet_pair (x.Func i) (y.Func j))
+    apply ZFSet.exact
+    show ZFSet.mk (pSet_pair a.out b.out) = ZFSet.mk (pSet_pair (x.Func i) (y.Func j))
+    rw [pSet_pair_sound, pSet_pair_sound, ZFSet.pair_inj]
+    exact ⟨ZFSet.sound hi, ZFSet.sound hj⟩
 
 lemma mem_pSet_prod_iff {x y a b : PSet.{u}} :
     pSet_pair a b ∈ pSet_prod x y ↔ a ∈ x ∧ b ∈ y := by
@@ -858,9 +882,40 @@ lemma subset_sound {x y : PSet.{u}} :
 lemma is_func_iff {x y f : PSet.{u}} :
     is_func x y f ↔ f ⊆ pSet_prod x y ∧ ∀ z, z ∈ x →
       (∃ w, pSet_pair z w ∈ f ∧ ∀ v, pSet_pair z v ∈ f → Equiv v w) := by
-  -- TODO: port from src/pSet_ordinal.lean:1002
-  -- The proof requires pSet_prod_sound which is sorry'd; use sorry to avoid cascading errors
-  sorry
+  unfold is_func ZFSet.IsFunc
+  rw [← pSet_prod_sound, ← subset_sound]
+  constructor
+  · rintro ⟨H_sub, H_uniq⟩
+    refine ⟨H_sub, fun z Hz => ?_⟩
+    specialize H_uniq (ZFSet.mk z) (mem_iff.mp Hz)
+    obtain ⟨w, Hw₁, Hw₂⟩ := H_uniq
+    refine ⟨w.out, ?_, fun v Hv => ?_⟩
+    · rw [mem_iff, pSet_pair_sound, ZFSet.mk_out]; exact Hw₁
+    · rw [mem_iff, pSet_pair_sound] at Hv
+      rw [equiv_iff_eq, ZFSet.mk_out]
+      exact Hw₂ (ZFSet.mk v) Hv
+  · rintro ⟨H_sub, H_uniq⟩
+    refine ⟨H_sub, fun z Hz => ?_⟩
+    rw [← ZFSet.mk_out z] at Hz
+    rw [ZFSet.mk_mem_iff] at Hz
+    obtain ⟨w, Hw₁, Hw₂⟩ := H_uniq z.out Hz
+    refine ⟨ZFSet.mk w, ?_, fun v Hv => ?_⟩
+    · -- goal: (fun w => z.pair w ∈ ZFSet.mk f) (ZFSet.mk w)
+      -- = z.pair (ZFSet.mk w) ∈ ZFSet.mk f
+      change z.pair (ZFSet.mk w) ∈ ZFSet.mk f
+      rw [← ZFSet.mk_out z]
+      rw [show (ZFSet.mk z.out).pair (ZFSet.mk w) = ZFSet.mk (pSet_pair z.out w)
+          from pSet_pair_sound.symm]
+      exact mem_iff.mp Hw₁
+    · -- goal: v = ZFSet.mk w
+      -- v : ZFSet, Hv : z.pair v ∈ ZFSet.mk f
+      rw [← ZFSet.mk_out z, ← ZFSet.mk_out v] at Hv
+      rw [show (ZFSet.mk z.out).pair (ZFSet.mk v.out) = ZFSet.mk (pSet_pair z.out v.out)
+          from pSet_pair_sound.symm, ZFSet.mk_mem_iff] at Hv
+      have h := Hw₂ v.out Hv
+      rw [equiv_iff_eq] at h
+      rw [← ZFSet.mk_out v]
+      exact h
 
 lemma subset_prod_of_is_func {x y f : PSet.{u}} (H_func : is_func x y f) : f ⊆ pSet_prod x y := by
   rw [is_func_iff] at H_func
