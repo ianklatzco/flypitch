@@ -558,8 +558,10 @@ lemma boolean_realize_bounded_term_bd_apps {n l} (xs : DVec S n)
     {v : DVec S m} :
     boolean_realize_bounded_term v (t.cast h) DVec.nil =
     boolean_realize_bounded_term (v.trunc n h) t DVec.nil := by
-  -- TODO: port from src/bfol.lean:405-412 (boolean_realize_cast_bounded_term)
-  sorry
+  apply boolean_realize_bounded_term_irrel'
+  · intro k hk hk'
+    simp [DVec.trunc_nth]
+  · simp [bounded_preterm.cast]
 
 /-- When realizing a closed term, the realizing dvector is irrelevant. -/
 @[simp] lemma boolean_realize_closed_term_v_irrel {n} {v : DVec S n} {t : bounded_term L 0} :
