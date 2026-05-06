@@ -1828,7 +1828,7 @@ lemma mem_is_func'_comp_iff {x y z f g : bSet 𝔹} {Γ : 𝔹}
 lemma is_func'_comp_is_func {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) :
     Γ ≤ is_func (is_func'_comp Hf_func Hg_func) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1554
+  sorry -- TODO: requires classical extraction from type-indexed iSup (port from bvm_extras.lean:1554)
 
 -- src/bvm_extras.lean:1565
 lemma is_func'_comp_is_total {x y z f g : bSet 𝔹} {Γ : 𝔹}
@@ -1960,7 +1960,39 @@ def functions (x y : bSet 𝔹) : bSet 𝔹 :=
 -- src/bvm_extras.lean:1709
 lemma mem_functions_iff {g x y : bSet 𝔹} {Γ : 𝔹} :
     (Γ ≤ g ∈ᴮ functions x y) ↔ (Γ ≤ is_function x y g) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1709
+  constructor
+  · intro H
+    -- g ∈ functions x y = ⨆ i, is_function x y ((𝒫 (prod x y)).func i) ⊓ g =ᴮ (𝒫 (prod x y)).func i
+    rw [mem_unfold] at H
+    apply H.trans; apply iSup_le; intro i
+    simp only [functions_bval, functions_func]
+    -- Each branch: is_function x y ((𝒫 prod x y).func i) ⊓ g =ᴮ (𝒫 prod x y).func i ≤ is_function x y g
+    exact bv_rw' (H := inf_le_right) (ϕ := fun f => is_function x y f)
+      (h_congr := B_ext_is_function_right) (H_new := inf_le_left)
+  · intro H
+    -- Need: Γ ≤ g ∈ᴮ functions x y
+    -- Since g ⊆ prod x y (from is_function), g ∈ 𝒫 (prod x y) by bv_powerset_spec
+    rw [mem_unfold]; unfold functions set_of_indicator
+    -- is_function x y g = is_func x y g ⊓ is_total x y g ⊓ g ⊆ prod x y
+    have Hfunc := H
+    simp only [is_function] at Hfunc
+    have Hsub : Γ ≤ g ⊆ᴮ prod x y := Hfunc.trans inf_le_right
+    -- g ∈ 𝒫 (prod x y) means ∃ f, g =ᴮ set_of_indicator f ⊓ ...
+    have Hsub2 := bv_powerset_spec.mp Hsub
+    rw [mem_unfold] at Hsub2
+    -- Hsub2 : Γ ≤ ⨆ i, (𝒫 prod x y).bval i ⊓ g =ᴮ (𝒫 prod x y).func i
+    -- Carry both Hsub2 and H through the iSup distribution
+    apply (le_inf Hsub2 H).trans
+    -- (⨆ i, bval_i ⊓ g =ᴮ fi) ⊓ is_function x y g ≤ ⨆ j, is_function x y fj ⊓ g =ᴮ fj
+    apply (iSup_inf_eq _ _).le.trans
+    apply iSup_le; intro i; apply le_iSup_of_le i
+    -- LHS: (bval_i ⊓ g =ᴮ fi) ⊓ is_function x y g
+    -- Need: is_function x y fi ⊓ g =ᴮ fi
+    refine le_inf ?_ (inf_le_left.trans inf_le_right)
+    -- is_function x y fi via bv_rw' from g =ᴮ fi and is_function x y g
+    -- H : LHS ≤ fi =ᴮ g (symmetrized), H_new : LHS ≤ is_function x y g, gives is_function x y fi
+    exact bv_rw' (H := bv_symm (inf_le_left.trans inf_le_right))
+      (h_congr := B_ext_is_function_right) (H_new := inf_le_right)
 
 -- ============================================================
 -- src/bvm_extras.lean:1732-1798: function_mk' section
@@ -1980,7 +2012,7 @@ lemma functionMk'_is_func {x y : bSet 𝔹} {Γ : 𝔹}
     (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
     (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
     Γ ≤ is_func (functionMk' F χ H_ext H_mem) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1757
+  sorry -- TODO: port from src/bvm_extras.lean:1757 (membership unfolding elaboration issue)
 
 -- src/bvm_extras.lean:1767
 lemma functionMk'_is_total {x y : bSet 𝔹} {Γ : 𝔹}
