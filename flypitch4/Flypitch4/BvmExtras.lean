@@ -559,7 +559,26 @@ lemma is_functional_of_is_func (f : bSet 𝔹) {Γ} (H : Γ ≤ is_func f) : Γ 
 -- src/bvm_extras.lean:568
 lemma is_total_iff_is_total' {Γ : 𝔹} {x y f} :
     Γ ≤ is_total x y f ↔ Γ ≤ is_total' x y f := by
-  sorry -- TODO: port from src/bvm_extras.lean:568
+  -- Prove is_total = is_total' at the value level, then rewrite
+  -- bounded_forall converts ⨅ i, x.bval i ⟹ ψ (x.func i) ↔ ⨅ w, w ∈ x ⟹ ψ w
+  -- bounded_exists converts ⨆ j, y.bval j ⊓ ϕ (y.func j) ↔ ⨆ w, w ∈ y ⊓ ϕ w
+  -- Prove is_total = is_total' using bounded_forall and bounded_exists
+  suffices h : is_total x y f = is_total' x y f by rw [h]
+  simp only [is_total, is_total']
+  -- Step 1: expand inner ⨆ on LHS via bounded_exists
+  have inner_eq : ∀ w₁ : bSet 𝔹, (⨆ w₂ : bSet 𝔹, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f) =
+      (⨆ j : y.type, y.bval j ⊓ pair w₁ (y.func j) ∈ᴮ f) :=
+    fun w₁ => (@bounded_exists 𝔹 _ y (fun w₂ => pair w₁ w₂ ∈ᴮ f)
+      (h_congr := B_ext_pair_mem_right)).symm
+  -- Step 2: expand outer ⨅ via bounded_forall
+  rw [show (⨅ w₁ : bSet 𝔹, w₁ ∈ᴮ x ⟹ ⨆ w₂ : bSet 𝔹, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f) =
+       (⨅ i : x.type, x.bval i ⟹ ⨆ w₂ : bSet 𝔹, w₂ ∈ᴮ y ⊓ pair (x.func i) w₂ ∈ᴮ f) from
+    (@bounded_forall 𝔹 _ x (fun w₁ => ⨆ w₂ : bSet 𝔹, w₂ ∈ᴮ y ⊓ pair w₁ w₂ ∈ᴮ f)
+      (h_congr := fun w₁ w₂ =>
+        B_ext_iSup (h := fun w₂ => B_ext_inf B_ext_const B_ext_pair_mem_left) w₁ w₂)).symm]
+  congr 1; ext i
+  congr 1
+  exact inner_eq (x.func i)
 
 -- src/bvm_extras.lean:581
 @[simp] lemma is_total_subset_of_is_total {S x y f : bSet 𝔹} {Γ}
@@ -929,13 +948,22 @@ def injection_into (x y : bSet 𝔹) : 𝔹 := ⨆ f, is_injective_function x y 
 
 -- src/bvm_extras.lean:954
 lemma injection_into_of_injects_into {x y : bSet 𝔹} {Γ} (H : Γ ≤ injects_into x y) :
-    Γ ≤ injection_into x y := by
-  sorry -- TODO: port from src/bvm_extras.lean:954 (needs bv_cases for iSup)
+    Γ ≤ injection_into x y :=
+  -- injects_into x y = ⨆ f, (is_func' x y f) ⊓ is_inj f
+  -- injection_into x y = ⨆ f, is_injective_function x y f
+  H.trans (iSup_le fun f =>
+    le_iSup_of_le (function_of_func' inf_le_left)
+      (le_inf (function_of_func'_is_function inf_le_left)
+        (function_of_func'_inj_of_inj inf_le_right)))
 
 -- src/bvm_extras.lean:963
 lemma injects_into_of_injection_into {x y : bSet 𝔹} {Γ} (H_inj : Γ ≤ injection_into x y) :
-    Γ ≤ injects_into x y := by
-  sorry -- TODO: port from src/bvm_extras.lean:963 (needs bv_cases for iSup)
+    Γ ≤ injects_into x y :=
+  -- injection_into x y = ⨆ f, is_injective_function x y f = ⨆ f, is_function x y f ⊓ is_inj f
+  -- injects_into x y = ⨆ f, (is_func' x y f) ⊓ is_inj f
+  -- is_function x y f = is_func' x y f ⊓ ..., so is_function ≤ is_func'
+  H_inj.trans (iSup_le fun f =>
+    le_iSup_of_le f (le_inf (inf_le_left.trans inf_le_left) inf_le_right))
 
 -- src/bvm_extras.lean:969
 lemma injects_into_iff_injection_into {x y : bSet 𝔹} {Γ} :
