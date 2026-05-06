@@ -2349,7 +2349,36 @@ lemma collect_spec₁
     (u : bSet 𝔹) {Γ : 𝔹}
     (H_AE : Γ ≤ ⨅ i : u.type, u.bval i ⟹ ⨆ w, ϕ (u.func i) w) :
     Γ ≤ ⨅ (z : bSet 𝔹), z ∈ᴮ u ⟹ ⨆ w, w ∈ᴮ collect ϕ h_congr_right h_congr_left u ⊓ ϕ z w := by
-  sorry -- TODO: port from src/bvm.lean:1814-1823 (bv_cases_at + bv_rw' step)
+  apply le_iInf; intro z
+  rw [← deduction]
+  -- goal: Γ ⊓ z ∈ u ≤ ⨆ w, w ∈ collect u ⊓ ϕ z w
+  rw [mem_unfold, inf_iSup_eq]
+  apply iSup_le; intro i
+  -- context: Γ ⊓ (u.bval i ⊓ z =ᴮ u.func i)
+  apply le_iSup_of_le (collect.func ϕ h_congr_right u i)
+  apply le_inf
+  · -- collect.func ϕ ... u i ∈ collect u
+    -- collect ϕ ... u = ⟨u.type, collect.func ϕ ... u, u.bval⟩
+    -- (collect ϕ ... u).bval i = u.bval i, (collect ...).func i = collect.func ...
+    apply @mem_mk'' 𝔹 _ (collect ϕ h_congr_right h_congr_left u) i
+    exact inf_le_right.trans inf_le_left
+  · -- ϕ z (collect.func ϕ ... u i)
+    -- Use h_congr_left with z =ᴮ u.func i: u.func i =ᴮ z ⊓ ϕ (u.func i) w ≤ ϕ z w
+    -- From context: z =ᴮ u.func i (via inf_le_right), rw to u.func i =ᴮ z
+    -- From collect.func_spec: Γ ⊓ u.bval i ≤ ϕ (u.func i) (collect.func ϕ ... u i)
+    have hϕi := poset_yoneda_inv (Γ ⊓ u.bval i) bv_imp_elim
+      (le_inf (inf_le_left.trans (collect.func_spec ϕ h_congr_right h_congr_left u Γ H_AE |>.trans
+        (iInf_le _ i))) inf_le_right)
+    -- hϕi : Γ ⊓ u.bval i ≤ ϕ (u.func i) (collect.func ϕ h_congr_right u i)
+    have hΓbval : Γ ⊓ (u.bval i ⊓ z =ᴮ u.func i) ≤ Γ ⊓ u.bval i :=
+      inf_le_inf_left _ inf_le_left
+    have hbval : Γ ⊓ (u.bval i ⊓ z =ᴮ u.func i) ≤ ϕ (u.func i) (collect.func ϕ h_congr_right u i) :=
+      hΓbval.trans hϕi
+    -- now use h_congr_left to go from ϕ (u.func i) w to ϕ z w
+    have heq_sym : Γ ⊓ (u.bval i ⊓ z =ᴮ u.func i) ≤ u.func i =ᴮ z := by
+      calc Γ ⊓ (u.bval i ⊓ z =ᴮ u.func i) ≤ z =ᴮ u.func i := inf_le_right.trans inf_le_right
+        _ ≤ u.func i =ᴮ z := le_of_eq bv_eq_symm
+    exact le_trans (le_inf heq_sym hbval) (h_congr_left (u.func i) z _)
 
 -- src/bvm.lean:1825
 lemma collect_spec₂
@@ -2359,7 +2388,34 @@ lemma collect_spec₂
     (u : bSet 𝔹) {Γ : 𝔹}
     (H_AE : Γ ≤ ⨅ i : u.type, u.bval i ⟹ ⨆ w, ϕ (u.func i) w) :
     Γ ≤ ⨅ (w : bSet 𝔹), w ∈ᴮ collect ϕ h_congr_right h_congr_left u ⟹ ⨆ z, z ∈ᴮ u ⊓ ϕ z w := by
-  sorry -- TODO: port from src/bvm.lean:1825-1836 (bv_cases_at + bv_rw' step)
+  apply le_iInf; intro w
+  rw [← deduction]
+  -- goal: Γ ⊓ w ∈ collect u ≤ ⨆ z, z ∈ u ⊓ ϕ z w
+  -- collect = ⟨u.type, collect.func ϕ h_congr_right u, u.bval⟩
+  -- w ∈ collect u = ⨆ i, u.bval i ⊓ w =ᴮ collect.func ϕ ... u i
+  rw [mem_unfold (v := collect ϕ h_congr_right h_congr_left u), inf_iSup_eq]
+  apply iSup_le; intro i
+  -- context: Γ ⊓ (u.bval i ⊓ w =ᴮ collect.func ϕ ... u i)
+  apply le_iSup_of_le (u.func i)
+  apply le_inf
+  · -- u.func i ∈ u ≥ u.bval i
+    apply @mem_mk'' 𝔹 _ u i
+    exact inf_le_right.trans inf_le_left
+  · -- ϕ (u.func i) w
+    -- From collect.func_spec at i: Γ ⊓ u.bval i ≤ ϕ (u.func i) (collect.func ϕ ... u i)
+    have hϕi := poset_yoneda_inv (Γ ⊓ u.bval i) bv_imp_elim
+      (le_inf (inf_le_left.trans (collect.func_spec ϕ h_congr_right h_congr_left u Γ H_AE |>.trans
+        (iInf_le _ i))) inf_le_right)
+    -- hϕi : Γ ⊓ u.bval i ≤ ϕ (u.func i) (collect.func ϕ h_congr_right u i)
+    -- From context: w =ᴮ collect.func ϕ ... u i, so ϕ (u.func i) (collect.func ...) → ϕ (u.func i) w
+    -- via h_congr_right: collect.func ... u i =ᴮ w ⊓ ϕ (u.func i) (collect.func ...) ≤ ϕ (u.func i) w
+    have hbval : Γ ⊓ (u.bval i ⊓ w =ᴮ collect.func ϕ h_congr_right u i) ≤
+        ϕ (u.func i) (collect.func ϕ h_congr_right u i) :=
+      (inf_le_inf_left _ inf_le_left).trans hϕi
+    have heq_sym : Γ ⊓ (u.bval i ⊓ w =ᴮ collect.func ϕ h_congr_right u i) ≤
+        collect.func ϕ h_congr_right u i =ᴮ w :=
+      (inf_le_right.trans inf_le_right).trans (le_of_eq bv_eq_symm)
+    exact le_trans (le_inf heq_sym hbval) (h_congr_right _ _ _)
 
 
 -- src/bvm.lean:1844
@@ -2368,7 +2424,24 @@ theorem bSet_axiom_of_collection (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
     (h_congr_left : ∀ x y z, x =ᴮ y ⊓ ϕ x z ≤ ϕ y z) :
     ⊤ ≤ ⨅ u, (⨅ x, x ∈ᴮ u ⟹ ⨆ y, ϕ x y) ⟹ ⨆ v, (⨅ w, w ∈ᴮ u ⟹ ⨆ w', w' ∈ᴮ v ⊓ ϕ w w') ⊓
       ⨅ w', w' ∈ᴮ v ⟹ ⨆ w, w ∈ᴮ u ⊓ ϕ w w' := by
-  sorry -- TODO: use collect_spec₁ and collect_spec₂ once filled in
+  apply le_iInf; intro u
+  rw [← deduction, top_inf_eq]
+  -- goal: (⨅ x, x ∈ u ⟹ ⨆ y, ϕ x y) ≤ ⨆ v, ...
+  apply le_iSup_of_le (collect ϕ h_congr_right h_congr_left u)
+  -- Derive H_AE: (⨅ x, x ∈ u ⟹ ⨆ y, ϕ x y) ≤ ⨅ i, u.bval i ⟹ ⨆ w, ϕ (u.func i) w
+  have H_AE : (⨅ x, x ∈ᴮ u ⟹ ⨆ y, ϕ x y) ≤
+      ⨅ (i : u.type), u.bval i ⟹ ⨆ (w : bSet 𝔹), ϕ (u.func i) w := by
+    apply le_iInf; intro i
+    rw [← deduction]
+    calc (⨅ x, x ∈ᴮ u ⟹ ⨆ y, ϕ x y) ⊓ u.bval i
+        ≤ (u.func i ∈ᴮ u ⟹ ⨆ y, ϕ (u.func i) y) ⊓ u.bval i :=
+          inf_le_inf_right _ (iInf_le _ (u.func i))
+      _ ≤ (u.func i ∈ᴮ u ⟹ ⨆ y, ϕ (u.func i) y) ⊓ (u.func i ∈ᴮ u) :=
+          inf_le_inf_left _ (mem_mk'' le_rfl)
+      _ ≤ ⨆ w, ϕ (u.func i) w := bv_imp_elim
+  apply le_inf
+  · exact collect_spec₁ ϕ h_congr_right h_congr_left u H_AE
+  · exact collect_spec₂ ϕ h_congr_right h_congr_left u H_AE
 
 -- src/bvm.lean:1860
 /-- The boolean-valued unionset operator -/
