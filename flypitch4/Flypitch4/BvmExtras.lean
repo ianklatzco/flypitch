@@ -3062,7 +3062,53 @@ lemma is_transitive_of_mem_Ord (y x : bSet 𝔹) : Ord x ⊓ y ∈ᴮ x ≤ is_t
 
 -- src/bvm_extras.lean:2520
 lemma is_ewo_of_mem_Ord (y x : bSet 𝔹) : Ord x ⊓ y ∈ᴮ x ≤ epsilon_well_orders y := by
-  sorry -- TODO: port from src/bvm_extras.lean:2520
+  -- epsilon_well_orders y = epsilon_trichotomy y ⊓ epsilon_well_founded y
+  apply le_inf
+  · -- epsilon_trichotomy y = ⨅ w, w ∈ y ⟹ ⨅ z, z ∈ y ⟹ (w =ᴮ z ⊔ w ∈ z ⊔ z ∈ y)
+    apply le_iInf; intro w; rw [← deduction]
+    apply le_iInf; intro z; rw [← deduction]
+    -- Goal: Ord x ⊓ y ∈ x ⊓ w ∈ y ⊓ z ∈ y ≤ w =ᴮ z ⊔ w ∈ z ⊔ z ∈ y
+    set ctx := Ord x ⊓ y ∈ᴮ x ⊓ w ∈ᴮ y ⊓ z ∈ᴮ y
+    have hOrd : ctx ≤ Ord x := inf_le_left.trans (inf_le_left.trans inf_le_left)
+    have hyx : ctx ≤ y ∈ᴮ x := inf_le_left.trans (inf_le_left.trans inf_le_right)
+    have hwy : ctx ≤ w ∈ᴮ y := inf_le_left.trans inf_le_right
+    have hzy : ctx ≤ z ∈ᴮ y := inf_le_right
+    -- y ⊆ x (from Ord x ⊃ is_transitive x and y ∈ x)
+    have hy_sub_x : ctx ≤ y ⊆ᴮ x :=
+      subset_of_mem_transitive (hOrd.trans inf_le_right) hyx
+    -- w ∈ x, z ∈ x
+    have hwx : ctx ≤ w ∈ᴮ x := mem_of_mem_subset hy_sub_x hwy
+    have hzx : ctx ≤ z ∈ᴮ x := mem_of_mem_subset hy_sub_x hzy
+    -- epsilon_trichotomy x applied to w, z in x
+    have hewo : ctx ≤ epsilon_well_orders x := hOrd.trans inf_le_left
+    have htri : ctx ≤ epsilon_trichotomy x := hewo.trans inf_le_left
+    have h_step0 : ctx ≤ ⨅ z', z' ∈ᴮ x ⟹ (w =ᴮ z' ⊔ w ∈ᴮ z' ⊔ z' ∈ᴮ w) :=
+      le_trans (le_inf (htri.trans (iInf_le _ w)) hwx) bv_imp_elim
+    exact le_trans (le_inf (h_step0.trans (iInf_le _ z)) hzx) bv_imp_elim
+  · -- epsilon_well_founded y = ⨅ u, u ⊆ y ⟹ (uᶜ =ᴮ ∅ ⟹ ⨆ v, v ∈ u ⊓ ⨅ z', z' ∈ u ⟹ (z' ∈ v)ᶜ)
+    -- Use epsilon_well_founded x applied to u: need u ⊆ x
+    -- u ⊆ y ⊆ x → u ⊆ x
+    apply le_iInf; intro u
+    rw [← deduction, ← deduction]
+    -- Goal: Ord x ⊓ y ∈ x ⊓ u ⊆ y ⊓ (u =ᴮ ∅)ᶜ ≤ ⨆ v, v ∈ u ⊓ ⨅ z', z' ∈ u ⟹ (z' ∈ v)ᶜ
+    set ctx2 := Ord x ⊓ y ∈ᴮ x ⊓ u ⊆ᴮ y ⊓ (u =ᴮ ∅)ᶜ
+    have hOrd2 : ctx2 ≤ Ord x := inf_le_left.trans (inf_le_left.trans inf_le_left)
+    have hyx2 : ctx2 ≤ y ∈ᴮ x := inf_le_left.trans (inf_le_left.trans inf_le_right)
+    have huby : ctx2 ≤ u ⊆ᴮ y := inf_le_left.trans inf_le_right
+    have hne : ctx2 ≤ (u =ᴮ ∅)ᶜ := inf_le_right
+    -- y ⊆ x
+    have hy_sub_x2 : ctx2 ≤ y ⊆ᴮ x :=
+      subset_of_mem_transitive (hOrd2.trans inf_le_right) hyx2
+    -- u ⊆ y ⊆ x → u ⊆ x
+    have hubx : ctx2 ≤ u ⊆ᴮ x := subset_trans' huby hy_sub_x2
+    -- epsilon_well_founded x: u ⊆ x ∧ u ≠ ∅ → ⨆ v, v ∈ u ⊓ ⨅ z', z' ∈ u ⟹ (z' ∈ v)ᶜ
+    have hewo2 : ctx2 ≤ epsilon_well_orders x := hOrd2.trans inf_le_left
+    have hwf2 : ctx2 ≤ epsilon_well_founded x := hewo2.trans inf_le_right
+    have hwf3 : ctx2 ≤ u ⊆ᴮ x ⟹ ((u =ᴮ ∅)ᶜ ⟹ ⨆ v, v ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ v)ᶜ)) :=
+      hwf2.trans (iInf_le _ u)
+    have hwf4 : ctx2 ≤ (u =ᴮ ∅)ᶜ ⟹ ⨆ v, v ∈ᴮ u ⊓ (⨅ z', z' ∈ᴮ u ⟹ (z' ∈ᴮ v)ᶜ) :=
+      le_trans (le_inf hwf3 hubx) bv_imp_elim
+    exact le_trans (le_inf hwf4 hne) bv_imp_elim
 
 -- src/bvm_extras.lean:2551
 theorem Ord_of_mem_Ord {x y : bSet 𝔹} {Γ : 𝔹} (H_mem : Γ ≤ x ∈ᴮ y) (H_Ord : Γ ≤ Ord y) :
