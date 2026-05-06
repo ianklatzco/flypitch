@@ -1189,20 +1189,52 @@ lemma check_injects_into {x y : PSet.{u}} (H_inj : PSet.injects_into x y) {Γ : 
 def surjects_onto (x y : bSet 𝔹) : 𝔹 := ⨆ f, is_surj_onto x y f
 
 -- src/bvm_extras.lean:985
-@[simp] lemma B_ext_larger_than_right {y : bSet 𝔹} : B_ext (fun z => larger_than y z) := by
-  sorry -- TODO: port from src/bvm_extras.lean:985
+-- larger_than y z = ⨆ S f, S ⊆ y ⊓ is_func' S z f ⊓ is_surj S z f
+-- B_ext as function of z:
+-- is_total S z f = ⨅ w₁, w₁ ∈ S ⟹ ⨆ w₂, w₂ ∈ z ⊓ pair w₁ w₂ ∈ f
+-- is_surj S z f = ⨅ v, v ∈ z ⟹ ⨆ w, w ∈ S ⊓ pair w v ∈ f
+private def B_ext_is_total_right (S f : bSet 𝔹) : B_ext (fun z => is_total S z f) :=
+  B_ext_iInf (h := fun _ => B_ext_imp (h₁ := B_ext_const)
+    (h₂ := B_ext_iSup (h := fun _ => B_ext_inf B_ext_mem_right B_ext_const)))
+
+private def B_ext_is_surj_codomain (S f : bSet 𝔹) : B_ext (fun z => is_surj S z f) :=
+  B_ext_iInf (h := fun _ => B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))
+
+@[simp] lemma B_ext_larger_than_right {y : bSet 𝔹} : B_ext (fun z => larger_than y z) :=
+  B_ext_iSup (h := fun S => B_ext_iSup (h := fun f =>
+    B_ext_inf (B_ext_inf B_ext_const
+      (B_ext_inf B_ext_const (B_ext_is_total_right S f)))
+    (B_ext_is_surj_codomain S f)))
 
 -- src/bvm_extras.lean:988
-@[simp] lemma B_ext_larger_than_left {y : bSet 𝔹} : B_ext (fun z => larger_than z y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:988
+-- larger_than z y = ⨆ S f, S ⊆ z ⊓ is_func' S y f ⊓ is_surj S y f
+-- B_ext as function of z: S ⊆ z = ⨅ j, S.bval j ⟹ S.func j ∈ z
+@[simp] lemma B_ext_larger_than_left {y : bSet 𝔹} : B_ext (fun z => larger_than z y) :=
+  -- larger_than z y = ⨆ S f, S ⊆ z ⊓ is_func' S y f ⊓ is_surj S y f
+  -- B_ext (fun z => S ⊆ z) = B_ext_subset_right
+  B_ext_iSup (h := fun S => B_ext_iSup (h := fun f =>
+    B_ext_inf (B_ext_inf B_ext_subset_right B_ext_const) B_ext_const))
 
 -- src/bvm_extras.lean:991
-@[simp] lemma B_ext_injects_into_left {y : bSet 𝔹} : B_ext (fun z => injects_into z y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:991
+-- injects_into z y = ⨆ f, is_func' z y f ⊓ is_inj f
+-- is_func' z y f = is_func f ⊓ is_total z y f
+-- is_total z y f = ⨅ w₁, w₁ ∈ z ⟹ ⨆ w₂, w₂ ∈ y ⊓ pair w₁ w₂ ∈ f
+-- B_ext as function of z: w₁ ∈ z changes with z
+@[simp] lemma B_ext_injects_into_left {y : bSet 𝔹} : B_ext (fun z => injects_into z y) :=
+  B_ext_iSup (h := fun f =>
+    B_ext_inf
+      (B_ext_inf B_ext_const
+        (B_ext_iInf (h := fun _ => B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))))
+      B_ext_const)
 
 -- src/bvm_extras.lean:994
-@[simp] lemma B_ext_injects_into_right {y : bSet 𝔹} : B_ext (fun z => injects_into y z) := by
-  sorry -- TODO: port from src/bvm_extras.lean:994
+-- injects_into y z = ⨆ f, is_func' y z f ⊓ is_inj f
+-- B_ext as function of z (in codomain y→z)
+@[simp] lemma B_ext_injects_into_right {y : bSet 𝔹} : B_ext (fun z => injects_into y z) :=
+  B_ext_iSup (h := fun f =>
+    B_ext_inf
+      (B_ext_inf B_ext_const (B_ext_is_total_right y f))
+      B_ext_const)
 
 -- ============================================================
 -- src/bvm_extras.lean lines 1004-1300
