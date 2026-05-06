@@ -1183,8 +1183,33 @@ lemma mem_f2ip_iff {x a b : PSet.{u}} :
     pSet_pair a b ∈ f2ip x ↔
     a ∈ fx2 x ∧ b ∈ PSet.powerset x ∧
     Equiv b (PSet.sep (fun z => pSet_pair z (PSet.ofNat 0 : PSet.{u}) ∈ a) x) := by
-  -- TODO: port from src/pSet_ordinal.lean:1245
-  sorry
+  constructor
+  · intro H
+    rw [mem_unfold] at H
+    obtain ⟨χ, Hχ⟩ := H
+    have ⟨ha, hb⟩ := equiv_iff_eq_pSet_pair.mpr Hχ
+    refine ⟨?_, ?_, ?_⟩
+    · exact (PSet.Mem.congr_left ha).mpr (PSet.func_mem (fx2 x) χ)
+    · rw [PSet.mem_powerset]
+      exact (PSet.Subset.congr_left hb).mpr (sep_subset f2ip_P_ext)
+    · apply PSet.Equiv.trans hb
+      apply (sep_equiv_iff f2ip_P_ext P_ext_pair_mem_left).mpr
+      intro z
+      constructor
+      · rintro ⟨Hz, Hpr⟩; exact ⟨Hz, (PSet.Mem.congr_right ha.symm).mp Hpr⟩
+      · rintro ⟨Hz, Hpr⟩; exact ⟨Hz, (PSet.Mem.congr_right ha).mp Hpr⟩
+  · rintro ⟨H₁, _H₂, H₃⟩
+    rw [mem_unfold] at H₁ ⊢
+    obtain ⟨χ, Hχ⟩ := H₁
+    refine ⟨χ, ?_⟩
+    show PSet.Equiv (pSet_pair a b) (pSet_pair ((fx2 x).Func χ) (f2ip_F x χ))
+    apply equiv_iff_eq_pSet_pair.mp
+    refine ⟨Hχ, PSet.Equiv.trans H₃ ?_⟩
+    apply (sep_equiv_iff P_ext_pair_mem_left f2ip_P_ext).mpr
+    intro z
+    constructor
+    · rintro ⟨Hz, Hpr⟩; exact ⟨Hz, (PSet.Mem.congr_right Hχ).mp Hpr⟩
+    · rintro ⟨Hz, Hpr⟩; exact ⟨Hz, (PSet.Mem.congr_right Hχ.symm).mp Hpr⟩
 
 lemma rel_eq_iff {x y f g : PSet.{u}} (H₁ : f ⊆ pSet_prod x y) (H₂ : g ⊆ pSet_prod x y) :
     Equiv f g ↔ ∀ a ∈ x, ∀ b ∈ y, pSet_pair a b ∈ f ↔ pSet_pair a b ∈ g := by
@@ -1192,8 +1217,20 @@ lemma rel_eq_iff {x y f g : PSet.{u}} (H₁ : f ⊆ pSet_prod x y) (H₂ : g ⊆
   · intro H a _Ha b _Hb
     exact PSet.Mem.congr_right H
   · intro H
-    -- TODO: port from src/pSet_ordinal.lean:1272
-    sorry
+    apply PSet.Mem.ext; intro p
+    constructor
+    · intro hpf
+      have hprod := all_mem_of_subset H₁ p hpf
+      rw [mem_unfold] at hprod
+      obtain ⟨⟨i, j⟩, hpr⟩ := hprod
+      specialize H (x.Func i) (PSet.func_mem x i) (y.Func j) (PSet.func_mem y j)
+      exact (PSet.Mem.congr_left hpr).mpr (H.mp ((PSet.Mem.congr_left hpr).mp hpf))
+    · intro hpg
+      have hprod := all_mem_of_subset H₂ p hpg
+      rw [mem_unfold] at hprod
+      obtain ⟨⟨i, j⟩, hpr⟩ := hprod
+      specialize H (x.Func i) (PSet.func_mem x i) (y.Func j) (PSet.func_mem y j)
+      exact (PSet.Mem.congr_left hpr).mpr (H.mpr ((PSet.Mem.congr_left hpr).mp hpg))
 
 lemma false_of_zero_eq_one (H : Equiv (PSet.ofNat 0 : PSet.{u}) (PSet.ofNat 1 : PSet.{u})) :
     False := ofNat_inj (Nat.zero_ne_one) H
