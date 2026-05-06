@@ -3420,9 +3420,24 @@ lemma CH_iff_CH₂ : ∀ {Γ : 𝔹}, Γ ≤ CH ↔ Γ ≤ CH₂ := by
   intro Γ
   constructor
   · intro H
-    sorry -- TODO: port CH_iff_CH₂ from src/bvm_extras.lean:2807
+    -- H : Γ ≤ CH = (D_CH)ᶜ; want Γ ≤ CH₂ = (D_CH₂)ᶜ
+    -- Since D_CH₂ ≤ D_CH, we have (D_CH)ᶜ ≤ (D_CH₂)ᶜ
+    apply H.trans
+    apply compl_le_compl
+    -- D_CH₂ = ⨆ x, Ord x ⊓ (ω≺x)ᶜ ⊓ (x≺𝒫ω)ᶜ
+    -- D_CH = ⨆ x, Ord x ⊓ ⨆ y, (ω≺x)ᶜ ⊓ (x≺y)ᶜ ⊓ y≼𝒫ω
+    apply iSup_le; intro x
+    apply le_iSup_of_le x
+    refine le_inf (inf_le_left.trans inf_le_left) ?_
+    -- ⨆ y, (ω≺x)ᶜ ⊓ (x≺y)ᶜ ⊓ y≼𝒫ω: witness y = 𝒫ω
+    apply le_iSup_of_le (bv_powerset omega)
+    -- (ω≺x)ᶜ ⊓ (x≺𝒫ω)ᶜ ⊓ (𝒫ω ≼ 𝒫ω)
+    -- LHS = (Ord x ⊓ (ω≺x)ᶜ) ⊓ (x≺𝒫ω)ᶜ
+    refine le_inf (le_inf ?_ ?_) injects_into_refl
+    · exact inf_le_left.trans inf_le_right  -- (ω≺x)ᶜ from (Ord x ⊓ (ω≺x)ᶜ) ⊓ (x≺𝒫ω)ᶜ
+    · exact inf_le_right                    -- (x≺𝒫ω)ᶜ
   · intro H
-    sorry -- TODO: port CH_iff_CH₂ (reverse) from src/bvm_extras.lean:2807
+    sorry -- TODO: port CH_iff_CH₂ (reverse) from src/bvm_extras.lean:2807 (needs bSet_lt_of_lt_of_le)
 
 end CH
 
