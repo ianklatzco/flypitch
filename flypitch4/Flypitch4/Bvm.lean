@@ -2978,7 +2978,27 @@ lemma forall_forall_reindex (ϕ : bSet 𝔹 → bSet 𝔹 → 𝔹)
     (h₂ : ∀ y, B_ext (fun x => ϕ x y)) (C : bSet 𝔹) :
     (⨅ (i₁ : C.type), (C.bval i₁ ⟹ ⨅ (i₂ : C.type), (C.bval i₂ ⟹ ϕ (C.func i₁) (C.func i₂)))) =
     ⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹), w₁ ∈ᴮ C ⊓ w₂ ∈ᴮ C ⟹ ϕ w₁ w₂ := by
-  sorry -- TODO: port from src/bvm.lean:2382-2399 (bounded_forall rewrites)
+  -- Helper: imp distributes over iInf
+  have imp_iInf : ∀ (a : 𝔹) (f : bSet 𝔹 → 𝔹), (a ⟹ ⨅ w, f w) = ⨅ w, a ⟹ f w := by
+    intro a f; simp only [imp, sup_iInf_eq]
+  -- Step 1: inner bounded_forall (C.func i₁ is fixed)
+  simp_rw [fun w₁ => @bounded_forall _ _ C (fun w₂ => ϕ w₁ w₂) (h_congr := fun a b => h₁ w₁ a b)]
+  -- LHS = ⨅ i₁, C.bval i₁ ⟹ ⨅ w₂, w₂ ∈ C ⟹ ϕ (C.func i₁) w₂
+  -- Step 2: outer bounded_forall
+  have h_cong_outer : ∀ (a b : bSet 𝔹), a =ᴮ b ⊓ (⨅ w₂, w₂ ∈ᴮ C ⟹ ϕ a w₂) ≤
+      ⨅ w₂, w₂ ∈ᴮ C ⟹ ϕ b w₂ := by
+    intro a b; apply le_iInf; intro w₂
+    apply le_trans (inf_le_inf_left _ (iInf_le _ w₂))
+    rw [← deduction]
+    calc (a =ᴮ b ⊓ (w₂ ∈ᴮ C ⟹ ϕ a w₂)) ⊓ w₂ ∈ᴮ C
+        ≤ a =ᴮ b ⊓ ((w₂ ∈ᴮ C ⟹ ϕ a w₂) ⊓ w₂ ∈ᴮ C) :=
+          le_inf (inf_le_left.trans inf_le_left) (le_inf (inf_le_left.trans inf_le_right) inf_le_right)
+      _ ≤ a =ᴮ b ⊓ ϕ a w₂ := inf_le_inf_left _ bv_imp_elim
+      _ ≤ ϕ b w₂ := h₂ w₂ a b
+  rw [@bounded_forall _ _ C (fun w₁ => ⨅ w₂, w₂ ∈ᴮ C ⟹ ϕ w₁ w₂) (h_congr := h_cong_outer)]
+  -- LHS = ⨅ w₁, w₁ ∈ C ⟹ ⨅ w₂, w₂ ∈ C ⟹ ϕ w₁ w₂
+  -- Step 3: distribute imp and curry
+  simp_rw [imp_iInf, curry_uncurry]
 
 private def zorn_chain_hyp (X : bSet 𝔹) : 𝔹 :=
   ⨅ y, (y ⊆ᴮ X ⊓ ⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
