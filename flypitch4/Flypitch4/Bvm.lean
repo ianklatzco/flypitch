@@ -3353,7 +3353,86 @@ lemma subset'_inductive (X : bSet 𝔹)
     {α : Type u} {S : α → bSet 𝔹} (h_core : core X S) :
     haveI := subset'_partial_order h_core
     ∀ c : Set α, IsChain (· ≤ ·) c → BddAbove c := by
-  sorry -- TODO: port from src/bvm.lean:2401-2443
+  haveI hPO := subset'_partial_order h_core
+  intro C C_chain
+  -- Let C' be the bSet indexed by C with func = S ∘ (coe : C → α), bval = ⊤
+  -- Abbreviation for C' = bSet_of_core_set h_core C
+  -- C'.type = C, C'.func ⟨i, _⟩ = S i, C'.bval _ = ⊤
+  set C' := bSet_of_core_set h_core C with hC'_def
+  -- Step 1: C' is internally a chain
+  have H_internal_chain : (⊤ : 𝔹) ≤
+      ⨅ (i₁ : C'.type), (C'.bval i₁ ⟹
+      ⨅ (i₂ : C'.type), (C'.bval i₂ ⟹
+        (C'.func i₁ ⊆ᴮ C'.func i₂ ⊔ C'.func i₂ ⊆ᴮ C'.func i₁))) := by
+    apply le_iInf; intro ⟨i₁, H₁⟩
+    rw [show C'.bval ⟨i₁, H₁⟩ = ⊤ from rfl, top_imp]
+    apply le_iInf; intro ⟨i₂, H₂⟩
+    rw [show C'.bval ⟨i₂, H₂⟩ = ⊤ from rfl, top_imp]
+    show (⊤ : 𝔹) ≤ S i₁ ⊆ᴮ S i₂ ⊔ S i₂ ⊆ᴮ S i₁
+    -- From C_chain: either i₁ = i₂, or subset' h_core i₁ i₂ or subset' h_core i₂ i₁
+    by_cases heq : i₁ = i₂
+    · -- i₁ = i₂: S i₁ ⊆ S i₁ = ⊤ (reflexivity)
+      subst heq
+      apply le_sup_of_le_left
+      exact le_of_eq (subset_self_eq_top (x := S i₁)).symm
+    · -- i₁ ≠ i₂: use C_chain
+      have hchain := C_chain H₁ H₂ heq
+      cases hchain with
+      | inl h =>
+        apply le_sup_of_le_left
+        exact le_of_eq (subset'_unfold.mp h).symm
+      | inr h =>
+        apply le_sup_of_le_right
+        exact le_of_eq (subset'_unfold.mp h).symm
+  -- Step 2: C' ⊆ X (as a bSet)
+  have H_C'_sub_X : (⊤ : 𝔹) ≤ C' ⊆ᴮ X := by
+    rw [hC'_def, subset_unfold]
+    apply le_iInf; intro ⟨i, hi⟩
+    rw [show (bSet_of_core_set h_core C).bval ⟨i, hi⟩ = ⊤ from rfl, top_imp]
+    exact top_le_iff.mpr (h_core.1 i)
+  -- Step 3: chain condition in the quantified form
+  -- We need the chain condition expressed as:
+  -- ⊤ ≤ ⨅ w₁ w₂, w₁ ∈ C' ⊓ w₂ ∈ C' ⟹ (w₁ ⊆ w₂ ⊔ w₂ ⊆ w₁)
+  -- Use forall_forall_reindex with the internal chain form
+  have H_chain_quant : (⊤ : 𝔹) ≤ ⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
+      w₁ ∈ᴮ C' ⊓ w₂ ∈ᴮ C' ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁) := by
+    rw [← forall_forall_reindex (fun x y => x ⊆ᴮ y ⊔ y ⊆ᴮ x)
+        (h₁ := fun x => B_ext_subset_or_subset_right x)
+        (h₂ := fun y => B_ext_subset_or_subset_left y)]
+    exact H_internal_chain
+  -- Step 4: bv_union C' ∈ X
+  have H_internal_ub_mem : (⊤ : 𝔹) ≤ bv_union C' ∈ᴮ X := by
+    apply bv_context_apply (le_trans H (iInf_le _ C'))
+    exact le_inf H_C'_sub_X H_chain_quant
+  -- Step 5: bv_union C' is an upper bound on each element of C'
+  have H_internal_ub_spec : ∀ i_w : C,
+      (⊤ : 𝔹) ≤ S i_w.val ⊆ᴮ bv_union C' := by
+    intro ⟨i_w, H_i_w⟩
+    -- S i_w = C'.func ⟨i_w, H_i_w⟩ ∈ C', so it ⊆ bv_union C'
+    have hmem : (⊤ : 𝔹) ≤ C'.func ⟨i_w, H_i_w⟩ ∈ᴮ C' :=
+      le_trans (le_of_eq (of_core_bval (i := ⟨i_w, H_i_w⟩)).symm)
+               (mem_mk' C' ⟨i_w, H_i_w⟩)
+    -- Use bv_union_spec'' C' : ⊤ ≤ ⨅ x, x ∈ C' ⟹ x ⊆ bv_union C'
+    have hspec : (⊤ : 𝔹) ≤ C'.func ⟨i_w, H_i_w⟩ ∈ᴮ C' ⟹ C'.func ⟨i_w, H_i_w⟩ ⊆ᴮ bv_union C' :=
+      (bv_union_spec'' C').trans (iInf_le _ (C'.func ⟨i_w, H_i_w⟩))
+    exact le_trans (le_inf hspec hmem) bv_imp_elim
+  -- Step 6: get w with bv_union C' =ᴮ S w = ⊤
+  have H_ub_mem : bv_union C' ∈ᴮ X = ⊤ := top_unique H_internal_ub_mem
+  obtain ⟨w, H_w⟩ := core_witness h_core (bv_union C') H_ub_mem
+  -- w is the upper bound
+  refine ⟨w, fun x_w' H_x_w' => ?_⟩
+  -- Need: subset' h_core x_w' w, i.e., S x_w' ⊆ S w = ⊤
+  -- Under hPO, the goal is x_w' ≤ w (i.e., subset' h_core x_w' w)
+  show subset' h_core x_w' w
+  rw [subset'_unfold]
+  apply top_unique
+  -- S x_w' ⊆ bv_union C' (from H_internal_ub_spec)
+  have h_ub_spec : (⊤ : 𝔹) ≤ S x_w' ⊆ᴮ bv_union C' :=
+    H_internal_ub_spec ⟨x_w', H_x_w'⟩
+  -- And bv_union C' =ᴮ S w = ⊤, so S x_w' ⊆ S w by subst_congr_subset_right
+  calc (⊤ : 𝔹) ≤ S x_w' ⊆ᴮ bv_union C' ⊓ bv_union C' =ᴮ S w :=
+          le_inf h_ub_spec (le_of_eq H_w.symm)
+    _ ≤ S x_w' ⊆ᴮ S w := subst_congr_subset_right
 
 /-- ∀ x, x ≠ ∅ ∧ ((∀ y, y ⊆ x ∧ ∀ w₁ w₂ ∈ y, w₁ ⊆ w₂ ∨ w₂ ⊆ w₁) → (⋃y) ∈ x)
     → ∃ c ∈ x, ∀ z ∈ x, c ⊆ z → c = z -/
@@ -3361,7 +3440,99 @@ lemma subset'_inductive (X : bSet 𝔹)
 theorem bSet_zorns_lemma (X : bSet 𝔹) (H_nonempty : (X =ᴮ ∅)ᶜ = ⊤)
     (H : ⊤ ≤ zorn_chain_hyp X) :
     ⊤ ≤ ⨆ c, c ∈ᴮ X ⊓ ⨅ z, z ∈ᴮ X ⟹ (c ⊆ᴮ z ⟹ c =ᴮ z) := by
-  sorry -- TODO: port from src/bvm.lean:2447-2484
+  -- Step 1: Get a core for X
+  obtain ⟨α, S, h_core⟩ := core.mk X
+  -- Step 2: Apply Zorn's lemma to get a maximal element c
+  letI hPO := subset'_partial_order h_core
+  have H_zorn := @zorn_le α hPO.toPreorder (subset'_inductive X H h_core)
+  obtain ⟨c, H_c⟩ := H_zorn
+  -- H_c : IsMax c, i.e., ∀ a, c ≤ a → a ≤ c
+  -- Step 3: S c is in X
+  have H_c_in_X : S c ∈ᴮ X = ⊤ := h_core.1 c
+  -- Auxiliary: for any a with S a ∈ X = ⊤, S c ⊆ S a ≤ S a = S c
+  -- This uses the maximality of c to show a ≤ c, then eq_iff_subset_subset
+  have aux : ∀ (a : α), S a ∈ᴮ X = ⊤ → S c ⊆ᴮ S a ≤ S a =ᴮ S c := by
+    intro a H_a
+    -- Let p = S c ⊆ S a, define v = two_term_mixture p pᶜ (...) (S a) (S c)
+    set p := S c ⊆ᴮ S a with hp_def
+    have h_anti : p ⊓ pᶜ = ⊥ := inf_compl_eq_bot
+    have h_partition : p ⊔ pᶜ = ⊤ := sup_compl_eq_top
+    set v := two_term_mixture p pᶜ h_anti (S a) (S c) with hv_def
+    -- claim_1: v ∈ X = ⊤
+    have claim_1 : v ∈ᴮ X = ⊤ :=
+      two_term_mixture_mem_top X (S a) (S c) p pᶜ h_anti h_partition H_a H_c_in_X
+    -- claim_2: ∃ z : α, v =ᴮ S z = ⊤
+    obtain ⟨z, H_z⟩ := core_witness h_core v claim_1
+    -- claim_3: ⊤ ≤ S c ⊆ v
+    have claim_3 : (⊤ : 𝔹) ≤ S c ⊆ᴮ v :=
+      two_term_mixture_subset_top (S a) (S c) p pᶜ h_anti h_partition hp_def
+    -- claim_4: c ≤ z (i.e., S c ⊆ S z = ⊤)
+    have claim_4 : c ≤ z := by
+      show subset' h_core c z
+      rw [subset'_unfold]
+      apply top_unique
+      calc (⊤ : 𝔹) ≤ S c ⊆ᴮ v ⊓ v =ᴮ S z :=
+              le_inf claim_3 (le_of_eq H_z.symm)
+        _ ≤ S c ⊆ᴮ S z := subst_congr_subset_right
+    -- claim_5: S c =ᴮ S z = ⊤ (from maximality: z ≤ c and c ≤ z)
+    have claim_5 : S c =ᴮ S z = ⊤ := by
+      have hz_le_c : z ≤ c := H_c claim_4
+      apply top_unique
+      rw [eq_iff_subset_subset]
+      apply le_inf
+      · -- S c ⊆ S z = ⊤: from claim_4
+        exact le_of_eq (subset'_unfold.mp claim_4).symm
+      · -- S z ⊆ S c = ⊤: from hz_le_c
+        exact le_of_eq (subset'_unfold.mp hz_le_c).symm
+    -- claim_6: ⊤ ≤ v =ᴮ S c (from H_z and claim_5)
+    have hSz_eq_Sc : S z =ᴮ S c = ⊤ := by rw [bv_eq_symm]; exact claim_5
+    have claim_6 : (⊤ : 𝔹) ≤ v =ᴮ S c := by
+      calc (⊤ : 𝔹) ≤ v =ᴮ S z ⊓ S z =ᴮ S c :=
+              le_inf (le_of_eq H_z.symm) (le_of_eq hSz_eq_Sc.symm)
+        _ ≤ v =ᴮ S c := bv_eq_trans
+    -- Now: p = S c ⊆ S a ≤ S a = S c
+    -- mixing gives: p ≤ v =ᴮ S a
+    have mixing := mixing_lemma_two_term p pᶜ h_anti (S a) (S c)
+    -- p ≤ v =ᴮ S a ≤ S a =ᴮ v ≤ S a =ᴮ S c
+    calc p ≤ v =ᴮ S a := mixing.1
+      _ = S a =ᴮ v := bv_eq_symm
+      _ ≤ S a =ᴮ S c := by
+          calc S a =ᴮ v ≤ S a =ᴮ v ⊓ v =ᴮ S c :=
+                  le_inf le_rfl (le_top.trans claim_6)
+            _ ≤ S a =ᴮ S c := bv_eq_trans
+  -- Step 4: provide S c as the witness for the iSup
+  apply bv_use (S c)
+  rw [H_c_in_X, top_inf_eq]
+  -- Step 5: prove ⨅ z, z ∈ X ⟹ (S c ⊆ z ⟹ S c = z)
+  apply le_iInf; intro x
+  rw [← deduction, top_inf_eq, ← deduction]
+  -- Goal: x ∈ X ⊓ S c ⊆ x ≤ S c = x
+  -- Use core_aux_lemma3 to get S a with x = S a = x ∈ X
+  obtain ⟨y, H₁_y, H₂_y⟩ := core_aux_lemma3 X H_nonempty S h_core x
+  obtain ⟨a, -, rfl⟩ := H₁_y  -- y = S a
+  -- H₂_y : x = S a = x ∈ X (so x ∈ X ≤ x = S a and x = S a ≤ x ∈ X)
+  -- Key: we need x ∈ X ⊓ S c ⊆ x ≤ S c = x
+  -- Strategy:
+  -- (1) x ∈ X ⊓ S c ⊆ x ≤ (x = S a) ⊓ (S a = S c)
+  --     Left: x ∈ X ≤ x = S a (from H₂_y.symm)
+  --     Right: S c ⊆ x ⊓ x = S a ≤ S c ⊆ S a (subst_congr_subset_right) ≤ S a = S c (aux)
+  -- (2) (x = S a) ⊓ (S a = S c) ≤ x = S c ≤ S c = x
+  have H₂_y_le : x ∈ᴮ X ≤ x =ᴮ S a := le_of_eq H₂_y.symm
+  have h_Sc_sub_Sa : x ∈ᴮ X ⊓ S c ⊆ᴮ x ≤ S c ⊆ᴮ S a :=
+    calc x ∈ᴮ X ⊓ S c ⊆ᴮ x
+        ≤ x =ᴮ S a ⊓ S c ⊆ᴮ x :=
+            le_inf (inf_le_left.trans H₂_y_le) inf_le_right
+      _ ≤ S c ⊆ᴮ S a := by
+            rw [inf_comm]; exact subst_congr_subset_right
+  have h_Sa_eq_Sc : S c ⊆ᴮ S a ≤ S a =ᴮ S c :=
+    aux a (core_mem_of_mem_image h_core ⟨a, Set.mem_univ _, rfl⟩)
+  calc x ∈ᴮ X ⊓ S c ⊆ᴮ x
+      ≤ x =ᴮ S a ⊓ S a =ᴮ S c := by
+          apply le_inf
+          · exact inf_le_left.trans H₂_y_le
+          · exact h_Sc_sub_Sa.trans h_Sa_eq_Sc
+    _ ≤ x =ᴮ S c := bv_eq_trans
+    _ = S c =ᴮ x := bv_eq_symm
 
 end zorns_lemma
 
