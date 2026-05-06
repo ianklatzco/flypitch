@@ -2012,7 +2012,75 @@ lemma functionMk'_is_func {x y : bSet 𝔹} {Γ : 𝔹}
     (H_ext : ∀ i j {Γ' : 𝔹}, Γ' ≤ x.func i =ᴮ x.func j → Γ' ≤ y.func (F i) =ᴮ y.func (F j))
     (H_mem : ∀ i {Γ' : 𝔹}, Γ' ≤ x.bval i → Γ' ≤ y.bval (F i) ∧ Γ' ≤ χ i) :
     Γ ≤ is_func (functionMk' F χ H_ext H_mem) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1757 (membership unfolding elaboration issue)
+  -- is_func g = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ g ⊓ pair w₂ v₂ ∈ g ⟹ (w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂)
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction, ← deduction]
+  -- functionMk' = subset.mk (prod x y) (fun pr => χ pr.1 ⊓ y.func pr.2 =ᴮ y.func (F pr.1))
+  -- mem_subset.mk_iff: z ∈ functionMk' ↔ ⨆ pr, z =ᴮ (prod x y).func pr ⊓ ((χ pr.1 ⊓ ...) ⊓ (prod x y).bval pr)
+  set φ : (prod x y).type → 𝔹 := fun pr => χ pr.1 ⊓ y.func pr.2 =ᴮ y.func (F pr.1)
+  have hfmk : functionMk' F χ H_ext H_mem = subset.mk φ := rfl
+  have hmem1 : pair w₁ v₁ ∈ᴮ functionMk' F χ H_ext H_mem ≤
+      ⨆ pr₁ : (prod x y).type, pair w₁ v₁ =ᴮ (prod x y).func pr₁ ⊓ (φ pr₁ ⊓ (prod x y).bval pr₁) :=
+    hfmk ▸ mem_subset.mk_iff.mp le_rfl
+  have hmem2 : pair w₂ v₂ ∈ᴮ functionMk' F χ H_ext H_mem ≤
+      ⨆ pr₂ : (prod x y).type, pair w₂ v₂ =ᴮ (prod x y).func pr₂ ⊓ (φ pr₂ ⊓ (prod x y).bval pr₂) :=
+    hfmk ▸ mem_subset.mk_iff.mp le_rfl
+  -- Double iSup carry-context
+  set ctx6 := Γ ⊓ (pair w₁ v₁ ∈ᴮ functionMk' F χ H_ext H_mem ⊓ pair w₂ v₂ ∈ᴮ functionMk' F χ H_ext H_mem) ⊓ w₁ =ᴮ w₂
+  calc ctx6
+      ≤ (⨆ pr₁, pair w₁ v₁ =ᴮ (prod x y).func pr₁ ⊓ (φ pr₁ ⊓ (prod x y).bval pr₁)) ⊓ ctx6 :=
+        le_inf (inf_le_left.trans (inf_le_right.trans (inf_le_left.trans hmem1))) le_rfl
+    _ ≤ ⨆ pr₁, (pair w₁ v₁ =ᴮ (prod x y).func pr₁ ⊓ (φ pr₁ ⊓ (prod x y).bval pr₁)) ⊓ ctx6 :=
+        (iSup_inf_eq _ _).le
+    _ ≤ v₁ =ᴮ v₂ := by
+        apply iSup_le; intro pr₁
+        obtain ⟨i, j⟩ := pr₁
+        simp only [prod_func, prod_bval, φ]
+        -- Carry context through second iSup
+        have hmem2_w2 : (pair w₁ v₁ =ᴮ pair (x.func i) (y.func j) ⊓ ((χ i ⊓ y.func j =ᴮ y.func (F i)) ⊓ (x.bval i ⊓ y.bval j))) ⊓ ctx6 ≤
+            ⨆ pr₂ : (prod x y).type, pair w₂ v₂ =ᴮ (prod x y).func pr₂ ⊓ (φ pr₂ ⊓ (prod x y).bval pr₂) :=
+          le_trans inf_le_right (le_trans inf_le_left (le_trans inf_le_right (le_trans inf_le_right hmem2)))
+        calc (pair w₁ v₁ =ᴮ pair (x.func i) (y.func j) ⊓ ((χ i ⊓ y.func j =ᴮ y.func (F i)) ⊓ (x.bval i ⊓ y.bval j))) ⊓ ctx6
+            ≤ (⨆ pr₂, pair w₂ v₂ =ᴮ (prod x y).func pr₂ ⊓ (φ pr₂ ⊓ (prod x y).bval pr₂)) ⊓
+                ((pair w₁ v₁ =ᴮ pair (x.func i) (y.func j) ⊓ ((χ i ⊓ y.func j =ᴮ y.func (F i)) ⊓ (x.bval i ⊓ y.bval j))) ⊓ ctx6) :=
+              le_inf hmem2_w2 le_rfl
+          _ ≤ ⨆ pr₂, (pair w₂ v₂ =ᴮ (prod x y).func pr₂ ⊓ (φ pr₂ ⊓ (prod x y).bval pr₂)) ⊓
+                ((pair w₁ v₁ =ᴮ pair (x.func i) (y.func j) ⊓ ((χ i ⊓ y.func j =ᴮ y.func (F i)) ⊓ (x.bval i ⊓ y.bval j))) ⊓ ctx6) :=
+              (iSup_inf_eq _ _).le
+          _ ≤ v₁ =ᴮ v₂ := by
+              apply iSup_le; intro pr₂
+              obtain ⟨i', j'⟩ := pr₂
+              simp only [prod_func, prod_bval, φ]
+              set ctx7 := (pair w₂ v₂ =ᴮ pair (x.func i') (y.func j') ⊓ ((χ i' ⊓ y.func j' =ᴮ y.func (F i')) ⊓ (x.bval i' ⊓ y.bval j'))) ⊓
+                    ((pair w₁ v₁ =ᴮ pair (x.func i) (y.func j) ⊓ ((χ i ⊓ y.func j =ᴮ y.func (F i)) ⊓ (x.bval i ⊓ y.bval j))) ⊓ ctx6)
+              -- w₁ =ᴮ x.func i, v₁ =ᴮ y.func j
+              have hw1xi : ctx7 ≤ w₁ =ᴮ x.func i :=
+                inf_le_right.trans (inf_le_left.trans (inf_le_left.trans eq_of_eq_pair_left))
+              have hv1yj : ctx7 ≤ v₁ =ᴮ y.func j :=
+                inf_le_right.trans (inf_le_left.trans (inf_le_left.trans eq_of_eq_pair_right))
+              -- y.func j =ᴮ y.func (F i) from the χ condition
+              have hyj_yFi : ctx7 ≤ y.func j =ᴮ y.func (F i) :=
+                inf_le_right.trans (inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_right)))
+              -- w₂ =ᴮ x.func i', v₂ =ᴮ y.func j'
+              have hw2xi' : ctx7 ≤ w₂ =ᴮ x.func i' :=
+                inf_le_left.trans (inf_le_left.trans eq_of_eq_pair_left)
+              have hv2yj' : ctx7 ≤ v₂ =ᴮ y.func j' :=
+                inf_le_left.trans (inf_le_left.trans eq_of_eq_pair_right)
+              -- y.func j' =ᴮ y.func (F i') from the χ condition
+              have hyj'_yFi' : ctx7 ≤ y.func j' =ᴮ y.func (F i') :=
+                inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))
+              -- w₁ =ᴮ w₂ (from ctx6)
+              have hw12 : ctx7 ≤ w₁ =ᴮ w₂ :=
+                inf_le_right.trans (inf_le_right.trans inf_le_right)
+              -- x.func i =ᴮ x.func i'
+              have hxi_xi' : ctx7 ≤ x.func i =ᴮ x.func i' :=
+                bv_trans (bv_symm hw1xi) (bv_trans hw12 hw2xi')
+              -- y.func (F i) =ᴮ y.func (F i') from H_ext
+              have hyFi_yFi' : ctx7 ≤ y.func (F i) =ᴮ y.func (F i') :=
+                H_ext i i' hxi_xi'
+              -- v₁ =ᴮ y.func j =ᴮ y.func (F i) =ᴮ y.func (F i') =ᴮ y.func j' =ᴮ v₂ (symm)
+              exact bv_trans hv1yj (bv_trans hyj_yFi (bv_trans hyFi_yFi' (bv_trans (bv_symm hyj'_yFi') (bv_symm hv2yj'))))
 
 -- src/bvm_extras.lean:1767
 lemma functionMk'_is_total {x y : bSet 𝔹} {Γ : 𝔹}
@@ -2238,14 +2306,148 @@ lemma functionMk_is_func {u : bSet 𝔹} (F : u.type → bSet 𝔹)
     (h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j) :
     (⊤ : 𝔹) ≤ is_func (functionMk F h_congr) := by
   -- is_func g = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ g ⊓ pair w₂ v₂ ∈ g ⊓ w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂
-  sorry -- TODO: requires complex iSup distribution over two indexed witnesses
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction, top_inf_eq]
+  -- Goal: pair w₁ v₁ ∈ functionMk ⊓ pair w₂ v₂ ∈ functionMk ≤ w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂
+  -- Extract i from pair w₁ v₁ ∈ functionMk
+  have hmem_left : pair w₁ v₁ ∈ᴮ (functionMk F h_congr : bSet 𝔹) ≤
+      ⨆ i : u.type, u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i) := by
+    simp only [mem_unfold, functionMk_type, functionMk_bval, functionMk_func]; exact le_rfl
+  have hmem_right : pair w₂ v₂ ∈ᴮ (functionMk F h_congr : bSet 𝔹) ≤
+      ⨆ j : u.type, u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j) := by
+    simp only [mem_unfold, functionMk_type, functionMk_bval, functionMk_func]; exact le_rfl
+  -- Carry context through double iSup
+  calc pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr)
+      ≤ (⨆ i, u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+          (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr)) :=
+        le_inf (inf_le_left.trans hmem_left) le_rfl
+    _ ≤ ⨆ i, (u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+          (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr)) :=
+        (iSup_inf_eq _ _).le
+    _ ≤ w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂ := by
+        apply iSup_le; intro i
+        calc (u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+              (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr))
+            ≤ (⨆ j, u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                  (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr))) :=
+              le_inf (inf_le_right.trans (inf_le_right.trans hmem_right)) le_rfl
+          _ ≤ ⨆ j, (u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                  (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr))) :=
+              (iSup_inf_eq _ _).le
+          _ ≤ w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂ := by
+              apply iSup_le; intro j
+              -- Context: (u.bval j ⊓ w₂v₂=pair(Func j)(F j)) ⊓ (u.bval i ⊓ w₁v₁=pair(Func i)(F i)) ⊓ ...
+              have hw1 : (u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                    ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                      (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr))) ≤
+                    pair w₁ v₁ =ᴮ pair (u.func i) (F i) :=
+                inf_le_right.trans (inf_le_left.trans inf_le_right)
+              have hw2 : (u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                    ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                      (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr))) ≤
+                    pair w₂ v₂ =ᴮ pair (u.func j) (F j) :=
+                inf_le_left.trans inf_le_right
+              rw [← deduction]
+              -- Goal: ctx ⊓ w₁ =ᴮ w₂ ≤ v₁ =ᴮ v₂
+              -- w₁ =ᴮ u.func i (from hw1: pair_eq_pair_left)
+              -- w₂ =ᴮ u.func j (from hw2: pair_eq_pair_left)
+              -- v₁ =ᴮ F i (from hw1: pair_eq_pair_right)
+              -- v₂ =ᴮ F j (from hw2: pair_eq_pair_right)
+              -- F i =ᴮ F j from h_congr (since w₁ =ᴮ w₂ = u.func i =ᴮ u.func j via bv_trans)
+              set ctx4 := (u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                    ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                      (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr)))
+              -- v₁ =ᴮ F i
+              have hv1_Fi : ctx4 ⊓ w₁ =ᴮ w₂ ≤ v₁ =ᴮ F i :=
+                le_trans inf_le_left (le_trans hw1 eq_of_eq_pair_right)
+              -- v₂ =ᴮ F j
+              have hv2_Fj : ctx4 ⊓ w₁ =ᴮ w₂ ≤ v₂ =ᴮ F j :=
+                le_trans inf_le_left (le_trans hw2 eq_of_eq_pair_right)
+              -- w₁ =ᴮ u.func i
+              have hw1_ui : ctx4 ⊓ w₁ =ᴮ w₂ ≤ w₁ =ᴮ u.func i :=
+                le_trans inf_le_left (le_trans hw1 eq_of_eq_pair_left)
+              -- w₂ =ᴮ u.func j
+              have hw2_uj : ctx4 ⊓ w₁ =ᴮ w₂ ≤ w₂ =ᴮ u.func j :=
+                le_trans inf_le_left (le_trans hw2 eq_of_eq_pair_left)
+              -- w₁ =ᴮ w₂
+              have hw12 : ctx4 ⊓ w₁ =ᴮ w₂ ≤ w₁ =ᴮ w₂ := inf_le_right
+              -- u.func i =ᴮ u.func j via: u.func i =ᴮ w₁ =ᴮ w₂ =ᴮ u.func j
+              have h_ui_uj : ctx4 ⊓ w₁ =ᴮ w₂ ≤ u.func i =ᴮ u.func j :=
+                bv_trans (bv_symm hw1_ui) (bv_trans hw12 hw2_uj)
+              -- F i =ᴮ F j
+              have h_Fi_Fj : ctx4 ⊓ w₁ =ᴮ w₂ ≤ F i =ᴮ F j :=
+                le_trans h_ui_uj (h_congr i j)
+              -- v₁ =ᴮ v₂ via v₁ =ᴮ F i =ᴮ F j =ᴮ v₂ (symm)
+              exact bv_trans hv1_Fi (bv_trans h_Fi_Fj (bv_symm hv2_Fj))
 
 -- src/bvm_extras.lean:2041
 lemma functionMk_inj_of_inj {u : bSet 𝔹} {F : u.type → bSet 𝔹}
     (h_inj : ∀ i j, i ≠ j → F i =ᴮ F j ≤ ⊥)
     (h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j) :
     (⊤ : 𝔹) ≤ is_inj (functionMk F h_congr) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2041
+  -- is_inj f = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ f ⊓ pair w₂ v₂ ∈ f ⊓ v₁ =ᴮ v₂ ⟹ w₁ =ᴮ w₂
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction, top_inf_eq]
+  -- Goal: pair w₁ v₁ ∈ functionMk ⊓ pair w₂ v₂ ∈ functionMk ⊓ v₁ =ᴮ v₂ ≤ w₁ =ᴮ w₂
+  have hmem_left : pair w₁ v₁ ∈ᴮ (functionMk F h_congr : bSet 𝔹) ≤
+      ⨆ i : u.type, u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i) := by
+    simp only [mem_unfold, functionMk_type, functionMk_bval, functionMk_func]; exact le_rfl
+  have hmem_right : pair w₂ v₂ ∈ᴮ (functionMk F h_congr : bSet 𝔹) ≤
+      ⨆ j : u.type, u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j) := by
+    simp only [mem_unfold, functionMk_type, functionMk_bval, functionMk_func]; exact le_rfl
+  -- Carry context through double iSup
+  calc pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂
+      ≤ (⨆ i, u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+          (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂) :=
+        le_inf (inf_le_left.trans (inf_le_left.trans hmem_left)) le_rfl
+    _ ≤ ⨆ i, (u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+          (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂) :=
+        (iSup_inf_eq _ _).le
+    _ ≤ w₁ =ᴮ w₂ := by
+        apply iSup_le; intro i
+        calc (u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+              (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂)
+            ≤ (⨆ j, u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                  (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂)) :=
+              le_inf (inf_le_right.trans (inf_le_left.trans (inf_le_right.trans hmem_right))) le_rfl
+          _ ≤ ⨆ j, (u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                  (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂)) :=
+              (iSup_inf_eq _ _).le
+          _ ≤ w₁ =ᴮ w₂ := by
+              apply iSup_le; intro j
+              set ctx5 := (u.bval j ⊓ pair w₂ v₂ =ᴮ pair (u.func j) (F j)) ⊓
+                    ((u.bval i ⊓ pair w₁ v₁ =ᴮ pair (u.func i) (F i)) ⊓
+                      (pair w₁ v₁ ∈ᴮ (functionMk F h_congr) ⊓ pair w₂ v₂ ∈ᴮ (functionMk F h_congr) ⊓ v₁ =ᴮ v₂))
+              -- w₁ =ᴮ u.func i, v₁ =ᴮ F i
+              have hw1_ui : ctx5 ≤ w₁ =ᴮ u.func i :=
+                inf_le_right.trans (inf_le_left.trans (inf_le_right.trans eq_of_eq_pair_left))
+              have hv1_Fi : ctx5 ≤ v₁ =ᴮ F i :=
+                inf_le_right.trans (inf_le_left.trans (inf_le_right.trans eq_of_eq_pair_right))
+              -- w₂ =ᴮ u.func j, v₂ =ᴮ F j
+              have hw2_uj : ctx5 ≤ w₂ =ᴮ u.func j :=
+                inf_le_left.trans (inf_le_right.trans eq_of_eq_pair_left)
+              have hv2_Fj : ctx5 ≤ v₂ =ᴮ F j :=
+                inf_le_left.trans (inf_le_right.trans eq_of_eq_pair_right)
+              -- v₁ =ᴮ v₂
+              have hv12 : ctx5 ≤ v₁ =ᴮ v₂ :=
+                inf_le_right.trans (inf_le_right.trans inf_le_right)
+              by_cases h_ij : i = j
+              · -- i = j: w₁ =ᴮ u.func i =ᴮ u.func j =ᴮ w₂
+                subst h_ij
+                exact bv_trans hw1_ui (bv_symm hw2_uj)
+              · -- i ≠ j: derive contradiction via F i =ᴮ F j ≤ ⊥
+                -- v₁ =ᴮ F i, v₁ =ᴮ v₂, v₂ =ᴮ F j → F i =ᴮ F j
+                have hFiFj : ctx5 ≤ F i =ᴮ F j :=
+                  bv_trans (bv_symm hv1_Fi) (bv_trans hv12 hv2_Fj)
+                have h_bot : ctx5 ≤ ⊥ :=
+                  le_trans hFiFj (h_inj i j h_ij)
+                exact le_trans h_bot bot_le
 
 -- ============================================================
 -- src/bvm_extras.lean:2080-2136: bot_of_mem_self, bot_of_mem_mem
@@ -2518,12 +2720,33 @@ def epsilon_well_orders (x : bSet 𝔹) : 𝔹 :=
 
 -- src/bvm_extras.lean:2410
 @[simp] lemma B_ext_ewo : B_ext (fun w : bSet 𝔹 => epsilon_well_orders w) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2410
+  unfold epsilon_well_orders epsilon_trichotomy epsilon_well_founded
+  apply B_ext_inf
+  · -- epsilon_trichotomy: ⨅ y, y ∈ w ⟹ ⨅ z, z ∈ w ⟹ (y =ᴮ z ⊔ y ∈ z ⊔ z ∈ y)
+    exact B_ext_iInf (h := fun y => B_ext_imp (h₁ := B_ext_mem_right) (h₂ :=
+      B_ext_iInf (h := fun z => B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))))
+  · -- epsilon_well_founded: ⨅ u, u ⊆ w ⟹ (...)
+    exact B_ext_iInf (h := fun u => B_ext_imp (h₁ := B_ext_subset_right) (h₂ := B_ext_const))
 
 -- src/bvm_extras.lean:2413
 lemma epsilon_dichotomy (x y z : bSet 𝔹) :
     epsilon_well_orders x ≤ y ∈ᴮ x ⟹ (z ∈ᴮ x ⟹ (y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y)) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2413
+  unfold epsilon_well_orders
+  rw [← deduction, ← deduction]
+  -- Goal: epsilon_well_orders x ⊓ y ∈ x ⊓ z ∈ x ≤ y =ᴮ z ⊔ y ∈ z ⊔ z ∈ y
+  have h1 : epsilon_trichotomy x ⊓ epsilon_well_founded x ⊓ y ∈ᴮ x ⊓ z ∈ᴮ x ≤
+      y =ᴮ z ⊔ y ∈ᴮ z ⊔ z ∈ᴮ y := by
+    have htri : epsilon_trichotomy x ⊓ epsilon_well_founded x ⊓ y ∈ᴮ x ⊓ z ∈ᴮ x ≤
+        epsilon_trichotomy x := inf_le_left.trans (inf_le_left.trans inf_le_left)
+    have hy_mem : epsilon_trichotomy x ⊓ epsilon_well_founded x ⊓ y ∈ᴮ x ⊓ z ∈ᴮ x ≤
+        y ∈ᴮ x := inf_le_left.trans inf_le_right
+    have hz_mem : epsilon_trichotomy x ⊓ epsilon_well_founded x ⊓ y ∈ᴮ x ⊓ z ∈ᴮ x ≤
+        z ∈ᴮ x := inf_le_right
+    have h_iinf_y : epsilon_trichotomy x ⊓ epsilon_well_founded x ⊓ y ∈ᴮ x ⊓ z ∈ᴮ x ≤
+        ⨅ z', z' ∈ᴮ x ⟹ (y =ᴮ z' ⊔ y ∈ᴮ z' ⊔ z' ∈ᴮ y) :=
+      le_trans (le_inf (htri.trans (iInf_le _ y)) hy_mem) bv_imp_elim
+    exact le_trans (le_inf (h_iinf_y.trans (iInf_le _ z)) hz_mem) bv_imp_elim
+  exact h1
 
 -- src/bvm_extras.lean:2420
 def is_transitive (x : bSet 𝔹) : 𝔹 := ⨅ y, y ∈ᴮ x ⟹ y ⊆ᴮ x
@@ -2535,7 +2758,8 @@ lemma subset_of_mem_transitive {x w : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ is_t
 
 -- src/bvm_extras.lean:2425
 @[simp] lemma B_ext_is_transitive : B_ext (is_transitive : bSet 𝔹 → 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2425
+  unfold is_transitive
+  exact B_ext_iInf (h := fun y => B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_subset_right))
 
 -- src/bvm_extras.lean:2428
 def Ord (x : bSet 𝔹) : 𝔹 := epsilon_well_orders x ⊓ is_transitive x
@@ -2828,8 +3052,8 @@ lemma of_nat_subset_omega {n : ℕ} {Γ : 𝔹} : Γ ≤ of_nat n ⊆ᴮ omega :
   norm_cast
 
 -- src/bvm_extras.lean:2736
-@[simp] lemma B_ext_Ord : B_ext (Ord : bSet 𝔹 → 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2736
+@[simp] lemma B_ext_Ord : B_ext (Ord : bSet 𝔹 → 𝔹) :=
+  B_ext_inf B_ext_ewo B_ext_is_transitive
 
 -- src/bvm_extras.lean:2741
 /-- The universal property of ℵ₁: it injects into any ordinal larger than ω -/
@@ -2838,7 +3062,8 @@ lemma of_nat_subset_omega {n : ℕ} {Γ : 𝔹} : Γ ≤ of_nat n ⊆ᴮ omega :
 
 -- src/bvm_extras.lean:2743
 @[simp] lemma B_ext_le_of_omega_lt : B_ext (le_of_omega_lt : bSet 𝔹 → 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2743
+  unfold le_of_omega_lt
+  exact B_ext_iInf (h := fun z => B_ext_imp (h₁ := B_ext_const) (h₂ := B_ext_imp (h₁ := B_ext_const) (h₂ := B_ext_injects_into_left)))
 
 end ordinals
 
