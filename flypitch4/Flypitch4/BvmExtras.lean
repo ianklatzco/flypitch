@@ -1518,8 +1518,13 @@ end injective_function_inverse_section
 -- Helper: get existential from is_total
 private lemma function_eval_exists {x y f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_function x y f) (z : bSet 𝔹) (H_mem : Γ ≤ z ∈ᴮ x) :
-    ∃ w, Γ ≤ w ∈ᴮ y ⊓ pair z w ∈ᴮ f := by
-  sorry -- TODO: B_ext proof + exists_convert from is_total_of_is_function
+    ∃ w, Γ ≤ w ∈ᴮ y ⊓ pair z w ∈ᴮ f :=
+  -- From is_total, specialize at z, apply bv_imp_elim, then exists_convert
+  have H_total_spec : Γ ≤ z ∈ᴮ x ⟹ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair z w₂ ∈ᴮ f :=
+    le_trans (is_total_of_is_function H_func) (iInf_le _ z)
+  have H_ex : Γ ≤ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair z w₂ ∈ᴮ f :=
+    le_trans (le_inf H_total_spec H_mem) bv_imp_elim
+  exists_convert H_ex (B_ext_inf B_ext_mem_left B_ext_pair_mem_right)
 
 -- src/bvm_extras.lean:1906
 noncomputable def function_eval {x y f : bSet 𝔹} {Γ : 𝔹} (H_func : Γ ≤ is_function x y f)
