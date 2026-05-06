@@ -866,13 +866,19 @@ lemma prod_ext {S₁ S₂ x y : bSet 𝔹} {Γ : 𝔹}
 -- (In Lean 4 port, PSet.pair is PSet.pSet_pair from PSetOrdinal.lean)
 lemma check_pset_pair {x y : PSet.{u}} {Γ} :
     Γ ≤ check (PSet.pSet_pair x y) =ᴮ pair (check x) (check y : bSet 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:506 (PSet.pSet_pair uses PSetOrdinal defs)
+  have h : check (PSet.pSet_pair x y) = pair (check x) (check y : bSet 𝔹) := by
+    show check (PSet.insert (PSet.insert x ∅) (PSet.insert (PSet.insert x (PSet.insert y ∅)) ∅)) =
+      bSet.insert1 (bSet.insert1 (check x) ∅)
+        (bSet.insert1 (bSet.insert1 (check x) (bSet.insert1 (check y) ∅)) ∅)
+    rw [check_insert, check_insert, check_insert, check_insert]
+    simp [check_empty_eq_empty]
+  rw [h]; exact bv_refl
 
 -- src/bvm_extras.lean:514
 -- (In Lean 4 port, PSet.prod is PSet.pSet_prod from PSetOrdinal.lean)
 lemma check_pset_prod {x y : PSet.{u}} {Γ : 𝔹} :
     Γ ≤ check (PSet.pSet_prod x y) =ᴮ prod (check x) (check y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:514
+  sorry -- TODO: port from src/bvm_extras.lean:514 (typeclass elaboration issue)
 
 -- src/bvm_extras.lean:535
 /-- f is =ᴮ-extensional if for every w₁ w₂ v₁ v₂, if pair (w₁ v₁) and pair (w₂ v₂) ∈ f and
@@ -1822,19 +1828,20 @@ lemma mem_is_func'_comp_iff {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) {Γ' : 𝔹} {a c : bSet 𝔹} :
     Γ' ≤ pair a c ∈ᴮ is_func'_comp Hf_func Hg_func ↔
       Γ' ≤ a ∈ᴮ x ∧ Γ' ≤ c ∈ᴮ z ∧ Γ' ≤ ⨆ b, b ∈ᴮ y ⊓ (pair a b ∈ᴮ f ⊓ pair b c ∈ᴮ g) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1521
+  -- TODO: complex port from src/bvm_extras.lean:1521 (requires bv_cases_at-style extraction)
+  sorry
 
 -- src/bvm_extras.lean:1554
 lemma is_func'_comp_is_func {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) :
     Γ ≤ is_func (is_func'_comp Hf_func Hg_func) := by
-  sorry -- TODO: requires classical extraction from type-indexed iSup (port from bvm_extras.lean:1554)
+  sorry -- TODO: requires mem_is_func'_comp_iff (port from bvm_extras.lean:1554)
 
 -- src/bvm_extras.lean:1565
 lemma is_func'_comp_is_total {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g) :
     Γ ≤ is_total x z (is_func'_comp Hf_func Hg_func) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1565
+  sorry -- TODO: requires mem_is_func'_comp_iff (port from bvm_extras.lean:1565)
 
 -- src/bvm_extras.lean:1576
 lemma is_func'_comp_is_func' {x y z f g : bSet 𝔹} {Γ : 𝔹}
@@ -1847,14 +1854,14 @@ lemma is_func'_comp_inj {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g)
     (Hf_inj : Γ ≤ is_inj f) (Hg_inj : Γ ≤ is_inj g) :
     Γ ≤ is_inj (is_func'_comp Hf_func Hg_func) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1583
+  sorry -- TODO: requires mem_is_func'_comp_iff (port from bvm_extras.lean:1583)
 
 -- src/bvm_extras.lean:1594
 lemma is_func'_comp_surj {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (Hf_func : Γ ≤ is_func' x y f) (Hg_func : Γ ≤ is_func' y z g)
     (H₁ : Γ ≤ is_surj x y f) (H₂ : Γ ≤ is_surj y z g) :
     Γ ≤ is_surj x z (is_func'_comp Hf_func Hg_func) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1594
+  sorry -- TODO: requires mem_is_func'_comp_iff (port from bvm_extras.lean:1594)
 
 -- src/bvm_extras.lean:1606
 def function_comp {𝔹' : Type u} [NontrivialCompleteBooleanAlgebra 𝔹'] {Γ' : 𝔹'} {x y z f g : bSet 𝔹'}
