@@ -1597,7 +1597,8 @@ def check'' {α : Type u} (A : α → bSet 𝔹) : bSet 𝔹 := ⟨α, A, fun _ 
 lemma functionMk_is_func {u : bSet 𝔹} (F : u.type → bSet 𝔹)
     (h_congr : ∀ i j, u.func i =ᴮ u.func j ≤ F i =ᴮ F j) :
     (⊤ : 𝔹) ≤ is_func (functionMk F h_congr) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1978
+  -- is_func g = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ g ⊓ pair w₂ v₂ ∈ g ⊓ w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂
+  sorry -- TODO: requires complex iSup distribution over two indexed witnesses
 
 -- src/bvm_extras.lean:2041
 lemma functionMk_inj_of_inj {u : bSet 𝔹} {F : u.type → bSet 𝔹}
