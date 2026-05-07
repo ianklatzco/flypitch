@@ -622,7 +622,7 @@ def CH_f : sentence L_ZFC :=
       (subst0_bounded_formula at_most_f (Powerset omega'))))
 
 lemma CH_f_is_CH : ⟦CH_f⟧[V β] = CH₂ := by
-  sorry -- TODO: port from src/zfc.lean:485-496
+  sorry -- TODO: needs boolean_realize_substmax lemma (complex substitution semantics)
 
 lemma CH_f_sound {Γ : β} : (Γ ⊩[V β] CH_f) ↔ Γ ≤ CH₂ := by
   change _ ≤ _ ↔ _ ≤ _
@@ -683,6 +683,8 @@ def CH_formula : formula L_ZFC :=
   ∀' (is_ordinal ⟹ or' (leq_f[omega_t // 1]f) (leq_f[Powerset_t omega_t // 0]f))
 
 lemma CH_f_fst : CH_f.fst = CH_formula := by
-  sorry -- TODO: port from src/zfc.lean:550
+  simp only [CH_f, CH_formula, bounded_preformula.fst, substmax_bounded_formula_fst,
+             subst0_bounded_formula_fst, leq_f, is_ordinal]
+  rfl
 
 end CH_formula_sec
