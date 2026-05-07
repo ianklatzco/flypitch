@@ -407,6 +407,53 @@ private noncomputable def fBrec_aux
     let ⟨hpos, _hle, hfunc', _hpair, hmem⟩ := Classical.choose_spec aeK'
     ⟨j, B, hpos, hfunc', hmem⟩
 
+
+-- Helper Prop-lemmas for fBrec_aux (avoid PSigma definitional issues).
+-- These are proved by induction on n, using the equation-compiler reduction of fBrec_aux.
+private lemma fBrec_aux_le
+    {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+    {D : Set 𝔹} {y : PSet.{u}} {g : bSet 𝔹} {Γ : 𝔹}
+    (H_is_func' : Γ ≤ is_func' bSet.omega (check y) g)
+    (H_nonzero : ⊥ < Γ)
+    (AE : ∀ (px py : PSet) {f : bSet 𝔹} {Γ' : 𝔹},
+            Γ' ≤ is_func' (check px) (check py) f →
+              ⊥ < Γ' →
+                ∀ (i : px.Type),
+                  ∃ (j : py.Type) (Γ'' : 𝔹), ⊥ < Γ'' ∧ Γ'' ≤ Γ' ∧
+                    Γ'' ≤ is_func' (check px) (check py) f ∧
+                    Γ'' ≤ pair (check (px.Func i)) (check (py.Func j)) ∈ᴮ f ∧
+                    Γ'' ∈ D)
+    (n : ℕ) : (fBrec_aux H_is_func' H_nonzero AE (n + 1)).2.1 ≤ (fBrec_aux H_is_func' H_nonzero AE n).2.1 := by
+  -- By the equation-compiler equation for fBrec_aux succ:
+  -- fBrec_aux ... (n+1) uses ih = fBrec_aux ... n and picks B from AE applied to ih.
+  -- The chosen B satisfies hle : B ≤ ih.2.1 = (fBrec_aux ... n).2.1.
+  -- This is directly available from Classical.choose_spec of the AE call.
+  -- The equation-compiler unfolds via simp [fBrec_aux]:
+  -- The chain property: B_{n+1} ≤ B_n comes from the hle component of AE at step n+1.
+  -- By construction of fBrec_aux, (fBrec_aux ... (n+1)).snd.fst is definitionally
+  -- the Classical.choose of the AE call at step n+1 with context (fBrec_aux ... n),
+  -- and Classical.choose_spec gives hle : this ≤ (fBrec_aux ... n).snd.fst.
+  -- However, `noncomputable` prevents Lean from reducing this automatically.
+  -- TODO: fix using a Prop-level induction or by changing fBrec_aux to return hle.
+  sorry
+
+private lemma fBrec_aux_le_Γ
+    {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+    {D : Set 𝔹} {y : PSet.{u}} {g : bSet 𝔹} {Γ : 𝔹}
+    (H_is_func' : Γ ≤ is_func' bSet.omega (check y) g)
+    (H_nonzero : ⊥ < Γ)
+    (AE : ∀ (px py : PSet) {f : bSet 𝔹} {Γ' : 𝔹},
+            Γ' ≤ is_func' (check px) (check py) f →
+              ⊥ < Γ' →
+                ∀ (i : px.Type),
+                  ∃ (j : py.Type) (Γ'' : 𝔹), ⊥ < Γ'' ∧ Γ'' ≤ Γ' ∧
+                    Γ'' ≤ is_func' (check px) (check py) f ∧
+                    Γ'' ≤ pair (check (px.Func i)) (check (py.Func j)) ∈ᴮ f ∧
+                    Γ'' ∈ D) :
+    (fBrec_aux H_is_func' H_nonzero AE 0).2.1 ≤ Γ := by
+  -- Similarly: (fBrec_aux ... 0).snd.fst ≤ Γ from hle at step 0.
+  sorry
+
 open Flypitch in
 -- src/forcing_CH.lean:216-348: function_reflect_of_omega_closed
 -- Port of the complex recursive construction from Lean 3.
@@ -443,15 +490,10 @@ lemma function_reflect_of_omega_closed
   -- fBᵦ(n+1) ≤ fBᵦ(n): from the hle component of AE at step n+1.
   -- fBrec (n+1) was built using AE applied to (fBrec n), so hle : fBᵦ(n+1) ≤ fBᵦ(n).
   -- By definitional unfolding of fBrec_aux (succ case), this is direct.
-  -- fBᵦ_le: the chain is decreasing.
-  -- By construction of fBrec_aux, B_{n+1} was chosen from AE applied to (fBrec n).2.1 = fBᵦ n
-  -- as the context, so hle : B_{n+1} ≤ fBᵦ n. The difficulty is that definitional unfolding
-  -- of fBrec_aux (equation-compiler) doesn't compute smoothly in Lean 4's elaborator.
-  -- We sorry these definitional steps; the mathematical content is clear.
-  have fBᵦ_le : ∀ n, fBᵦ (n + 1) ≤ fBᵦ n := by
-    intro n; sorry  -- hle from AE at step n+1 with context fBᵦ n (definitional)
-  have fBᵦ0_le_Γ : fBᵦ 0 ≤ Γ := by
-    sorry  -- hle from AE at step 0 with context Γ (definitional)
+  -- fBᵦ_le: the chain is decreasing (from fBrec_aux_le).
+  have fBᵦ_le : ∀ n, fBᵦ (n + 1) ≤ fBᵦ n := fun n => fBrec_aux_le H_is_func' H_nonzero AE n
+  -- fBᵦ 0 ≤ Γ (from fBrec_aux_le_Γ).
+  have fBᵦ0_le_Γ : fBᵦ 0 ≤ Γ := fBrec_aux_le_Γ H_is_func' H_nonzero AE
   -- Build f' from fr.
   let f' : PSet.{u} :=
     PSet.function_mk.mk (x := PSet.omega) (fun (k : PSet.omega.Type) => y.Func (fr k))

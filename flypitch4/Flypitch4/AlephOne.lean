@@ -608,7 +608,32 @@ noncomputable def a1' : bSet 𝔹 :=
 lemma a1'_AE {Γ : 𝔹} : Γ ≤ ⨅ z, z ∈ᴮ a1' ⟹
     ⨆ η, Ord η ⊓ ⨆ f, is_injective_function η omega f ⊓
     image (mem_rel η) (prod omega omega) (prod_map_self η omega f) =ᴮ z ⊓ (z =ᴮ ∅)ᶜ := by
-  sorry -- TODO: port from src/aleph_one.lean:612
+  -- B_ext for ϕ (changing the last argument x)
+  have H_congr : B_ext (fun x : bSet 𝔹 =>
+      ⨆ η, Ord η ⊓ ⨆ f, is_injective_function η omega f ⊓
+      (image (mem_rel η) (prod omega omega) (prod_map_self η omega f) =ᴮ x) ⊓ (x =ᴮ ∅)ᶜ) :=
+    B_ext_iSup (h := fun η => B_ext_inf (h₁ := B_ext_const)
+      (h₂ := B_ext_iSup (h := fun f => B_ext_inf
+        (h₁ := B_ext_inf (h₁ := B_ext_const) (h₂ := B_ext_bv_eq_right))
+        (h₂ := B_ext_neg (h := B_ext_bv_eq_left)))))
+  apply le_iInf; intro z; rw [← deduction]
+  -- From z ∈ a1' (= comprehend ϕ' (bv_powerset...)), use mem_comprehend_iff
+  have H_from : Γ ⊓ z ∈ᴮ (a1' : bSet 𝔹) ≤ z ∈ᴮ (a1' : bSet 𝔹) := inf_le_right
+  -- a1' is definitionally equal to comprehend ϕ' (bv_powerset (prod ω ω))
+  -- Use mem_comprehend_iff to convert z ∈ a1' to ⨆ χ, ...
+  -- Since a1' = comprehend ... by def, mem_comprehend_iff applies directly
+  rw [show (a1' : bSet 𝔹) = comprehend
+      (fun x : bSet 𝔹 => ⨆ η, Ord η ⊓ ⨆ f, is_injective_function η omega f ⊓
+        (image (mem_rel η) (prod omega omega) (prod_map_self η omega f) =ᴮ x) ⊓ (x =ᴮ ∅)ᶜ)
+      (bv_powerset (prod omega omega)) from rfl] at H_from
+  rw [mem_comprehend_iff] at H_from
+  apply le_trans (le_inf H_from le_rfl)
+  apply bv_cases_left; intro χ
+  -- ctx: (bv_powerset...).bval χ ⊓ (z =ᴮ w ⊓ ϕ' w) ⊓ Γ, where w = (bv_powerset...).func χ
+  have h_zeq := inf_le_left.trans (inf_le_right.trans inf_le_left)
+  have h_phi := inf_le_left.trans (inf_le_right.trans inf_le_right)
+  -- H_congr w z: w =ᴮ z ⊓ ϕ' w ≤ ϕ' z = ⨆ η, ...
+  exact le_trans (le_inf (bv_symm h_zeq) h_phi) (H_congr _ z)
 
 -- src/aleph_one.lean:620
 noncomputable def a1_func (χ : (a1' (𝔹 := 𝔹)).type) : bSet 𝔹 := ∅
