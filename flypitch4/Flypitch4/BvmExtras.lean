@@ -1770,7 +1770,49 @@ lemma ex_witness_of_mem_lift_surj_inj {x y z f g : bSet 𝔹} {Γ : 𝔹} {w₁ 
     (_H_is_func'_f : Γ ≤ is_func' x z f)
     (H : Γ ≤ pair w₁ w₂ ∈ᴮ (lift_surj_inj y H_surj H_inj)) :
     Γ ≤ ⨆ w, (w ∈ᴮ z ⊓ (pair w₁ w ∈ᴮ f) ⊓ (pair w₂ w ∈ᴮ g)) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1306
+  unfold lift_surj_inj at H
+  rw [mem_subset.mk_iff] at H
+  apply H.trans
+  apply iSup_le; intro pr; obtain ⟨i, j⟩ := pr
+  simp only [prod_func, prod_bval]
+  -- Context: pair w₁ w₂ =ᴮ pair (x.func i) (y.func j) ⊓
+  --           (⨆ w, w ∈ z ⊓ pair (x.func i) w ∈ f ⊓ pair (y.func j) w ∈ g) ⊓ (x.bval i ⊓ y.bval j)
+  -- Extract: w₁ =ᴮ x.func i (eq_of_eq_pair_left) and w₂ =ᴮ y.func j (eq_of_eq_pair_right)
+  -- After simp, goal is (A ⊓ B) ⊓ C ≤ ⨆ w, ...
+  -- where A = pair w₁ w₂ =ᴮ pair (x.func i) (y.func j), B = ⨆ w..., C = bval
+  -- Use `le_trans inf_le_left X` for dropping C, then `le_trans inf_le_left/right` for A or B
+  -- After simp, goal is: A ⊓ (B ⊓ C) ≤ ⨆ w, w ∈ z ⊓ pair w₁ w ∈ f ⊓ pair w₂ w ∈ g
+  -- where A = pair w₁ w₂ =ᴮ pair xi yj, B = ⨆ w (inner), C = x.bval i ⊓ y.bval j
+  have hw1 : pair w₁ w₂ =ᴮ pair (x.func i) (y.func j) ⊓
+      ((⨆ w, w ∈ᴮ z ⊓ pair (x.func i) w ∈ᴮ f ⊓ pair (y.func j) w ∈ᴮ g) ⊓ (x.bval i ⊓ y.bval j))
+      ≤ w₁ =ᴮ x.func i :=
+    inf_le_left.trans eq_of_eq_pair_left
+  have hw2 : pair w₁ w₂ =ᴮ pair (x.func i) (y.func j) ⊓
+      ((⨆ w, w ∈ᴮ z ⊓ pair (x.func i) w ∈ᴮ f ⊓ pair (y.func j) w ∈ᴮ g) ⊓ (x.bval i ⊓ y.bval j))
+      ≤ w₂ =ᴮ y.func j :=
+    inf_le_left.trans eq_of_eq_pair_right
+  have hsupr : pair w₁ w₂ =ᴮ pair (x.func i) (y.func j) ⊓
+      ((⨆ w, w ∈ᴮ z ⊓ pair (x.func i) w ∈ᴮ f ⊓ pair (y.func j) w ∈ᴮ g) ⊓ (x.bval i ⊓ y.bval j))
+      ≤ ⨆ w, w ∈ᴮ z ⊓ pair (x.func i) w ∈ᴮ f ⊓ pair (y.func j) w ∈ᴮ g :=
+    inf_le_right.trans inf_le_left
+  -- Carry context then substitute
+  -- Goal: A ⊓ (B ⊓ C) ≤ ⨆ w, w ∈ z ⊓ pair w₁ w ∈ f ⊓ pair w₂ w ∈ g
+  -- where A = pair w₁ w₂ =ᴮ pair xi yj, B = ⨆ w (inner), C = x.bval i ⊓ y.bval j
+  apply (le_inf hsupr le_rfl).trans
+  apply (iSup_inf_eq _ _).le.trans
+  apply iSup_le; intro w
+  apply le_iSup_of_le w
+  -- Goal: (inner_w ∈ z ⊓ pair xi w ∈ f ⊓ pair yj w ∈ g) ⊓ (A ⊓ (B ⊓ C)) ≤ w ∈ z ⊓ pair w₁ w ∈ f ⊓ pair w₂ w ∈ g
+  refine le_inf (le_inf ?_ ?_) ?_
+  · -- w ∈ z: via (inner_w ∈ z ⊓ ...) ⊓ ... ≤ inner_w ∈ z ⊓ ... ≤ w ∈ z ⊓ ... ≤ w ∈ z
+    exact inf_le_left.trans (inf_le_left.trans inf_le_left)
+  · -- pair w₁ w ∈ f: inner D = ((w ∈ z) ⊓ pair xi w ∈ f) ⊓ pair yj w ∈ g
+    -- pair xi w ∈ f: inf_le_left.trans inf_le_right on D, then inf_le_left on D ⊓ F
+    exact bv_rw' (H := inf_le_right.trans hw1) (h_congr := B_ext_pair_mem_left)
+      (H_new := inf_le_left.trans (inf_le_left.trans inf_le_right))
+  · -- pair w₂ w ∈ g: pair yj w ∈ g = inf_le_right on D, then inf_le_left on D ⊓ F
+    exact bv_rw' (H := inf_le_right.trans hw2) (h_congr := B_ext_pair_mem_left)
+      (H_new := inf_le_left.trans inf_le_right)
 
 -- src/bvm_extras.lean:1318
 lemma mem_lift_surj_inj_iff {x y z f g : bSet 𝔹} {Γ : 𝔹} {w₁ w₂ : bSet 𝔹}
