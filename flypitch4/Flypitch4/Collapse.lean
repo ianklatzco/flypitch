@@ -59,7 +59,10 @@ theorem collapse_mk_iUnion_le_sum_mk {ι : Type u} {α : Type (max u v)} {f : ι
 /-- Analog of cardinal.mk_Union_le_lift. TODO (15b): fix universe annotations. -/
 lemma collapse_mk_iUnion_le_lift {ι : Type u} {α : Type (max u v)} (f : ι → Set α) :
     #(⋃ i, f i) ≤ Cardinal.lift.{v} (#ι) * ⨆ i, #(f i) := by
-  sorry -- TODO: type universe mismatch with mk_iUnion_le_lift
+  have key := @Cardinal.mk_iUnion_le_lift α ι f
+  rw [Cardinal.lift_id', Cardinal.lift_umax,
+      iSup_congr (fun i => Cardinal.lift_id' (#(f i)))] at key
+  exact key
 
 /-! ## Ordinal helpers (src lines 52-70) -/
 
@@ -71,8 +74,8 @@ theorem collapse_sup_lt_ord_lift {ι : Type u} (f : ι → Ordinal.{max u v}) {c
 /-- Analog of ordinal.sup_lt_lift. TODO (15b): fix universe annotations. -/
 theorem collapse_sup_lt_lift {ι : Type u} (f : ι → Cardinal.{max u v}) {c : Cardinal.{max u v}}
     (H1 : Cardinal.lift.{v} (#ι) < c.ord.cof)
-    (H2 : ∀ i, f i < c) : iSup f < c := by
-  sorry -- TODO: Cardinal.iSup_ord not found under that name; check Mathlib API
+    (H2 : ∀ i, f i < c) : iSup f < c :=
+  Ordinal.iSup_lt_lift H1 H2
 
 /-! ## Topological space helpers (src lines 72-84) -/
 
@@ -523,8 +526,10 @@ lemma extend_via_neg {f : α →. β} {g : α → β} {x : α} (h : x ∉ PFun.D
 
 lemma le_extend_via (f : α →. β) (g : α → β) : le f ↑(extend_via f g) := by
   intro x y hy
-  -- TODO: port from src/collapse.lean:523
-  sorry
+  have hx : x ∈ PFun.Dom f := hy.fst
+  change y ∈ Part.some (extend_via f g x)
+  rw [Part.mem_some_iff, extend_via, dif_pos hx]
+  exact Part.mem_unique hy (Part.get_mem hx)
 
 /-- Given a partial function f : X →. Y and a point y : Y, define an extension of f to X
     such that g(x) = y whenever x ∉ f.dom. Port of pfun.trivial_extension (src line 529). -/
@@ -555,8 +560,10 @@ lemma fn_mem_pfunRan {α β : Type*} {f : α →. β} {x : α} (Hx : x ∈ PFun.
   ⟨x, fn_mem Hx⟩
 
 lemma mk_pfunRan_le_mk_dom {α β : Type u} (f : α →. β) : #(pfunRan f) ≤ #(PFun.Dom f) := by
-  -- TODO: port from src/collapse.lean:476
-  sorry
+  apply Cardinal.mk_le_of_surjective (f := fun ⟨x, hx⟩ => ⟨f.fn x hx, x, Part.get_mem hx⟩)
+  intro ⟨y, x, hy⟩
+  have hx : x ∈ PFun.Dom f := hy.fst
+  exact ⟨⟨x, hx⟩, Subtype.ext (Part.mem_unique (Part.get_mem hx) hy)⟩
 
 end CPFun
 
@@ -665,8 +672,10 @@ noncomputable def Sup {ι : Type u} (p : ι → CollapsePoset X Y κ)
   ⟨CPFun.pSup (fun i => (p i).f),
     by
       rw [CPFun.dom_pSup]
-      -- TODO: port from src/collapse.lean:619
-      sorry⟩
+      apply lt_of_le_of_lt (Cardinal.mk_iUnion_le _)
+      apply Cardinal.mul_lt_of_lt hκ
+      · exact lt_of_lt_of_le h (Ordinal.cof_ord_le κ)
+      · exact iSup_lt_of_lt_cof_ord h (fun i => (p i).Hc)⟩
 
 /-- The sup of a family of collapse posets (lifted universe).
     Port of collapse_poset.Sup_lift (src line 622). -/
@@ -677,8 +686,16 @@ noncomputable def SupLift {ι : Type u} {X' Y' : Type (max u v)} {κ' : Cardinal
   ⟨CPFun.pSup (fun i => (p i).f),
     by
       rw [CPFun.dom_pSup]
-      -- TODO: port from src/collapse.lean:626
-      sorry⟩
+      have bound : #(⋃ i : ι, PFun.Dom (p i).f) ≤
+          Cardinal.lift.{v} #ι * ⨆ i, #(PFun.Dom (p i).f) := by
+        have key := @Cardinal.mk_iUnion_le_lift X' ι (fun i => PFun.Dom (p i).f)
+        rw [Cardinal.lift_id', Cardinal.lift_umax,
+            iSup_congr (fun i => Cardinal.lift_id' _)] at key
+        exact key
+      apply lt_of_le_of_lt bound
+      apply Cardinal.mul_lt_of_lt hκ
+      · exact lt_of_lt_of_le h (Ordinal.cof_ord_le κ')
+      · exact Ordinal.iSup_lt_lift h (fun i => (p i).Hc)⟩
 
 end CollapsePoset
 
@@ -714,8 +731,12 @@ noncomputable def singletonCollapsePoset (x : X) (y : Y) (hκ : 1 < κ) :
 
 lemma singletonCollapsePoset_principalOpen' {x : X} {y : Y} {hκ : 1 < κ} :
     CollapsePoset.principalOpen (singletonCollapsePoset x y hκ) = {g : X → Y | g x = y} := by
-  -- TODO: port from src/collapse.lean:655-662
-  sorry
+  ext g
+  simp only [Set.mem_setOf_eq, CollapsePoset.mem_principalOpen_iff, CPFun.mem_singleton,
+             singletonCollapsePoset]
+  constructor
+  · intro H; exact H x y ⟨rfl, rfl⟩
+  · rintro H x' y' ⟨rfl, rfl⟩; exact H
 
 @[simp] lemma singletonCollapsePoset_principalOpen {x : X} {y : Y} {hκ : 1 < (ℵ₀ + 1 : Cardinal)} :
     CollapsePoset.principalOpen (singletonCollapsePoset x y hκ) = {g : X → Y | g x = y} :=
@@ -724,8 +745,21 @@ lemma singletonCollapsePoset_principalOpen' {x : X} {y : Y} {hκ : 1 < κ} :
 lemma compl_principalOpen_isUnion (hκ : 1 < κ) (p : CollapsePoset X Y κ) :
     ∃ (ι : Type u) (s : ι → CollapsePoset X Y κ),
       ⋃ i : ι, CollapsePoset.principalOpen (s i) = (CollapsePoset.principalOpen p)ᶜ := by
-  -- TODO: port from src/collapse.lean:664-681
-  sorry
+  use {pr : X × Y // ∃ H_mem : pr.1 ∈ PFun.Dom p.f, pr.2 ≠ PFun.fn p.f pr.1 H_mem}
+  use fun s => singletonCollapsePoset s.val.1 s.val.2 hκ
+  ext g
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨⟨⟨x, z⟩, H_mem, H_neq⟩, H_in⟩
+    rw [singletonCollapsePoset_principalOpen'] at H_in
+    simp only [Set.mem_setOf_eq] at H_in
+    rw [CollapsePoset.mem_compl_principalOpen_iff]
+    exact ⟨x, H_mem, by rw [H_in]; exact H_neq⟩
+  · intro H
+    rw [CollapsePoset.mem_compl_principalOpen_iff] at H
+    rcases H with ⟨x, H_mem, H_neq⟩
+    exact ⟨⟨⟨x, g x⟩, H_mem, H_neq⟩, by
+      rw [singletonCollapsePoset_principalOpen']; simp⟩
 
 @[simp] lemma principalOpen_isClosed {p : CollapsePoset X Y (ℵ₀ + 1)} :
     IsClosed (CollapsePoset.principalOpen p) := by
@@ -799,11 +833,16 @@ lemma collapseSpaceBasis_spec : IsTopologicalBasis (collapseSpaceBasis X Y) := b
     exact ⟨CollapsePoset.principalOpen (CollapsePoset.empty zero_lt_aleph0_succ),
            Set.mem_insert_of_mem _ ⟨_, trivial, rfl⟩,
            by simp [CollapsePoset.principalOpen_empty]⟩
-  · -- Condition 3: collapseSpaceInst = generateFrom collapseSpaceBasis
-    -- collapseSpace = generateFrom (principalOpen '' univ)
-    -- collapseSpaceBasis = {∅} ∪ (principalOpen '' univ)
-    -- TODO: port from src/collapse.lean:744-751
-    sorry
+  · -- Condition 3: generateFrom (collapseSpaceBasis) = collapseSpaceInst
+    simp only [collapseSpaceBasis, collapseSpace]
+    apply _root_.le_antisymm
+    · rw [le_generateFrom_iff_subset_isOpen]
+      intro T HT
+      simp only [Set.mem_insert_iff] at HT
+      rcases HT with rfl | HT
+      · exact @isOpen_empty _ (generateFrom _)
+      · exact isOpen_generateFrom_of_mem HT
+    · exact generateFrom_anti (Set.subset_insert _ _)
 
 @[simp] lemma isRegular_singletonPrincipalOpen {x : X} {y : Y} :
     IsRegularOpen (CollapsePoset.principalOpen
@@ -929,17 +968,32 @@ lemma compatible_of_inclusion_le [Nonempty (X → Y)]
 lemma principal_open_eq_iInf_of_eq_inter [Nonempty (X → Y)] {I : Type*}
     {s : I → CollapseAlgebra X Y} {s_infty : CollapseAlgebra X Y}
     (H_eq_inter : s_infty.val = ⋂ n, (s n).val) : s_infty = ⨅ n, s n := by
-  -- TODO: port from src/collapse.lean:857-865
-  sorry
+  apply @RegularOpens.ext _ (collapseSpace X Y)
+  rw [show (⨅ n, s n : CollapseAlgebra X Y).val = (⋂ i, (s i).val)ᵖᵖ from
+      @RegularOpens.fst_iInf _ (collapseSpace X Y) I s]
+  rw [← H_eq_inter]
+  exact (@Flypitch.Regular.isRegularOpen_eq_p_p _ (collapseSpace X Y) _ s_infty.property).symm
 
 /-- Principal opens form a dense ω-closed subset of the collapse algebra.
     Port of principal_opens_dense_omega_closed (src line 867). -/
 lemma principalOpens_denseOmegaClosed [Nonempty (X → Y)] :
     DenseOmegaClosed (Set.range ι : Set (CollapseAlgebra X Y)) := by
   refine ⟨⟨?_, ?_⟩, ?_⟩
-  · -- ⊥ ∉ range ι
-    -- TODO: port from src/collapse.lean:871-875
-    sorry
+  · -- ⊥ ∉ range ι: principalOpen p ≠ ∅ because trivial_extension witnesses it
+    rintro ⟨p, hp⟩
+    have hval : (collapseInclusion p).val = (⊥ : CollapseAlgebra X Y).val := congr_arg _ hp
+    simp only [collapseInclusion, Subtype.coe_mk] at hval
+    have hbot : (⊥ : CollapseAlgebra X Y).val = ∅ := RegularOpens.bot_val
+    rw [hbot] at hval
+    obtain ⟨g⟩ := ‹Nonempty (X → Y)›
+    have hmem : CPFun.extend_via p.f g ∈ CollapsePoset.principalOpen p := by
+      rw [CollapsePoset.mem_principalOpen_iff]
+      intro x y hy
+      have hx : x ∈ PFun.Dom p.f := hy.fst
+      rw [CPFun.extend_via_pos hx]
+      exact Part.mem_unique (Part.get_mem hx) hy
+    rw [hval] at hmem
+    exact Set.notMem_empty _ hmem
   · -- Dense: every nonzero element has something in range ι below it
     intro o ho
     have h2o : o.val ≠ ∅ := by

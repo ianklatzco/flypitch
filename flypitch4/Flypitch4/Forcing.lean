@@ -8,6 +8,7 @@ Authors: Jesse Han, Floris van Doorn
 
 import Flypitch4.BvmExtras
 import Flypitch4.CantorSpace
+import Mathlib.SetTheory.Cardinal.Pigeonhole
 
 open scoped Cardinal
 open Flypitch Flypitch.Regular
@@ -405,7 +406,15 @@ lemma uncountable_fiber_of_regular' (κ₁ κ₂ : Cardinal) (H_inf : Cardinal.a
     (H_lt : κ₁ < κ₂) (H : κ₂.ord.cof = κ₂) (α : Type u) (H_α : #α = κ₁)
     (β : Type u) (H_β : #β = κ₂) (g : β → α) :
     ∃ (ξ : α), Cardinal.aleph0 < #↥(g⁻¹' {ξ}) := by
-  sorry -- TODO: port using Cardinal.infinite_pigeonhole
+  -- Use Cardinal.infinite_pigeonhole: if ℵ₀ ≤ #β and #α < (#β).ord.cof, then some fiber has #β
+  have h₁ : Cardinal.aleph0 ≤ #β := H_β ▸ le_of_lt (lt_of_le_of_lt H_inf H_lt)
+  have h₂ : #α < (#β).ord.cof := by
+    rw [H_α, H_β, H]; exact H_lt
+  obtain ⟨ξ, Hξ⟩ := Cardinal.infinite_pigeonhole g h₁ h₂
+  -- Hξ : #(g⁻¹'{ξ}) = #β, and ℵ₀ ≤ #β = κ₂ > κ₁ ≥ ℵ₀
+  refine ⟨ξ, ?_⟩
+  rw [Hξ, H_β]
+  exact lt_of_le_of_lt H_inf H_lt
 
 -- src/forcing.lean:459-466
 lemma uncountable_fiber_of_regular (κ₁ κ₂ : Cardinal) (H_inf : Cardinal.aleph0 ≤ κ₁)
