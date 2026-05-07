@@ -618,7 +618,14 @@ lemma a1_transitive {Γ : 𝔹} : Γ ≤ is_transitive a1 := by
 
 -- src/aleph_one.lean:818
 lemma a1_ewo {Γ : 𝔹} : Γ ≤ ewo a1 := by
-  sorry -- TODO: port from src/aleph_one.lean:818
+  unfold ewo epsilon_well_orders
+  refine le_inf ?_ ?_
+  · -- epsilon_trichotomy a1: all members of a1 are Ords and ordinals satisfy trichotomy
+    apply epsilon_trichotomy_of_sub_Ord
+    apply le_iInf; intro x; rw [← deduction]
+    exact Ord_of_mem_a1 inf_le_right
+  · -- epsilon_well_founded a1: regularity gives well-foundedness for any sub-Ord
+    exact epsilon_wf_of_sub_Ord a1
 
 -- src/aleph_one.lean:826
 lemma a1_Ord {Γ : 𝔹} : Γ ≤ Ord a1 := le_inf a1_ewo a1_transitive
