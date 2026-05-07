@@ -426,13 +426,21 @@ lemma mem_of_mem_induced_epsilon_rel {η x f a' b' a b : bSet 𝔹} {Γ}
 lemma induced_epsilon_rel_sub_image_left {η x f a b : bSet 𝔹} {Γ}
     (H_func : Γ ≤ is_function η x f)
     (H : Γ ≤ pair a b ∈ᴮ induced_epsilon_rel η x f) : Γ ≤ a ∈ᴮ image η x f := by
-  sorry -- TODO: port from src/aleph_one.lean:451
+  rw [mem_image_iff]; rw [mem_induced_epsilon_rel_iff H_func] at H
+  obtain ⟨Ha_mem, _, H_sup⟩ := H
+  refine ⟨Ha_mem, le_trans H_sup (iSup_le (fun a' => le_iSup_of_le a'
+    (le_inf inf_le_left (le_trans inf_le_right (iSup_le (fun b' =>
+      le_trans inf_le_right (inf_le_left.trans inf_le_left)))))))⟩
 
 -- src/aleph_one.lean:461
 lemma induced_epsilon_rel_sub_image_right {η x f a b : bSet 𝔹} {Γ}
     (H_func : Γ ≤ is_function η x f)
     (H : Γ ≤ pair a b ∈ᴮ induced_epsilon_rel η x f) : Γ ≤ b ∈ᴮ image η x f := by
-  sorry -- TODO: port from src/aleph_one.lean:461
+  rw [mem_image_iff]; rw [mem_induced_epsilon_rel_iff H_func] at H
+  obtain ⟨_, Hb_mem, H_sup⟩ := H
+  refine ⟨Hb_mem, le_trans H_sup (iSup_le (fun a' => le_trans inf_le_right (iSup_le (fun b' =>
+    le_iSup_of_le b' (le_inf inf_le_left (le_trans inf_le_right
+      (inf_le_left.trans inf_le_right)))))))⟩
 
 -- src/aleph_one.lean:471
 lemma image_eq_of_eq_induced_epsilon_rel_aux
