@@ -110,17 +110,66 @@ lemma mem_of_mem_Ord {x y z : bSet 𝔹} {Γ : 𝔹} (H_mem : Γ ≤ x ∈ᴮ y)
 -- src/bvm_extras2.lean:78
 lemma transitive_union {u : bSet 𝔹} {Γ : 𝔹} (Hu : Γ ≤ ⨅ z, z ∈ᴮ u ⟹ is_transitive z) :
     Γ ≤ is_transitive (bv_union u) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:78
+  unfold is_transitive
+  apply le_iInf; intro x; rw [← deduction]
+  set ctx := Γ ⊓ x ∈ᴮ bv_union u
+  have hmem : ctx ≤ x ∈ᴮ bv_union u := inf_le_right
+  rw [mem_bv_union_iff] at hmem
+  obtain ⟨y, Hy⟩ := exists_convert hmem (B_ext_inf B_ext_mem_left B_ext_mem_right)
+  have Hy_u : ctx ≤ y ∈ᴮ u := Hy.trans inf_le_left
+  have Hx_y : ctx ≤ x ∈ᴮ y := Hy.trans inf_le_right
+  have Hy_trans : ctx ≤ is_transitive y :=
+    le_trans (le_inf (inf_le_left.trans (Hu.trans (iInf_le _ y))) Hy_u) bv_imp_elim
+  have Hx_sub_y : ctx ≤ x ⊆ᴮ y :=
+    le_trans (le_inf (Hy_trans.trans (iInf_le _ x)) Hx_y) bv_imp_elim
+  rw [subset_unfold']
+  apply le_iInf; intro w; rw [← deduction]
+  rw [mem_bv_union_iff]
+  apply le_iSup_of_le y
+  apply le_inf
+  · exact inf_le_left.trans Hy_u
+  · rw [subset_unfold'] at Hx_sub_y
+    exact le_trans (le_inf (inf_le_left.trans (Hx_sub_y.trans (iInf_le _ w))) inf_le_right)
+      bv_imp_elim
 
 -- src/bvm_extras2.lean:88
 lemma transitive_binary_inter {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ is_transitive (x ∩ᴮ y) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:88
+  unfold is_transitive
+  apply le_iInf; intro z; rw [← deduction]
+  set ctx := Γ ⊓ z ∈ᴮ x ∩ᴮ y
+  have hmem : ctx ≤ z ∈ᴮ x ∩ᴮ y := inf_le_right
+  have Hz_x : ctx ≤ z ∈ᴮ x := (mem_binary_inter_iff.mp hmem).1
+  have Hz_y : ctx ≤ z ∈ᴮ y := (mem_binary_inter_iff.mp hmem).2
+  rw [subset_unfold']
+  apply le_iInf; intro w; rw [← deduction]
+  apply mem_binary_inter_iff.mpr
+  constructor
+  · have Hx_trans : ctx ≤ is_transitive x := inf_le_left.trans (H₁.trans inf_le_right)
+    have hsub : ctx ≤ z ⊆ᴮ x :=
+      le_trans (le_inf (Hx_trans.trans (iInf_le _ z)) Hz_x) bv_imp_elim
+    rw [subset_unfold'] at hsub
+    exact le_trans (le_inf (inf_le_left.trans (hsub.trans (iInf_le _ w))) inf_le_right)
+      bv_imp_elim
+  · have Hy_trans : ctx ≤ is_transitive y := inf_le_left.trans (H₂.trans inf_le_right)
+    have hsub : ctx ≤ z ⊆ᴮ y :=
+      le_trans (le_inf (Hy_trans.trans (iInf_le _ z)) Hz_y) bv_imp_elim
+    rw [subset_unfold'] at hsub
+    exact le_trans (le_inf (inf_le_left.trans (hsub.trans (iInf_le _ w))) inf_le_right)
+      bv_imp_elim
 
 -- src/bvm_extras2.lean:96
 lemma epsilon_trichotomy_binary_inter {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) :
     Γ ≤ epsilon_trichotomy (x ∩ᴮ y) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:96
+  unfold epsilon_trichotomy
+  apply le_iInf; intro w; rw [← deduction]
+  apply le_iInf; intro z; rw [← deduction]
+  set ctx := Γ ⊓ w ∈ᴮ x ∩ᴮ y ⊓ z ∈ᴮ x ∩ᴮ y
+  have hw_inter : ctx ≤ w ∈ᴮ x ∩ᴮ y := inf_le_left.trans inf_le_right
+  have hz_inter : ctx ≤ z ∈ᴮ x ∩ᴮ y := inf_le_right
+  have Hw_x : ctx ≤ w ∈ᴮ x := (mem_binary_inter_iff.mp hw_inter).1
+  have Hz_x : ctx ≤ z ∈ᴮ x := (mem_binary_inter_iff.mp hz_inter).1
+  exact epsilon_trichotomy_of_Ord Hw_x Hz_x (inf_le_left.trans (inf_le_left.trans H₁))
 
 -- src/bvm_extras2.lean:104
 lemma epsilon_well_founded_binary_inter {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) :
@@ -148,7 +197,12 @@ lemma epsilon_well_founded_binary_inter {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ
 -- src/bvm_extras2.lean:112
 lemma Ord_binary_inter {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ Ord (binary_inter x y) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:112
+  unfold Ord epsilon_well_orders
+  apply le_inf
+  · apply le_inf
+    · exact epsilon_trichotomy_binary_inter H₁
+    · exact epsilon_well_founded_binary_inter H₁
+  · exact transitive_binary_inter H₁ H₂
 
 -- ============================================================
 -- src/bvm_extras2.lean:122-158: section compl
@@ -165,14 +219,50 @@ lemma compl_subset {x y : bSet 𝔹} {Γ : 𝔹} : Γ ≤ compl x y ⊆ᴮ x :=
 -- src/bvm_extras2.lean:129
 lemma mem_compl_iff {x y : bSet 𝔹} {z : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ z ∈ᴮ compl x y ↔ (Γ ≤ z ∈ᴮ x ∧ Γ ≤ (z ∈ᴮ y)ᶜ) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:129
+  unfold compl
+  have H_congr : ∀ a b : bSet 𝔹, a =ᴮ b ⊓ (a ∈ᴮ y)ᶜ ≤ (b ∈ᴮ y)ᶜ := by
+    intro a b
+    simp only [← imp_bot]; rw [← deduction]
+    have h_ba : a =ᴮ b ⊓ (a ∈ᴮ y ⟹ ⊥) ⊓ b ∈ᴮ y ≤ b =ᴮ a := by
+      rw [bv_eq_symm]; exact inf_le_left.trans inf_le_left
+    have h_by : a =ᴮ b ⊓ (a ∈ᴮ y ⟹ ⊥) ⊓ b ∈ᴮ y ≤ b ∈ᴮ y := inf_le_right
+    have h_ay : a =ᴮ b ⊓ (a ∈ᴮ y ⟹ ⊥) ⊓ b ∈ᴮ y ≤ a ∈ᴮ y :=
+      bv_rw'' h_ba h_by B_ext_mem_left
+    have h_nay : a =ᴮ b ⊓ (a ∈ᴮ y ⟹ ⊥) ⊓ b ∈ᴮ y ≤ a ∈ᴮ y ⟹ ⊥ :=
+      inf_le_left.trans inf_le_right
+    exact le_trans (le_inf h_nay h_ay) bv_imp_elim
+  rw [mem_comprehend_iff₂ _ _ H_congr]
+  constructor
+  · intro H
+    obtain ⟨w, Hw⟩ := exists_convert H (B_ext_inf B_ext_mem_left
+      (B_ext_inf B_ext_bv_eq_right (B_ext_neg (h := B_ext_mem_left))))
+    have Hw_mem : Γ ≤ w ∈ᴮ x := Hw.trans inf_le_left
+    have Hw_eq : Γ ≤ z =ᴮ w := Hw.trans (inf_le_right.trans inf_le_left)
+    have Hw_nmem : Γ ≤ (w ∈ᴮ y)ᶜ := Hw.trans (inf_le_right.trans inf_le_right)
+    constructor
+    · exact bv_rw'' (bv_symm Hw_eq) Hw_mem B_ext_mem_left
+    · simp only [← imp_bot] at Hw_nmem ⊢; rw [← deduction] at Hw_nmem ⊢
+      have : Γ ⊓ z ∈ᴮ y ≤ w ∈ᴮ y :=
+        bv_rw'' (inf_le_left.trans Hw_eq) inf_le_right B_ext_mem_left
+      exact le_trans (le_inf inf_le_left this) Hw_nmem
+  · intro ⟨H_mem, H_nmem⟩
+    apply le_iSup_of_le z
+    exact le_inf H_mem (le_inf bv_refl H_nmem)
 
 end compl
 
 -- src/bvm_extras2.lean:141
 lemma compl_empty_of_subset {x y : bSet 𝔹} {Γ : 𝔹} (H_sub : Γ ≤ x ⊆ᴮ y) :
     Γ ≤ compl x y =ᴮ ∅ := by
-  sorry -- TODO: port from src/bvm_extras2.lean:141
+  apply mem_ext
+  · apply le_iInf; intro w; rw [← deduction]
+    have hmem : Γ ⊓ w ∈ᴮ compl x y ≤ w ∈ᴮ compl x y := inf_le_right
+    have ⟨Hw_x, Hw_ny⟩ := mem_compl_iff.mp hmem
+    have Hw_y : Γ ⊓ w ∈ᴮ compl x y ≤ w ∈ᴮ y :=
+      mem_of_mem_subset (inf_le_left.trans H_sub) Hw_x
+    exact bv_exfalso (bv_absurd (w ∈ᴮ y) Hw_y Hw_ny)
+  · apply le_iInf; intro w; rw [← deduction]
+    exact bv_exfalso (bot_of_mem_empty inf_le_right)
 
 -- src/bvm_extras2.lean:149
 lemma nonempty_compl_of_ne {x y : bSet 𝔹} {Γ : 𝔹} (H_ne : Γ ≤ (x =ᴮ y)ᶜ) :
@@ -255,12 +345,35 @@ def exists_two (η : bSet 𝔹) : 𝔹 :=
 
 -- src/bvm_extras2.lean:297
 @[simp] lemma B_ext_exists_two : B_ext (exists_two : bSet 𝔹 → 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:297
+  unfold B_ext exists_two
+  exact B_ext_iInf (h := fun x =>
+    B_ext_imp (h₁ := B_ext_mem_right) (h₂ :=
+      B_ext_iSup (h := fun z => B_ext_inf B_ext_mem_right B_ext_const)))
 
 -- src/bvm_extras2.lean:302
 lemma one_mem_of_not_zero_and_not_one {η : bSet 𝔹} {Γ : 𝔹} (H_ord : Γ ≤ Ord η)
     (H_not_zero : Γ ≤ (η =ᴮ 0)ᶜ) (H_not_one : Γ ≤ (η =ᴮ 1)ᶜ) : Γ ≤ 1 ∈ᴮ η := by
-  sorry -- TODO: port from src/bvm_extras2.lean:302
+  have H_tri := Ord.trichotomy H_ord Ord_one
+  have h_ne1 : Γ ≤ (η =ᴮ 1)ᶜ := H_not_one
+  have h_nmem1 : Γ ≤ (η ∈ᴮ (1 : bSet 𝔹))ᶜ := by
+    simp only [← imp_bot]; rw [← deduction]
+    have heq0 := eq_zero_of_mem_one (Γ := Γ ⊓ η ∈ᴮ 1) inf_le_right
+    exact bv_absurd _ heq0 (inf_le_left.trans H_not_zero)
+  -- Use bv_or_elim_left: (A ⊔ B) ⊓ Γ ≤ C
+  -- Case A = η=1: η=1 ⊓ Γ ≤ ⊥ (from h_ne1), so ≤ 1∈η
+  have h1 : η =ᴮ 1 ⊓ Γ ≤ 1 ∈ᴮ η :=
+    bv_exfalso (bv_absurd _ inf_le_left (inf_le_right.trans h_ne1))
+  -- Case B = η∈1: similarly
+  have h2 : η ∈ᴮ 1 ⊓ Γ ≤ 1 ∈ᴮ η :=
+    bv_exfalso (bv_absurd _ inf_le_left (inf_le_right.trans h_nmem1))
+  -- H_tri : Γ ≤ (η=1 ⊔ η∈1) ⊔ 1∈η = η=1 ⊔ η∈1 ⊔ 1∈η
+  -- bv_or_elim_left: (η=1 ⊔ η∈1) ⊓ Γ ≤ 1∈η
+  have h12 : (η =ᴮ 1 ⊔ η ∈ᴮ 1) ⊓ Γ ≤ 1 ∈ᴮ η := bv_or_elim_left h1 h2
+  -- 1∈η ⊓ Γ ≤ 1∈η trivially
+  have h3 : 1 ∈ᴮ η ⊓ Γ ≤ 1 ∈ᴮ η := inf_le_left
+  -- H_tri: Γ ≤ (η=1 ⊔ η∈1) ⊔ 1∈η
+  -- bv_or_elim_left h12 h3 : ((η=1 ⊔ η∈1) ⊔ 1∈η) ⊓ Γ ≤ 1∈η
+  exact le_trans (le_inf H_tri le_rfl) (bv_or_elim_left h12 h3)
 
 -- src/bvm_extras2.lean:312
 lemma exists_two_iff {η : bSet 𝔹} {Γ : 𝔹} (H_ord : Γ ≤ Ord η) :
@@ -353,10 +466,13 @@ lemma eps_iso_not_mem {x y f z₁ z₂ : bSet 𝔹} {Γ : 𝔹} (H₂ : Γ ≤ e
     (H_mem : Γ ≤ z₁ ∈ᴮ x) (H_mem' : Γ ≤ z₂ ∈ᴮ x) (H_mem'' : Γ ≤ (z₁ ∈ᴮ z₂)ᶜ)
     {w₁} (H_mem''' : Γ ≤ w₁ ∈ᴮ y) (H_mem_pr₁ : Γ ≤ pair z₁ w₁ ∈ᴮ f)
     {w₂} (H_mem'''' : Γ ≤ w₂ ∈ᴮ y) (H_mem_pr₂ : Γ ≤ pair z₂ w₂ ∈ᴮ f) : Γ ≤ (w₁ ∈ᴮ w₂)ᶜ := by
-  simp only [← imp_bot] at H_mem'' ⊢
-  rw [← deduction] at H_mem'' ⊢
-  -- ctx = Γ ⊓ z₁ ∈ z₂, goal: ⊥, similarly H_mem'' : Γ ⊓ z₁ ∈ z₂ ≤ ⊥
-  sorry -- TODO: port from src/bvm_extras2.lean:388
+  simp only [← imp_bot]; rw [← deduction]
+  set ctx' := Γ ⊓ w₁ ∈ᴮ w₂
+  have h_z12 : ctx' ≤ z₁ ∈ᴮ z₂ :=
+    eps_iso_mem' (inf_le_left.trans H₂) (inf_le_left.trans H_mem) (inf_le_left.trans H_mem')
+      (inf_le_left.trans H_mem''') (inf_le_left.trans H_mem_pr₁)
+      (inf_le_left.trans H_mem'''') (inf_le_left.trans H_mem_pr₂) inf_le_right
+  exact bv_absurd _ h_z12 (inf_le_left.trans H_mem'')
 
 -- src/bvm_extras2.lean:394
 lemma eps_iso_not_mem' {x y f z₁ z₂ : bSet 𝔹} {Γ : 𝔹} (H₂ : Γ ≤ eps_iso x y f)
@@ -364,9 +480,13 @@ lemma eps_iso_not_mem' {x y f z₁ z₂ : bSet 𝔹} {Γ : 𝔹} (H₂ : Γ ≤ 
     {w₁} (H_mem''' : Γ ≤ w₁ ∈ᴮ y) (H_mem_pr₁ : Γ ≤ pair z₁ w₁ ∈ᴮ f)
     {w₂} (H_mem'''' : Γ ≤ w₂ ∈ᴮ y) (H_mem_pr₂ : Γ ≤ pair z₂ w₂ ∈ᴮ f)
     (H_mem'' : Γ ≤ (w₁ ∈ᴮ w₂)ᶜ) : Γ ≤ (z₁ ∈ᴮ z₂)ᶜ := by
-  simp only [← imp_bot] at H_mem'' ⊢
-  rw [← deduction] at H_mem'' ⊢
-  sorry -- TODO: port from src/bvm_extras2.lean:394
+  simp only [← imp_bot]; rw [← deduction]
+  set ctx' := Γ ⊓ z₁ ∈ᴮ z₂
+  have h_w12 : ctx' ≤ w₁ ∈ᴮ w₂ :=
+    eps_iso_mem (inf_le_left.trans H₂) (inf_le_left.trans H_mem) (inf_le_left.trans H_mem')
+      inf_le_right (inf_le_left.trans H_mem''') (inf_le_left.trans H_mem_pr₁)
+      (inf_le_left.trans H_mem'''') (inf_le_left.trans H_mem_pr₂)
+  exact bv_absurd _ h_w12 (inf_le_left.trans H_mem'')
 
 -- src/bvm_extras2.lean:400
 lemma eps_iso_inj_of_Ord {x y f : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
@@ -451,8 +571,29 @@ lemma Ord_succ {η : bSet 𝔹} {Γ : 𝔹} (H_Ord : Γ ≤ Ord η) : Γ ≤ Ord
 -- src/bvm_extras2.lean:563
 lemma Ord.succ_le_of_lt {η ρ : bSet 𝔹} {Γ : 𝔹} (H_Ord' : Γ ≤ Ord ρ) (H_lt : Γ ≤ η ∈ᴮ ρ) :
     Γ ≤ succ η ⊆ᴮ ρ := by
-  sorry -- TODO: port from src/bvm_extras2.lean:563
-
+  rw [subset_unfold']
+  apply le_iInf; intro w; rw [← deduction]
+  set ctx := Γ ⊓ w ∈ᴮ succ η
+  have hw : ctx ≤ w ∈ᴮ succ η := inf_le_right
+  rw [show w ∈ᴮ succ η = w =ᴮ η ⊔ w ∈ᴮ η from mem_insert1] at hw
+  have h_eta_mem : ctx ≤ η ∈ᴮ ρ := inf_le_left.trans H_lt
+  have h_rho_trans : ctx ≤ is_transitive ρ := inf_le_left.trans (H_Ord'.trans inf_le_right)
+  have h_eta_sub : ctx ≤ η ⊆ᴮ ρ :=
+    le_trans (le_inf (h_rho_trans.trans (iInf_le _ η)) h_eta_mem) bv_imp_elim
+  -- case 1: w = η → w ∈ ρ
+  have hcase1 : ctx ⊓ (w =ᴮ η) ≤ w ∈ᴮ ρ := by
+    have h1a : ctx ⊓ (w =ᴮ η) ≤ w =ᴮ η := inf_le_right
+    have h1b : ctx ⊓ (w =ᴮ η) ≤ η ∈ᴮ ρ := inf_le_left.trans h_eta_mem
+    exact bv_rw'' (bv_symm h1a) h1b B_ext_mem_left
+  -- case 2: w ∈ η → w ∈ ρ (η ⊆ ρ)
+  have hcase2 : ctx ⊓ (w ∈ᴮ η) ≤ w ∈ᴮ ρ := by
+    rw [subset_unfold'] at h_eta_sub
+    exact le_trans (le_inf (inf_le_left.trans (h_eta_sub.trans (iInf_le _ w))) inf_le_right)
+      bv_imp_elim
+  -- combine
+  calc ctx ≤ (w =ᴮ η ⊔ w ∈ᴮ η) ⊓ ctx := le_inf hw le_rfl
+       _ = ctx ⊓ (w =ᴮ η) ⊔ ctx ⊓ (w ∈ᴮ η) := by rw [inf_comm, inf_sup_left]
+       _ ≤ w ∈ᴮ ρ := sup_le hcase1 hcase2
 -- src/bvm_extras2.lean:572
 lemma omega_least_is_limit {Γ : 𝔹} :
     Γ ≤ ⨅ η, Ord η ⟹ ((is_limit η) ⟹ omega ⊆ᴮ η) := by
