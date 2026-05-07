@@ -168,8 +168,44 @@ lemma rel_of_array_surj (x y : bSet 𝔹) (af : x.type → y.type → 𝔹)
     (H_bval₂ : ∀ i, y.bval i = ⊤)
     (H_wide : ∀ j, (⨆ i, af i j) = ⊤) {Γ}
     : Γ ≤ (is_surj x y (rel_of_array x y af)) := by
-  -- TODO: port from src/forcing_CH.lean:82
-  sorry
+  -- is_surj x y f = ⨅ v, v ∈ y ⟹ (⨆ w, w ∈ x ⊓ pair w v ∈ f)
+  apply le_iInf; intro v
+  rw [← deduction]
+  -- Goal: Γ ⊓ v ∈ᴮ y ≤ ⨆ w, w ∈ᴮ x ⊓ pair w v ∈ᴮ rel_of_array x y af
+  -- Use bounded_exists to express target as ⨆ i, x.bval i ⊓ pair (x.func i) v ∈ rel
+  rw [← @bounded_exists 𝔹 _ x (fun w => pair w v ∈ᴮ rel_of_array x y af)
+    (h_congr := B_ext_pair_mem_left)]
+  -- Unfold v ∈ y, distribute
+  rw [mem_unfold, inf_iSup_eq']
+  apply iSup_le; intro j₀
+  -- ctx = Γ ⊓ (y.bval j₀ ⊓ v =ᴮ y.func j₀)
+  -- Goal: ctx ≤ ⨆ i, x.bval i ⊓ pair (x.func i) v ∈ rel
+  -- Key: first show ctx ≤ ⨆ i, x.bval i ⊓ pair (x.func i) (y.func j₀) ∈ rel
+  -- Then use bv_rw' with v =ᴮ y.func j₀ to replace y.func j₀ with v
+  -- Step 1: show ctx ≤ ⨆ i, x.bval i ⊓ pair (x.func i) (y.func j₀) ∈ rel
+  have step1 : Γ ⊓ (y.bval j₀ ⊓ v =ᴮ y.func j₀) ≤
+      ⨆ i, x.bval i ⊓ pair (x.func i) (y.func j₀) ∈ᴮ rel_of_array x y af := by
+    apply le_trans le_top
+    rw [← H_wide j₀]
+    apply iSup_le; intro i₀
+    apply le_iSup_of_le i₀
+    refine le_inf ?_ ?_
+    · rw [H_bval₁]; exact le_top
+    · -- pair (x.func i₀) (y.func j₀) ∈ rel_of_array ≥ af i₀ j₀
+      unfold rel_of_array
+      rw [mem_unfold]
+      simp only [set_of_indicator_bval, set_of_indicator_func, prod_func]
+      apply le_iSup_of_le (i₀, j₀)
+      simp [bv_eq_refl]
+  -- Step 2: use bv_rw' with v =ᴮ y.func j₀ to convert
+  have heq : Γ ⊓ (y.bval j₀ ⊓ v =ᴮ y.func j₀) ≤ v =ᴮ y.func j₀ :=
+    inf_le_right.trans inf_le_right
+  -- Use bv_rw' with v =ᴮ y.func j₀ to get ctx ≤ ⨆ i, x.bval i ⊓ pair (x.func i) v ∈ rel
+  -- from step1: ctx ≤ ⨆ i, x.bval i ⊓ pair (x.func i) (y.func j₀) ∈ rel
+  exact @bv_rw' 𝔹 _ v (y.func j₀) _ heq
+    (ϕ := fun z => ⨆ i, x.bval i ⊓ pair (x.func i) z ∈ᴮ rel_of_array x y af)
+    (h_congr := B_ext_iSup (h := fun i => B_ext_inf B_ext_const B_ext_pair_mem_right))
+    (H_new := step1)
 
 -- src/forcing_CH.lean:104-113
 lemma mem_left_of_mem_rel_of_array {x y w₁ w₂ : bSet 𝔹} {af : x.type → y.type → 𝔹}

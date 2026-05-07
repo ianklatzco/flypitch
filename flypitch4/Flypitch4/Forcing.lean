@@ -31,7 +31,34 @@ lemma AE_of_check_larger_than_check'' {x y : PSet.{u}} (f : bSet 𝔹) {Γ : �
     (H : Γ ≤ is_surj_onto (check x) (check y) f)
     (H_nonempty : ∃ z, z ∈ y) :
     ∀ i : y.Type, ∃ j : x.Type, ⊥ < is_func f ⊓ pair (check (x.Func j)) (check (y.Func i)) ∈ᴮ f := by
-  sorry -- TODO: port from src/forcing.lean:36
+  intro i
+  -- is_surj_onto = is_func' ⊓ is_surj
+  have H_func' : Γ ≤ is_func' (check x) (check y) f := le_trans H inf_le_left
+  have H_surj : Γ ≤ is_surj (check x) (check y) f := le_trans H inf_le_right
+  -- Apply is_surj at v = check (y.Func i): since check (y.Func i) ∈ check y by mem_check_of_mem
+  -- get ⨆ w, w ∈ check x ⊓ pair w (check (y.Func i)) ∈ f
+  have H_surj_i : Γ ≤ ⨆ w, w ∈ᴮ check x ⊓ pair w (check (y.Func i)) ∈ᴮ f := by
+    have h_step := le_trans H_surj (iInf_le (f := fun v => v ∈ᴮ check y ⟹
+        ⨆ w, w ∈ᴮ check x ⊓ pair w v ∈ᴮ f) (check (y.Func i)))
+    exact le_trans (le_inf h_step mem_check_of_mem) (imp_inf_le _ _)
+  -- Use bounded_exists to rewrite ⨆ w, w ∈ check x ⊓ ϕ w = ⨆ j, ϕ (check (x.Func j))
+  rw [← @bounded_exists 𝔹 _ (check x) (fun w => pair w (check (y.Func i)) ∈ᴮ f)
+    (h_congr := B_ext_pair_mem_left)] at H_surj_i
+  simp only [check_bval_top, top_inf_eq] at H_surj_i
+  -- H_surj_i : Γ ≤ ⨆ j : x.Type, pair (check (x.Func (check_cast j))) (check (y.Func i)) ∈ᴮ f
+  -- Combine with H_func' to get ⨆ j, is_func f ⊓ pair (check (x.Func j)) (check (y.Func i)) ∈ f
+  have H_combined : ⊥ < ⨆ j : (check x : bSet 𝔹).type,
+      is_func f ⊓ pair ((check x : bSet 𝔹).func j) (check (y.Func i)) ∈ᴮ f := by
+    apply lt_of_lt_of_le H_nonzero
+    calc Γ
+        ≤ is_func' (check x) (check y) f ⊓ ⨆ j, pair ((check x).func j) (check (y.Func i)) ∈ᴮ f :=
+          le_inf H_func' H_surj_i
+      _ = ⨆ j, is_func' (check x) (check y) f ⊓ pair ((check x).func j) (check (y.Func i)) ∈ᴮ f :=
+          inf_iSup_eq'
+      _ ≤ ⨆ j, is_func f ⊓ pair ((check x).func j) (check (y.Func i)) ∈ᴮ f :=
+          iSup_mono fun j => le_inf (is_func_of_is_func' inf_le_left) inf_le_right
+  obtain ⟨j, Hj⟩ := nonzero_wit H_combined
+  exact ⟨check_cast j, by rwa [← check_func]⟩
 
 -- src/forcing.lean:50-56
 lemma AE_of_check_larger_than_check' {x y : PSet.{u}} {Γ : 𝔹}
