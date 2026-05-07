@@ -320,22 +320,207 @@ lemma eq_iff_not_mem_of_Ord {x y z : bSet 𝔹} {Γ : 𝔹} (H_mem₁ : Γ ≤ x
 -- src/bvm_extras2.lean:173
 lemma Ord.lt_of_ne_and_le {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
     (H_ne : Γ ≤ (x =ᴮ y)ᶜ) (H_le : Γ ≤ x ⊆ᴮ y) : Γ ≤ x ∈ᴮ y := by
-  sorry -- TODO: port from src/bvm_extras2.lean:173
+  -- Step 1: compl y x ≠ ∅ (since x ≠ y, one of compl x y or compl y x is nonempty;
+  --   compl x y = ∅ since x ⊆ y; so compl y x ≠ ∅)
+  have H_cxy := compl_empty_of_subset H_le
+  have H_compl_ne : Γ ≤ (compl y x =ᴮ ∅)ᶜ := by
+    have H_both := nonempty_compl_of_ne H_ne
+    have h1 : (compl x y =ᴮ ∅)ᶜ ⊓ Γ ≤ (compl y x =ᴮ ∅)ᶜ :=
+      bv_exfalso (bv_absurd _ (inf_le_right.trans H_cxy) inf_le_left)
+    have h2 : (compl y x =ᴮ ∅)ᶜ ⊓ Γ ≤ (compl y x =ᴮ ∅)ᶜ := inf_le_left
+    exact le_trans (le_inf H_both le_rfl) (bv_or_elim_left h1 h2)
+  -- Step 2: get minimal element u of compl y x by regularity
+  have H_reg := bSet_axiom_of_regularity (compl y x) H_compl_ne
+  -- B_ext for ϕ u = u ∈ compl y x ⊓ ⨅ z', z' ∈ compl y x ⟹ (z' ∈ u)ᶜ
+  have H_Bext : B_ext (fun u : bSet 𝔹 =>
+      u ∈ᴮ compl y x ⊓ (⨅ z', z' ∈ᴮ compl y x ⟹ (z' ∈ᴮ u)ᶜ)) := by
+    apply B_ext_inf B_ext_mem_left
+    apply B_ext_iInf; intro z'
+    simp only [← imp_bot]
+    exact B_ext_imp (h₁ := B_ext_const) (h₂ := B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))
+  obtain ⟨u, Hu⟩ := exists_convert H_reg H_Bext
+  -- Hu : Γ ≤ u ∈ compl y x ⊓ ⨅ z', z' ∈ compl y x ⟹ (z' ∈ u)ᶜ
+  have Hu_mem : Γ ≤ u ∈ᴮ compl y x := Hu.trans inf_le_left
+  have Hu_min : Γ ≤ ⨅ z', z' ∈ᴮ compl y x ⟹ (z' ∈ᴮ u)ᶜ := Hu.trans inf_le_right
+  -- From u ∈ compl y x: u ∈ y and u ∉ x
+  have ⟨Hu_y, Hu_nx⟩ := mem_compl_iff.mp Hu_mem
+  -- Step 3: show x = u (hence x ∈ y via bv_rw)
+  -- Prove x ⊆ u
+  have Hx_sub_u : Γ ≤ x ⊆ᴮ u := by
+    rw [subset_unfold']
+    apply le_iInf; intro a; rw [← deduction]
+    set ctx := Γ ⊓ a ∈ᴮ x
+    have Ha_x : ctx ≤ a ∈ᴮ x := inf_le_right
+    have Ha_y : ctx ≤ a ∈ᴮ y := mem_of_mem_subset (inf_le_left.trans H_le) Ha_x
+    -- trichotomy on a,u ∈ y under Ord y
+    have H_tri := epsilon_trichotomy_of_Ord Ha_y (inf_le_left.trans Hu_y)
+                    (inf_le_left.trans H₂)
+    -- H_tri : ctx ≤ a = u ⊔ a ∈ u ⊔ u ∈ a
+    -- Case a = u: u ∈ x, contradiction with Hu_nx
+    have hcase1 : (a =ᴮ u) ⊓ ctx ≤ a ∈ᴮ u := by
+      have heq : (a =ᴮ u) ⊓ ctx ≤ a =ᴮ u := inf_le_left
+      have ha_x : (a =ᴮ u) ⊓ ctx ≤ a ∈ᴮ x := inf_le_right.trans Ha_x
+      -- a = u and a ∈ x → u ∈ x, contradicts Hu_nx
+      have hu_x : (a =ᴮ u) ⊓ ctx ≤ u ∈ᴮ x :=
+        bv_rw'' heq ha_x B_ext_mem_left
+      exact bv_exfalso (bv_absurd (u ∈ᴮ x) hu_x (inf_le_right.trans (inf_le_left.trans Hu_nx)))
+    -- Case a ∈ u: done
+    have hcase2 : (a ∈ᴮ u) ⊓ ctx ≤ a ∈ᴮ u := inf_le_left
+    -- Case u ∈ a: u ∈ a ∈ x → u ∈ x (by Ord x transitivity), contradiction
+    have hcase3 : (u ∈ᴮ a) ⊓ ctx ≤ a ∈ᴮ u := by
+      have Hua : (u ∈ᴮ a) ⊓ ctx ≤ u ∈ᴮ a := inf_le_left
+      have ha_x2 : (u ∈ᴮ a) ⊓ ctx ≤ a ∈ᴮ x := inf_le_right.trans Ha_x
+      -- u ∈ a ∈ x → u ∈ x by Ord x transitivity
+      have hu_x : (u ∈ᴮ a) ⊓ ctx ≤ u ∈ᴮ x :=
+        mem_of_mem_Ord Hua ha_x2 (inf_le_right.trans (inf_le_left.trans H₁))
+      exact bv_exfalso (bv_absurd (u ∈ᴮ x) hu_x (inf_le_right.trans (inf_le_left.trans Hu_nx)))
+    -- Combine trichotomy: (a=u ⊔ a∈u ⊔ u∈a) ⊓ ctx ≤ a∈u
+    have h12 : (a =ᴮ u ⊔ a ∈ᴮ u) ⊓ ctx ≤ a ∈ᴮ u := bv_or_elim_left hcase1 hcase2
+    have hfinal := bv_or_elim_left h12 hcase3
+    -- hfinal : ((a =ᴮ u ⊔ a ∈ᴮ u) ⊔ u ∈ᴮ a) ⊓ ctx ≤ a ∈ᴮ u
+    exact le_trans (le_inf H_tri le_rfl) hfinal
+  -- Prove u ⊆ x
+  have Hu_sub_x : Γ ≤ u ⊆ᴮ x := by
+    rw [subset_unfold']
+    apply le_iInf; intro a; rw [← deduction]
+    set ctx := Γ ⊓ a ∈ᴮ u
+    have Ha_u : ctx ≤ a ∈ᴮ u := inf_le_right
+    -- By contradiction: assume a ∉ x
+    -- Convert ctx ≤ a ∈ x to: ctx ⊓ (a ∈ x)ᶜ ≤ ⊥
+    rw [← disjoint_compl_right_iff, disjoint_iff]
+    apply le_antisymm _ bot_le
+    -- goal: ctx ⊓ (a ∈ x)ᶜ ≤ ⊥
+    -- From a ∈ u ∈ y → a ∈ y; and a ∉ x → a ∈ compl y x
+    -- Minimality of u: z' ∈ compl y x → z' ∉ u; contradiction with a ∈ u
+    have Ha_y : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ a ∈ᴮ y := by
+      have hu_y : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ u ∈ᴮ y := inf_le_left.trans (inf_le_left.trans Hu_y)
+      have ha_u : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ a ∈ᴮ u := inf_le_left.trans Ha_u
+      exact mem_of_mem_Ord ha_u hu_y (inf_le_left.trans (inf_le_left.trans H₂))
+    have Ha_compl : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ a ∈ᴮ compl y x :=
+      mem_compl_iff.mpr ⟨Ha_y, inf_le_right⟩
+    -- Minimality gives a ∉ u
+    have Ha_nu : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ (a ∈ᴮ u)ᶜ := by
+      -- ctx ⊓ (a ∈ x)ᶜ ≤ ctx ≤ Γ ≤ Hu_min
+      have h1 : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ ctx := inf_le_left
+      have h2 : ctx ≤ ⨅ z', z' ∈ᴮ compl y x ⟹ (z' ∈ᴮ u)ᶜ :=
+        inf_le_left.trans Hu_min
+      have h3 : ctx ⊓ (a ∈ᴮ x)ᶜ ≤ a ∈ᴮ compl y x ⟹ (a ∈ᴮ u)ᶜ :=
+        (h1.trans h2).trans (iInf_le _ a)
+      exact le_trans (le_inf h3 Ha_compl) bv_imp_elim
+    exact bv_absurd (a ∈ᴮ u) (inf_le_left.trans Ha_u) Ha_nu
+  -- Step 4: x = u, so x ∈ y (since u ∈ y)
+  have H_eq : Γ ≤ x =ᴮ u := by
+    rw [eq_iff_subset_subset]
+    exact le_inf Hx_sub_u Hu_sub_x
+  exact bv_rw'' (bv_symm H_eq) Hu_y B_ext_mem_left
 
 -- src/bvm_extras2.lean:201
 lemma Ord.le_or_le {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ x ⊆ᴮ y ⊔ y ⊆ᴮ x := by
-  sorry -- TODO: port from src/bvm_extras2.lean:201
+  -- Let w = x ∩ y. If w ≠ x and w ≠ y, then w ∈ x and w ∈ y → w ∈ w (foundation).
+  -- So w = x or w = y, giving x ⊆ y or y ⊆ x.
+  set w := x ∩ᴮ y
+  have w_Ord : Γ ≤ Ord w := Ord_binary_inter H₁ H₂
+  -- Show: w = x ⊔ w = y
+  have hdiag : Γ ≤ w =ᴮ x ⊔ w =ᴮ y := by
+    -- by contradiction: ¬(w = x ⊔ w = y) leads to w ∈ w
+    rw [← disjoint_compl_right_iff, disjoint_iff]
+    apply le_antisymm _ bot_le
+    -- goal: Γ ⊓ (w =ᴮ x ⊔ w =ᴮ y)ᶜ ≤ ⊥
+    set ctx := Γ ⊓ (w =ᴮ x ⊔ w =ᴮ y)ᶜ
+    -- ¬(w=x): w=x ≤ w=x ⊔ w=y, so (w=x ⊔ w=y)ᶜ ≤ (w=x)ᶜ
+    have hne_x : ctx ≤ (w =ᴮ x)ᶜ := inf_le_right.trans (compl_le_compl le_sup_left)
+    -- ¬(w=y): w=y ≤ w=x ⊔ w=y, so (w=x ⊔ w=y)ᶜ ≤ (w=y)ᶜ
+    have hne_y : ctx ≤ (w =ᴮ y)ᶜ := inf_le_right.trans (compl_le_compl le_sup_right)
+    -- From ¬(w = x) and w ⊆ x: w ∈ x
+    have hw_x : ctx ≤ w ∈ᴮ x :=
+      Ord.lt_of_ne_and_le (inf_le_left.trans w_Ord) (inf_le_left.trans H₁)
+        hne_x (inf_le_left.trans binary_inter_subset_left)
+    -- From ¬(w = y) and w ⊆ y: w ∈ y
+    have hw_y : ctx ≤ w ∈ᴮ y :=
+      Ord.lt_of_ne_and_le (inf_le_left.trans w_Ord) (inf_le_left.trans H₂)
+        hne_y (inf_le_left.trans binary_inter_subset_right)
+    -- w ∈ x ∩ y = w → w ∈ w, contradiction
+    exact bot_of_mem_self' (mem_binary_inter_iff.mpr ⟨hw_x, hw_y⟩)
+  -- Case split on hdiag
+  have h1 : w =ᴮ x ⊓ Γ ≤ x ⊆ᴮ y ⊔ y ⊆ᴮ x := by
+    apply bv_or_left
+    -- w = x, so w ⊆ y gives x ⊆ y
+    have hw_sub : w =ᴮ x ⊓ Γ ≤ w ⊆ᴮ y := inf_le_right.trans binary_inter_subset_right
+    exact bv_rw'' (ϕ := fun v => v ⊆ᴮ y) inf_le_left hw_sub B_ext_subset_left
+  have h2 : w =ᴮ y ⊓ Γ ≤ x ⊆ᴮ y ⊔ y ⊆ᴮ x := by
+    apply bv_or_right
+    -- w = y, so w ⊆ x gives y ⊆ x
+    have hw_sub : w =ᴮ y ⊓ Γ ≤ w ⊆ᴮ x := inf_le_right.trans binary_inter_subset_left
+    exact bv_rw'' (ϕ := fun v => v ⊆ᴮ x) inf_le_left hw_sub B_ext_subset_left
+  exact le_trans (le_inf hdiag le_rfl) (bv_or_elim_left h1 h2)
 
 -- src/bvm_extras2.lean:220
 lemma Ord.trichotomy {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x := by
-  sorry -- TODO: port from src/bvm_extras2.lean:220
+  have h_lor := Ord.le_or_le H₁ H₂
+  -- helper: case split on (x=y)
+  have hL : (x ⊆ᴮ y) ⊓ Γ ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x := by
+    set ctx := x ⊆ᴮ y ⊓ Γ
+    have h_eq : (x =ᴮ y) ⊓ ctx ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x :=
+      le_sup_of_le_left (le_sup_of_le_left inf_le_left)
+    have h_ne : (x =ᴮ y)ᶜ ⊓ ctx ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x :=
+      le_sup_of_le_left (le_sup_of_le_right
+        (Ord.lt_of_ne_and_le (inf_le_right.trans (inf_le_right.trans H₁))
+          (inf_le_right.trans (inf_le_right.trans H₂))
+          inf_le_left (inf_le_right.trans inf_le_left)))
+    calc ctx = (x =ᴮ y ⊔ (x =ᴮ y)ᶜ) ⊓ ctx := by rw [sup_compl_eq_top, top_inf_eq]
+         _ = (x =ᴮ y) ⊓ ctx ⊔ (x =ᴮ y)ᶜ ⊓ ctx := by rw [inf_sup_right]
+         _ ≤ _ := sup_le h_eq h_ne
+  have hR : (y ⊆ᴮ x) ⊓ Γ ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x := by
+    set ctx := y ⊆ᴮ x ⊓ Γ
+    have h_eq : (x =ᴮ y) ⊓ ctx ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x :=
+      le_sup_of_le_left (le_sup_of_le_left inf_le_left)
+    have h_ne : (x =ᴮ y)ᶜ ⊓ ctx ≤ x =ᴮ y ⊔ x ∈ᴮ y ⊔ y ∈ᴮ x := by
+      -- ¬(x=y) ↔ ¬(y=x) (bv_eq_symm), and y ⊆ x with ¬(y=x) gives y ∈ x
+      apply le_sup_of_le_right
+      have hne_yx : (x =ᴮ y)ᶜ ⊓ ctx ≤ (y =ᴮ x)ᶜ := by
+        -- if y = x then x = y (bv_symm), contradicting (x=y)ᶜ
+        conv_rhs => rw [← imp_bot]
+        rw [← deduction]
+        exact bv_absurd (x =ᴮ y) (bv_symm inf_le_right) (inf_le_left.trans inf_le_left)
+      exact Ord.lt_of_ne_and_le (inf_le_right.trans (inf_le_right.trans H₂))
+        (inf_le_right.trans (inf_le_right.trans H₁))
+        hne_yx (inf_le_right.trans inf_le_left)
+    calc ctx = (x =ᴮ y ⊔ (x =ᴮ y)ᶜ) ⊓ ctx := by rw [sup_compl_eq_top, top_inf_eq]
+         _ = (x =ᴮ y) ⊓ ctx ⊔ (x =ᴮ y)ᶜ ⊓ ctx := by rw [inf_sup_right]
+         _ ≤ _ := sup_le h_eq h_ne
+  exact le_trans (le_inf h_lor le_rfl) (bv_or_elim_left hL hR)
 
 -- src/bvm_extras2.lean:232
 lemma Ord.eq_iff_not_mem {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ x =ᴮ y ↔ (Γ ≤ (x ∈ᴮ y)ᶜ ∧ Γ ≤ (y ∈ᴮ x)ᶜ) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:232
+  constructor
+  · -- x = y → ¬(x ∈ y) ∧ ¬(y ∈ x)
+    intro H
+    constructor
+    · -- x = y → ¬(x ∈ y): if x ∈ y and x = y then y ∈ y, contradiction
+      conv_rhs => rw [← imp_bot]
+      rw [← deduction]
+      -- goal: Γ ⊓ x∈y ≤ ⊥; H: Γ ≤ x=y
+      exact bot_of_mem_self' (bv_rw'' (ϕ := fun v => v ∈ᴮ y)
+        (inf_le_left.trans H) inf_le_right B_ext_mem_left)
+    · conv_rhs => rw [← imp_bot]
+      rw [← deduction]
+      -- goal: Γ ⊓ y∈x ≤ ⊥; H: Γ ≤ x=y, so bv_symm: ≤ y=x
+      exact bot_of_mem_self' (bv_rw'' (ϕ := fun v => v ∈ᴮ x)
+        (inf_le_left.trans (bv_symm H)) inf_le_right B_ext_mem_left)
+  · -- ¬(x ∈ y) ∧ ¬(y ∈ x) → x = y: by trichotomy, x=y or x∈y or y∈x
+    intro ⟨H₁', H₂'⟩
+    have H_tri := Ord.trichotomy H₁ H₂
+    -- H_tri: x=y ⊔ x∈y ⊔ y∈x
+    -- from ¬(x∈y) and ¬(y∈x): must have x=y
+    have h1 : (x =ᴮ y) ⊓ Γ ≤ x =ᴮ y := inf_le_left
+    have h2 : (x ∈ᴮ y) ⊓ Γ ≤ x =ᴮ y :=
+      bv_exfalso (bv_absurd (x ∈ᴮ y) inf_le_left (inf_le_right.trans H₁'))
+    have h3 : (y ∈ᴮ x) ⊓ Γ ≤ x =ᴮ y :=
+      bv_exfalso (bv_absurd (y ∈ᴮ x) inf_le_left (inf_le_right.trans H₂'))
+    exact le_trans (le_inf H_tri le_rfl) (bv_or_elim_left (bv_or_elim_left h1 h2) h3)
 
 -- src/bvm_extras2.lean:245
 lemma Ord.eq_of_not_mem {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
@@ -345,18 +530,60 @@ lemma Ord.eq_of_not_mem {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H�
 -- src/bvm_extras2.lean:248
 lemma Ord.le_iff_lt_or_eq {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ x ⊆ᴮ y ↔ (Γ ≤ x ∈ᴮ y ⊔ x =ᴮ y) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:248
+  constructor
+  · -- x ⊆ y → x ∈ y ∨ x = y: case split on x = y
+    intro H
+    have h_eq : (x =ᴮ y) ⊓ Γ ≤ x ∈ᴮ y ⊔ x =ᴮ y := le_sup_of_le_right inf_le_left
+    have h_ne : (x =ᴮ y)ᶜ ⊓ Γ ≤ x ∈ᴮ y ⊔ x =ᴮ y :=
+      le_sup_of_le_left (Ord.lt_of_ne_and_le (inf_le_right.trans H₁) (inf_le_right.trans H₂)
+        inf_le_left (inf_le_right.trans H))
+    calc Γ = (x =ᴮ y ⊔ (x =ᴮ y)ᶜ) ⊓ Γ := by rw [sup_compl_eq_top, top_inf_eq]
+         _ = (x =ᴮ y) ⊓ Γ ⊔ (x =ᴮ y)ᶜ ⊓ Γ := by rw [inf_sup_right]
+         _ ≤ _ := sup_le h_eq h_ne
+  · -- x ∈ y ∨ x = y → x ⊆ y
+    intro H
+    have h1 : (x ∈ᴮ y) ⊓ Γ ≤ x ⊆ᴮ y := subset_of_mem_Ord inf_le_left (inf_le_right.trans H₂)
+    have h2 : (x =ᴮ y) ⊓ Γ ≤ x ⊆ᴮ y :=
+      -- x = y → x ⊆ x → x ⊆ y (rewrite y to x in x ⊆ x)
+      bv_rw'' (ϕ := fun v => x ⊆ᴮ v) inf_le_left (inf_le_right.trans subset_self)
+        B_ext_subset_right
+    exact le_trans (le_inf H le_rfl) (bv_or_elim_left h1 h2)
 
 -- src/bvm_extras2.lean:259
 lemma Ord.lt_of_not_le {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ (x ⊆ᴮ y)ᶜ → Γ ≤ y ∈ᴮ x := by
-  sorry -- TODO: port from src/bvm_extras2.lean:259
+  intro H_not_le
+  -- From ¬(x ⊆ y), and trichotomy gives x=y ∨ x∈y ∨ y∈x,
+  -- x=y → x⊆y (contradiction), x∈y → x⊆y (contradiction), so y∈x
+  have H_tri := Ord.trichotomy H₁ H₂
+  -- Case x=y: then x⊆y, contradiction
+  have h1 : (x =ᴮ y) ⊓ Γ ≤ y ∈ᴮ x := by
+    have hsub : (x =ᴮ y) ⊓ Γ ≤ x ⊆ᴮ y :=
+      bv_rw'' (ϕ := fun v => x ⊆ᴮ v) inf_le_left (inf_le_right.trans subset_self)
+        B_ext_subset_right
+    exact bv_exfalso (bv_absurd _ hsub (inf_le_right.trans H_not_le))
+  -- Case x∈y: then x⊆y, contradiction
+  have h2 : (x ∈ᴮ y) ⊓ Γ ≤ y ∈ᴮ x := by
+    have hsub : (x ∈ᴮ y) ⊓ Γ ≤ x ⊆ᴮ y :=
+      subset_of_mem_Ord inf_le_left (inf_le_right.trans H₂)
+    exact bv_exfalso (bv_absurd _ hsub (inf_le_right.trans H_not_le))
+  -- Case y∈x: done
+  have h3 : (y ∈ᴮ x) ⊓ Γ ≤ y ∈ᴮ x := inf_le_left
+  exact le_trans (le_inf H_tri le_rfl) (bv_or_elim_left (bv_or_elim_left h1 h2) h3)
 
 -- src/bvm_extras2.lean:271
 lemma Ord.resolve_lt {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     Γ ≤ (x ∈ᴮ y)ᶜ → Γ ≤ y ∈ᴮ x ⊔ y =ᴮ x := by
   intro H_not_mem
-  sorry -- TODO: port from src/bvm_extras2.lean:271
+  -- By trichotomy: x=y ∨ x∈y ∨ y∈x
+  -- x∈y is ruled out; x=y → y=x; y∈x is direct
+  have H_tri := Ord.trichotomy H₁ H₂
+  have h1 : (x =ᴮ y) ⊓ Γ ≤ y ∈ᴮ x ⊔ y =ᴮ x :=
+    le_sup_of_le_right (bv_symm inf_le_left)
+  have h2 : (x ∈ᴮ y) ⊓ Γ ≤ y ∈ᴮ x ⊔ y =ᴮ x :=
+    bv_exfalso (bv_absurd (x ∈ᴮ y) inf_le_left (inf_le_right.trans H_not_mem))
+  have h3 : (y ∈ᴮ x) ⊓ Γ ≤ y ∈ᴮ x ⊔ y =ᴮ x := le_sup_of_le_left inf_le_left
+  exact le_trans (le_inf H_tri le_rfl) (bv_or_elim_left (bv_or_elim_left h1 h2) h3)
 
 -- src/bvm_extras2.lean:280
 lemma epsilon_trichotomy_of_sub_Ord {Γ : 𝔹} (u : bSet 𝔹)
