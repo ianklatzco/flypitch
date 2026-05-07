@@ -3003,19 +3003,145 @@ lemma mem_inj_inverse_iff {x y f : bSet 𝔹} {Γ : 𝔹}
     {Γ' : 𝔹} {b a : bSet 𝔹} :
     Γ' ≤ pair b a ∈ᴮ inj_inverse H_func H_inj ↔
       Γ' ≤ a ∈ᴮ x ∧ Γ' ≤ b ∈ᴮ y ∧ Γ' ≤ pair a b ∈ᴮ f := by
-  sorry -- TODO: port from src/bvm_extras.lean:1809
+  simp only [inj_inverse]
+  constructor
+  · intro H
+    -- Forward: pair b a ∈ inj_inverse → a ∈ x ∧ b ∈ y ∧ pair a b ∈ f
+    have H_iSup := mem_subset.mk_iff.mp H
+    -- H_iSup : Γ' ≤ ⨆ pr, pair b a =ᴮ (prod (image x y f) x).func pr ⊓ (χ pr ⊓ bval pr)
+    -- Use exists_convert to extract a concrete (i, j) with all conditions
+    -- The B_ext for the whole conjunction:
+    -- fun pr => pair b a =ᴮ pair ((image x y f).func pr.1) (x.func pr.2) ⊓ ...
+    -- We need to extract a single (i,j) and derive a ∈ x, b ∈ y, pair a b ∈ f
+    -- Use carries: H_iSup gives us that for any consistent proof we can check all three
+    -- Strategy: prove each component using classical extraction separately from H_iSup
+    -- For a ∈ x: carry-context from H_iSup via (i,j) → a =ᴮ x.func j → a ∈ x
+    refine ⟨?_, ?_, ?_⟩
+    · -- a ∈ x
+      -- ctx for (i,j): pair_eq ⊓ (f_cond ⊓ (img_bval ⊓ x_bval))
+      apply H_iSup.trans; apply iSup_le; intro ⟨i, j⟩
+      simp only [prod_func, prod_bval]
+      -- Extract equalities from the pair equality at top
+      -- LHS = A ⊓ B where A = pair b a =ᴮ pair ((image x y f).func i) (x.func j)
+      --                     B = pair (x.func j) ((image x y f).func i) ∈ f ⊓ (img_bval ⊓ x_bval)
+      -- a =ᴮ x.func j from pair_eq_pair_iff.mp inf_le_left
+      -- x.bval j from inf_le_right ∘ inf_le_right ∘ inf_le_right
+      exact bv_rw' (H := (pair_eq_pair_iff.mp inf_le_left).2)
+        (ϕ := fun z => z ∈ᴮ x) (h_congr := B_ext_mem_left)
+        (H_new := (inf_le_right.trans (inf_le_right.trans inf_le_right)).trans (mem_mk' x j))
+    · -- b ∈ y
+      apply H_iSup.trans; apply iSup_le; intro ⟨i, j⟩
+      simp only [prod_func, prod_bval]
+      exact mem_of_mem_subset image_subset
+        (bv_rw' (H := (pair_eq_pair_iff.mp inf_le_left).1)
+          (ϕ := fun z => z ∈ᴮ image x y f) (h_congr := B_ext_mem_left)
+          (H_new := (inf_le_right.trans (inf_le_right.trans inf_le_left)).trans
+            (mem_mk' (image x y f) i)))
+    · -- pair a b ∈ f
+      apply H_iSup.trans; apply iSup_le; intro ⟨i, j⟩
+      simp only [prod_func, prod_bval]
+      exact bv_rw' (H := (pair_eq_pair_iff.mp inf_le_left).2)
+        (ϕ := fun z => pair z b ∈ᴮ f) (h_congr := B_ext_pair_mem_left)
+        (H_new := bv_rw' (H := (pair_eq_pair_iff.mp inf_le_left).1)
+          (ϕ := fun z => pair (x.func j) z ∈ᴮ f) (h_congr := B_ext_pair_mem_right)
+          (H_new := inf_le_right.trans inf_le_left))
+  · intro ⟨Ha, Hb, Hf⟩
+    -- Backward: a ∈ x ∧ b ∈ y ∧ pair a b ∈ f → pair b a ∈ inj_inverse
+    rw [mem_subset.mk_iff]
+    simp only [prod_func, prod_bval]
+    -- Extract i from b ∈ image x y f: b ∈ y ⊆ image x y f? No, image ⊆ y.
+    -- Actually b ∈ y, and we need b ∈ image x y f via mem_image_iff
+    -- Actually: b is an element with pair a b ∈ f and a ∈ x, so b ∈ image x y f
+    have Hb_img : Γ' ≤ b ∈ᴮ image x y f := by
+      apply (mem_image_iff).mpr
+      exact ⟨Hb, le_iSup_of_le a (le_inf Ha Hf)⟩
+    -- Extract i from Hb_img
+    have Hb_iSup : Γ' ≤ ⨆ i : (image x y f).type, (image x y f).bval i ⊓ b =ᴮ (image x y f).func i := by
+      rw [← mem_unfold]; exact Hb_img
+    -- Extract j from a ∈ x
+    have Ha_iSup : Γ' ≤ ⨆ j : x.type, x.bval j ⊓ a =ᴮ x.func j := by
+      rw [← mem_unfold]; exact Ha
+    -- Extract i, j via carry-context
+    apply le_trans (le_inf Hb_iSup le_rfl)
+    rw [iSup_inf_eq']; apply iSup_le; intro i
+    apply le_trans (le_inf (inf_le_right.trans Ha_iSup) le_rfl)
+    rw [iSup_inf_eq']; apply iSup_le; intro j
+    -- ctx_j = (x.bval j ⊓ a =ᴮ x.func j) ⊓ ((image x y f).bval i ⊓ b =ᴮ (image x y f).func i) ⊓ Γ'
+    apply le_iSup_of_le (i, j)
+    simp only [prod_func, prod_bval]
+    -- Need: pair b a =ᴮ pair ((image x y f).func i) (x.func j) ⊓
+    --       (pair (x.func j) ((image x y f).func i) ∈ f ⊓
+    --        ((image x y f).bval i ⊓ x.bval j))
+    -- lhs = (x.bval j ⊓ a =ᴮ x.func j) ⊓ ((image x y f).bval i ⊓ b =ᴮ (image x y f).func i) ⊓ Γ'
+    refine le_inf (pair_congr
+        (show _ ≤ b =ᴮ (image x y f).func i from
+          inf_le_right.trans (inf_le_left.trans inf_le_right))
+        (show _ ≤ a =ᴮ x.func j from
+          inf_le_left.trans inf_le_right))
+      (le_inf ?_ ?_)
+    · -- pair (x.func j) ((image x y f).func i) ∈ f
+      -- from pair a b ∈ f via bv_rw' with a =ᴮ x.func j and b =ᴮ (image x y f).func i
+      exact bv_rw'
+        (H := bv_symm (show _ ≤ a =ᴮ x.func j from inf_le_left.trans inf_le_right))
+        (ϕ := fun z => pair z ((image x y f).func i) ∈ᴮ f)
+        (h_congr := B_ext_pair_mem_left)
+        (H_new := bv_rw'
+          (H := bv_symm (show _ ≤ b =ᴮ (image x y f).func i from
+            inf_le_right.trans (inf_le_left.trans inf_le_right)))
+          (ϕ := fun z => pair a z ∈ᴮ f)
+          (h_congr := B_ext_pair_mem_right)
+          (H_new := inf_le_right.trans (inf_le_right.trans Hf)))
+    · -- (image x y f).bval i ⊓ x.bval j
+      exact le_inf (inf_le_right.trans (inf_le_left.trans inf_le_left))
+                   (inf_le_left.trans inf_le_left)
 
 -- src/bvm_extras.lean:1841
 lemma inj_inverse_is_func {x y f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
     Γ ≤ is_func (inj_inverse H_func H_inj) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1841
+  -- Given pair v₁ w₁ ∈ inv, pair v₂ w₂ ∈ inv, v₁ = v₂ → w₁ = w₂
+  -- From mem_inj_inverse_iff: w₁ ∈ x, v₁ ∈ y, pair w₁ v₁ ∈ f
+  -- and: w₂ ∈ x, v₂ ∈ y, pair w₂ v₂ ∈ f
+  -- Since v₁ = v₂ and pair w₁ v₁ ∈ f and pair w₂ v₂ ∈ f, by is_inj f: w₁ = w₂
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction, ← deduction]
+  -- ctx = (Γ ⊓ (pair w₁ v₁ ∈ inv ⊓ pair w₂ v₂ ∈ inv)) ⊓ w₁ =ᴮ w₂
+  have H_mem₁ := (mem_inj_inverse_iff H_func H_inj).mp
+    (show (Γ ⊓ (pair w₁ v₁ ∈ᴮ inj_inverse H_func H_inj ⊓
+                pair w₂ v₂ ∈ᴮ inj_inverse H_func H_inj)) ⊓ w₁ =ᴮ w₂ ≤
+         pair w₁ v₁ ∈ᴮ inj_inverse H_func H_inj from
+      inf_le_left.trans (inf_le_right.trans inf_le_left))
+  have H_mem₂ := (mem_inj_inverse_iff H_func H_inj).mp
+    (show (Γ ⊓ (pair w₁ v₁ ∈ᴮ inj_inverse H_func H_inj ⊓
+                pair w₂ v₂ ∈ᴮ inj_inverse H_func H_inj)) ⊓ w₁ =ᴮ w₂ ≤
+         pair w₂ v₂ ∈ᴮ inj_inverse H_func H_inj from
+      inf_le_left.trans (inf_le_right.trans inf_le_right))
+  -- H_mem₁.2.2 : ctx ≤ pair v₁ w₁ ∈ f, H_mem₂.2.2 : ctx ≤ pair v₂ w₂ ∈ f
+  -- w₁ =ᴮ w₂: inf_le_right
+  -- pair v₁ w₁ ∈ f and pair v₂ w₂ ∈ f, w₁ = w₂ → v₁ = v₂ by is_inj
+  exact eq_of_is_inj_of_eq (inf_le_left.trans (inf_le_left.trans H_inj))
+    inf_le_right H_mem₁.2.2 H_mem₂.2.2
 
 -- src/bvm_extras.lean:1850
 lemma inj_inverse_is_total {x y f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
     Γ ≤ is_total (image x y f) x (inj_inverse H_func H_inj) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1850
+  unfold is_total
+  apply le_iInf; intro z; rw [← deduction]
+  -- ctx₀ = Γ ⊓ z ∈ image x y f
+  -- From mem_image_iff: z ∈ y and ⨆ z', z' ∈ x ⊓ pair z' z ∈ f
+  have Hz_mem := (mem_image_iff.mp (show Γ ⊓ z ∈ᴮ image x y f ≤ z ∈ᴮ image x y f from
+    inf_le_right))
+  have Hz_y := Hz_mem.1
+  have Hz_iSup := Hz_mem.2
+  obtain ⟨z', Hz'⟩ := exists_convert Hz_iSup (B_ext_inf B_ext_mem_left B_ext_pair_mem_left)
+  -- Hz' : ctx₀ ≤ z' ∈ x ⊓ pair z' z ∈ f
+  apply le_iSup_of_le z'
+  refine le_inf (Hz'.trans inf_le_left) ?_
+  -- pair z z' ∈ inj_inverse via mem_inj_inverse_iff.mpr
+  apply (mem_inj_inverse_iff H_func H_inj).mpr
+  exact ⟨Hz'.trans inf_le_left, Hz_y, Hz'.trans inf_le_right⟩
 
 -- src/bvm_extras.lean:1858
 lemma inj_inverse_is_func' {x y f : bSet 𝔹} {Γ : 𝔹}
@@ -3027,7 +3153,23 @@ lemma inj_inverse_is_func' {x y f : bSet 𝔹} {Γ : 𝔹}
 lemma inj_inverse_is_surj {x y f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
     Γ ≤ is_surj (image x y f) x (inj_inverse H_func H_inj) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1865
+  unfold is_surj
+  apply le_iInf; intro z; rw [← deduction]
+  -- ctx₀ = Γ ⊓ z ∈ x
+  -- Get w₂ ∈ y ⊓ pair z w₂ ∈ f from is_total H_func at z
+  have H_tot := is_total_of_is_func' H_func
+  have H_tot_z : Γ ⊓ z ∈ᴮ x ≤ ⨆ w₂, w₂ ∈ᴮ y ⊓ pair z w₂ ∈ᴮ f :=
+    le_trans (le_inf (inf_le_left.trans (H_tot.trans (iInf_le _ z))) inf_le_right) bv_imp_elim
+  obtain ⟨w₂, Hw₂⟩ := exists_convert H_tot_z (B_ext_inf B_ext_mem_left B_ext_pair_mem_right)
+  -- Hw₂ : ctx₀ ≤ w₂ ∈ y ⊓ pair z w₂ ∈ f
+  apply le_iSup_of_le w₂
+  refine le_inf ?_ ?_
+  · -- w₂ ∈ image x y f: use mem_image_iff.mpr
+    apply mem_image_iff.mpr
+    exact ⟨Hw₂.trans inf_le_left, le_iSup_of_le z (le_inf inf_le_right (Hw₂.trans inf_le_right))⟩
+  · -- pair w₂ z ∈ inj_inverse
+    apply (mem_inj_inverse_iff H_func H_inj).mpr
+    exact ⟨inf_le_right, Hw₂.trans inf_le_left, Hw₂.trans inf_le_right⟩
 
 -- src/bvm_extras.lean:1875
 lemma inj_inverse_subset_prod {x y f : bSet 𝔹} {Γ : 𝔹}
@@ -3045,7 +3187,29 @@ lemma inj_inverse_is_function {x y f : bSet 𝔹} {Γ : 𝔹}
 lemma inj_inverse_is_inj {x y f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_func' x y f) (H_inj : Γ ≤ is_inj f) :
     Γ ≤ is_inj (inj_inverse H_func H_inj) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1880
+  -- is_inj inv = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ inv ⊓ pair w₂ v₂ ∈ inv ⊓ v₁ = v₂ ⟹ w₁ = w₂
+  -- pair w₁ v₁ ∈ inv → v₁ ∈ x, w₁ ∈ y, pair v₁ w₁ ∈ f
+  -- pair w₂ v₂ ∈ inv → v₂ ∈ x, w₂ ∈ y, pair v₂ w₂ ∈ f
+  -- v₁ = v₂, pair v₁ w₁ ∈ f, pair v₂ w₂ ∈ f → w₁ = w₂ via is_func' f
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction]
+  -- ctx = Γ ⊓ (pair w₁ v₁ ∈ inv ⊓ pair w₂ v₂ ∈ inv ⊓ v₁ =ᴮ v₂)
+  have H_mem₁ := (mem_inj_inverse_iff H_func H_inj).mp
+    (show Γ ⊓ (pair w₁ v₁ ∈ᴮ inj_inverse H_func H_inj ⊓
+               pair w₂ v₂ ∈ᴮ inj_inverse H_func H_inj ⊓ v₁ =ᴮ v₂) ≤
+         pair w₁ v₁ ∈ᴮ inj_inverse H_func H_inj from
+      inf_le_right.trans (inf_le_left.trans inf_le_left))
+  have H_mem₂ := (mem_inj_inverse_iff H_func H_inj).mp
+    (show Γ ⊓ (pair w₁ v₁ ∈ᴮ inj_inverse H_func H_inj ⊓
+               pair w₂ v₂ ∈ᴮ inj_inverse H_func H_inj ⊓ v₁ =ᴮ v₂) ≤
+         pair w₂ v₂ ∈ᴮ inj_inverse H_func H_inj from
+      inf_le_right.trans (inf_le_left.trans inf_le_right))
+  -- H_mem₁.2.2 : ctx ≤ pair v₁ w₁ ∈ f, H_mem₂.2.2 : ctx ≤ pair v₂ w₂ ∈ f
+  -- v₁ =ᴮ v₂: inf_le_right.trans inf_le_right
+  -- w₁ = w₂ via is_func' f
+  exact eq_of_is_func'_of_eq (inf_le_left.trans H_func)
+    (inf_le_right.trans inf_le_right) H_mem₁.2.2 H_mem₂.2.2
 
 -- ============================================================
 -- src/bvm_extras.lean:1890-1900: injective_function_inverse section
