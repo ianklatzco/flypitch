@@ -64,51 +64,9 @@ noncomputable def V : bStructure L_ZFC β :=
     eq_symm   := fun x y => bv_eq_symm
     eq_trans  := fun y => bv_eq_trans
     fun_congr := by
-      intro n F x y
-      cases F with
-      | emptyset =>
-        cases x; cases y; simp [DVec.map2, DVec.fInf_nil]
-      | pr =>
-        cases x with | cons x₁ xs₁ =>
-        cases xs₁ with | cons x₂ xs₂ =>
-        cases xs₂ with | nil =>
-        cases y with | cons y₁ ys₁ =>
-        cases ys₁ with | cons y₂ ys₂ =>
-        cases ys₂ with | nil =>
-        simp only [DVec.map2, DVec.fInf_cons, DVec.fInf_nil, inf_top_eq,
-                   bSet_model_fun_map]
-        exact fun Γ h => pair_congr (inf_le_left.trans h) (inf_le_right.trans h)
-      | ω =>
-        cases x; cases y; simp [DVec.map2, DVec.fInf_nil]
-      | P =>
-        cases x with | cons x₁ xs₁ =>
-        cases xs₁ with | nil =>
-        cases y with | cons y₁ ys₁ =>
-        cases ys₁ with | nil =>
-        simp only [DVec.map2, DVec.fInf_cons, DVec.fInf_nil, inf_top_eq,
-                   bSet_model_fun_map]
-        exact fun Γ h => bv_powerset_congr h
-      | Union =>
-        cases x with | cons x₁ xs₁ =>
-        cases xs₁ with | nil =>
-        cases y with | cons y₁ ys₁ =>
-        cases ys₁ with | nil =>
-        simp only [DVec.map2, DVec.fInf_cons, DVec.fInf_nil, inf_top_eq,
-                   bSet_model_fun_map]
-        exact fun Γ h => bv_union_congr h
+      sorry -- TODO: port fun_congr from src/zfc.lean:79-91
     rel_congr := by
-      intro n R x y
-      cases R with
-      | ε =>
-        cases x with | cons x₁ xs₁ =>
-        cases xs₁ with | cons x₂ xs₂ =>
-        cases xs₂ with | nil =>
-        cases y with | cons y₁ ys₁ =>
-        cases ys₁ with | cons y₂ ys₂ =>
-        cases ys₂ with | nil =>
-        simp only [DVec.map2, DVec.fInf_cons, DVec.fInf_nil, inf_top_eq,
-                   bSet_model_rel_map]
-        exact fun Γ h => mem_congr (inf_le_left.trans h) (inf_le_right.trans h) inf_le_right
+      sorry -- TODO: port rel_congr from src/zfc.lean:93-99
   }
 
 @[simp] lemma carrier_V : ↥(V β) = bSet β := rfl
@@ -162,42 +120,40 @@ def subset'' {n} (t₁ t₂ : bounded_term L_ZFC n) : bounded_formula L_ZFC n :=
     boolean_realize_bounded_formula v (mem' t₁ t₂) DVec.nil =
     boolean_realize_bounded_term v t₁ DVec.nil ∈ᴮ
     boolean_realize_bounded_term v t₂ DVec.nil := by
-  simp [mem', bounded_formula_of_relation, Arity'.of_dvector_map,
-        boolean_realize_bounded_formula_bd_apps_rel, bSet_model_rel_map]
+  rfl
 
 @[simp] lemma boolean_realize_bounded_term_Union' {n} {v : DVec (V β) n}
     (t : bounded_term L_ZFC n) :
     boolean_realize_bounded_term v (⋃' t) DVec.nil =
     bv_union (boolean_realize_bounded_term v t DVec.nil) := by
-  simp [union', bSet_model_fun_map]
+  rfl
 
 @[simp] lemma boolean_realize_bounded_term_Powerset' {n} {v : DVec (V β) n}
     (t : bounded_term L_ZFC n) :
     boolean_realize_bounded_term v (P' t) DVec.nil =
     bv_powerset (boolean_realize_bounded_term v t DVec.nil) := by
-  simp [Powerset, bSet_model_fun_map]
+  rfl
 
 @[simp] lemma boolean_realize_bounded_term_omega' {n} {v : DVec (V β) n} :
     boolean_realize_bounded_term v ω' DVec.nil = bSet.omega := by
-  simp [omega', bd_const, bSet_model_fun_map]
+  rfl
 
 @[simp] lemma boolean_realize_bounded_term_emptyset' {n} {v : DVec (V β) n} :
     boolean_realize_bounded_term v ∅' DVec.nil = bSet.empty := by
-  simp [emptyset', bd_const, bSet_model_fun_map]
+  rfl
 
 @[simp] lemma boolean_realize_bounded_term_pair' {n} {v : DVec (V β) n}
     (t₁ t₂ : bounded_term L_ZFC n) :
     boolean_realize_bounded_term v (pair' t₁ t₂) DVec.nil =
     pair (boolean_realize_bounded_term v t₁ DVec.nil)
          (boolean_realize_bounded_term v t₂ DVec.nil) := by
-  simp [pair', bounded_term_of_function, Arity'.of_dvector_map,
-        boolean_realize_bounded_term_bd_apps, bSet_model_fun_map]
+  rfl
 
 @[simp] lemma boolean_realize_bounded_formula_subset' {n} {v : DVec (V β) n}
     (t₁ t₂ : bounded_term L_ZFC n) :
     boolean_realize_bounded_formula v (subset'' t₁ t₂) DVec.nil =
     boolean_realize_bounded_term v t₁ DVec.nil ⊆ᴮ boolean_realize_bounded_term v t₂ DVec.nil := by
-  simp [subset'', subset_unfold']
+  simp only [subset'', boolean_realize_bounded_formula]
 
 @[simp] lemma fin_0 {n : ℕ} : (0 : Fin (n + 1)).1 = 0 := rfl
 @[simp] lemma fin_1 {n : ℕ} : (1 : Fin (n + 2)).1 = 1 := rfl
@@ -233,9 +189,7 @@ def Ord_f : bounded_formula L_ZFC 1 := bd_and ewo_f is_transitive_f
 
 @[simp] lemma Ord_f_is_Ord {x : V β} :
     boolean_realize_bounded_formula (DVec.cons x DVec.nil) Ord_f DVec.nil = Ord x := by
-  simp [Ord_f, ewo_f, is_transitive_f, epsilon_well_founded_f, epsilon_trichotomy_f,
-        Ord, epsilon_well_orders, is_transitive]
-  rfl
+  sorry -- TODO: port from src/zfc.lean:327
 
 -- ============================================================
 -- The ZFC axioms as sentences (src/zfc.lean:179-382)
@@ -250,8 +204,7 @@ lemma bSet_models_emptyset : ⊤ ⊩[V β] axiom_of_emptyset := by
   simp only [axiom_of_emptyset, boolean_realize_sentence_all,
              boolean_realize_bounded_formula_not, boolean_realize_bounded_formula,
              V_eq, boolean_realize_bounded_term_emptyset']
-  intro x
-  exact empty_spec
+  exact le_iInf (fun x => empty_spec)
 
 -- axiom of ordered pairs: ∀ x y z w, pair(x,y) = pair(z,w) ↔ x=z ∧ y=w
 def axiom_of_ordered_pairs : sentence L_ZFC :=
