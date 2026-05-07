@@ -490,21 +490,19 @@ lemma cardinal_inequality_of_regular (κ₁ κ₂ : Cardinal)
     (PSet.exists_mem_of_regular H_reg₂) with ⟨f, Hf⟩
   -- Extract g : κ₂.Type → κ₁.Type from Hf
   obtain ⟨g, g_spec⟩ := Classical.axiomOfChoice Hf
-  -- Apply not_CCC_of_uncountable_fiber
-  suffices h : ¬ CCC 𝔹 from absurd 𝔹_CCC h
-  apply not_CCC_of_uncountable_fiber (PSet.card_ex κ₁) (PSet.card_ex κ₂) _ _ _ f g
-  · -- H_infinite : ℵ₀ ≤ #((card_ex κ₁).Type)
-    simp [PSet.mk_type_mk_eq κ₁ H_inf, H_inf]
-  · -- H_lt : #(card_ex κ₁).Type < #(card_ex κ₂).Type
-    simp [PSet.mk_type_mk_eq κ₁ H_inf, PSet.mk_type_mk_eq κ₂ (le_of_lt (H_inf.trans_lt H_lt)), H_lt]
-  · -- H_inj₂
-    intro i j H_neq; exact PSet.ordinalMk_inj _ _ _ H_neq
-  · -- H : ∀ β, ⊥ < is_func f ⊓ pair (check (κ₁.Func (g β))) (check (κ₂.Func β)) ∈ᴮ f
-    exact g_spec
-  · -- H_ex : ∃ ξ, ℵ₀ < #(g⁻¹'{ξ})
-    apply uncountable_fiber_of_regular' κ₁ κ₂ H_inf H_lt H_reg₂.cof_eq
-    · simp [PSet.mk_type_mk_eq κ₁ H_inf]
-    · simp [PSet.mk_type_mk_eq κ₂ (le_of_lt (H_inf.trans_lt H_lt))]
+  -- Use not_CCC_of_uncountable_fiber with the extracted g
+  have H_inf₁ : Cardinal.aleph0 ≤ #((PSet.card_ex κ₁).Type) := by simp [H_inf]
+  have H_lt₁ : #((PSet.card_ex κ₁).Type) < #((PSet.card_ex κ₂).Type) := by
+    rw [@PSet.mk_type_mk_eq'' κ₁ H_inf, @PSet.mk_type_mk_eq'' κ₂ (le_of_lt (H_inf.trans_lt H_lt))]
+    exact H_lt
+  have H_inj₂₁ : ∀ i j, i ≠ j → ¬ PSet.Equiv ((PSet.card_ex κ₂).Func i) ((PSet.card_ex κ₂).Func j) :=
+    fun i j h => PSet.ordinalMk_inj _ _ _ h
+  have H_ex : ∃ ξ : (PSet.card_ex κ₁).Type, Cardinal.aleph0 < #↥(g⁻¹' {ξ}) := by
+    apply uncountable_fiber_of_regular' κ₁ κ₂ H_inf H_lt H_reg₂.cof_ord
+    · exact @PSet.mk_type_mk_eq'' κ₁ H_inf
+    · exact @PSet.mk_type_mk_eq'' κ₂ (le_of_lt (H_inf.trans_lt H_lt))
+  exact absurd 𝔹_CCC (not_CCC_of_uncountable_fiber (PSet.card_ex κ₁) (PSet.card_ex κ₂)
+    H_inf₁ H_lt₁ H_inj₂₁ f g g_spec H_ex)
 
 -- src/forcing.lean:489-504
 lemma aleph0_lt_aleph1_bSet : (⊤ : 𝔹) ≤
