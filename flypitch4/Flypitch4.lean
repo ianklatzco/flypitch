@@ -14,3 +14,7 @@ import Flypitch4.BvmExtras2
 import Flypitch4.Completion
 import Flypitch4.CantorSpace
 import Flypitch4.LanguageExtension
+import Flypitch4.Forcing
+import Flypitch4.Collapse
+import Flypitch4.Henkin
+import Flypitch4.AlephOne
