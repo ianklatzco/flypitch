@@ -4054,7 +4054,25 @@ lemma powerset_injects_F_ext : ∀ (i j : (bv_powerset x).type) {Γ : 𝔹},
 lemma powerset_injects_F_subset_prod {χ : x.type → 𝔹} {Γ : 𝔹}
     (H_le : Γ ≤ set_of_indicator χ ⊆ᴮ x) :
     Γ ≤ (bv_powerset (prod x 𝟚)).func (powerset_injects_F x χ) ⊆ᴮ prod x 𝟚 := by
-  sorry -- TODO: port from src/bvm_extras.lean:2301
+  -- (bv_powerset (prod x 𝟚)).func F(χ) = set_of_indicator F(χ) definitionally
+  -- Use subset_unfold to show ∀ pr, F(χ)(pr) ⟹ pair (x.func pr.1) (𝟚.func pr.2) ∈ prod x 𝟚
+  rw [show (bv_powerset (prod x 𝟚)).func (powerset_injects_F x χ) =
+      set_of_indicator (u := prod x 𝟚) (powerset_injects_F x χ) from rfl]
+  rw [subset_unfold]
+  apply le_iInf; intro ⟨i, j⟩; rw [← deduction]
+  -- goal: Γ ⊓ powerset_injects_F x χ (i,j) ≤ pair (x.func i) (𝟚.func j) ∈ prod x 𝟚
+  -- From F(χ)(i,j), get x.func i ∈ x via H_le or subset.mk_subset
+  have hxi_mem_x : Γ ⊓ powerset_injects_F x χ (i, j) ≤ x.func i ∈ᴮ x := by
+    simp only [powerset_injects_F]
+    rw [inf_sup_left]
+    apply bv_or_elim
+    · -- Left: Γ ⊓ (x.func i ∈ set_of_indicator χ ⊓ ...) ≤ x.func i ∈ x
+      exact mem_of_mem_subset (le_trans inf_le_left H_le) (inf_le_right.trans inf_le_left)
+    · -- Right: Γ ⊓ (x.func i ∈ subset.mk (...) ⊓ ...) ≤ x.func i ∈ x
+      exact mem_of_mem_subset (le_trans le_top subset.mk_subset) (inf_le_right.trans inf_le_left)
+  have htwo_mem : Γ ⊓ powerset_injects_F x χ (i, j) ≤ (𝟚 : bSet 𝔹).func j ∈ᴮ (𝟚 : bSet 𝔹) :=
+    @mem_check_of_mem 𝔹 _ (PSet.ofNat 2) j (Γ := Γ ⊓ powerset_injects_F x χ (i, j))
+  exact prod_mem hxi_mem_x htwo_mem
 
 -- src/bvm_extras.lean:2318
 lemma powerset_injects_F_mem : ∀ (i : (bv_powerset x).type) {Γ : 𝔹},
