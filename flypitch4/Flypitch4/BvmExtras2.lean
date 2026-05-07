@@ -312,11 +312,6 @@ lemma nonempty_compl_of_ne {x y : bSet 𝔹} {Γ : 𝔹} (H_ne : Γ ≤ (x =ᴮ 
     have hn : (y ⊆ᴮ x)ᶜ ⊓ Γ ⊓ compl y x =ᴮ ∅ ≤ (y ⊆ᴮ x)ᶜ := inf_le_left.trans inf_le_left
     exact bv_absurd (y ⊆ᴮ x) hsub hn
   exact le_trans (le_inf H_ne le_rfl) (bv_or_elim_left h_left h_right)
--- src/bvm_extras2.lean:160
-lemma eq_iff_not_mem_of_Ord {x y z : bSet 𝔹} {Γ : 𝔹} (H_mem₁ : Γ ≤ x ∈ᴮ z) (H_mem₂ : Γ ≤ y ∈ᴮ z)
-    (H_ord : Γ ≤ Ord z) : Γ ≤ x =ᴮ y ↔ (Γ ≤ (x ∈ᴮ y)ᶜ ∧ Γ ≤ (y ∈ᴮ x)ᶜ) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:160
-
 -- src/bvm_extras2.lean:173
 lemma Ord.lt_of_ne_and_le {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
     (H_ne : Γ ≤ (x =ᴮ y)ᶜ) (H_le : Γ ≤ x ⊆ᴮ y) : Γ ≤ x ∈ᴮ y := by
@@ -526,6 +521,11 @@ lemma Ord.eq_iff_not_mem {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H�
 lemma Ord.eq_of_not_mem {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
     (H_nmem₁ : Γ ≤ (x ∈ᴮ y)ᶜ) (H_nmem₂ : Γ ≤ (y ∈ᴮ x)ᶜ) : Γ ≤ x =ᴮ y := by
   rw [Ord.eq_iff_not_mem H₁ H₂]; exact ⟨H_nmem₁, H_nmem₂⟩
+
+-- src/bvm_extras2.lean:160
+lemma eq_iff_not_mem_of_Ord {x y z : bSet 𝔹} {Γ : 𝔹} (H_mem₁ : Γ ≤ x ∈ᴮ z) (H_mem₂ : Γ ≤ y ∈ᴮ z)
+    (H_ord : Γ ≤ Ord z) : Γ ≤ x =ᴮ y ↔ (Γ ≤ (x ∈ᴮ y)ᶜ ∧ Γ ≤ (y ∈ᴮ x)ᶜ) :=
+  Ord.eq_iff_not_mem (Ord_of_mem_Ord H_mem₁ H_ord) (Ord_of_mem_Ord H_mem₂ H_ord)
 
 -- src/bvm_extras2.lean:248
 lemma Ord.le_iff_lt_or_eq {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
@@ -761,7 +761,36 @@ lemma eps_iso_not_mem' {x y f z₁ z₂ : bSet 𝔹} {Γ : 𝔹} (H₂ : Γ ≤ 
 -- src/bvm_extras2.lean:400
 lemma eps_iso_inj_of_Ord {x y f : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
     (H₃ : Γ ≤ eps_iso x y f) : Γ ≤ is_inj f := by
-  sorry -- TODO: port from src/bvm_extras2.lean:400
+  -- is_inj f = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ f ⊓ pair w₂ v₂ ∈ f ⊓ v₁=v₂ ⟹ w₁=w₂
+  unfold is_inj
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction]
+  -- ctx = Γ ⊓ (pair w₁ v₁ ∈ f ⊓ pair w₂ v₂ ∈ f ⊓ v₁ =ᴮ v₂)
+  set ctx := Γ ⊓ (pair w₁ v₁ ∈ᴮ f ⊓ pair w₂ v₂ ∈ᴮ f ⊓ v₁ =ᴮ v₂)
+  have H_func : ctx ≤ is_function x y f := inf_le_left.trans (is_function_of_eps_iso H₃)
+  have H_pr₁ : ctx ≤ pair w₁ v₁ ∈ᴮ f := inf_le_right.trans (inf_le_left.trans inf_le_left)
+  have H_pr₂ : ctx ≤ pair w₂ v₂ ∈ᴮ f := inf_le_right.trans (inf_le_left.trans inf_le_right)
+  have H_veq : ctx ≤ v₁ =ᴮ v₂ := inf_le_right.trans inf_le_right
+  have Hw₁_mem : ctx ≤ w₁ ∈ᴮ x := mem_domain_of_is_function H_pr₁ H_func
+  have Hw₂_mem : ctx ≤ w₂ ∈ᴮ x := mem_domain_of_is_function H_pr₂ H_func
+  have Hv₁_mem : ctx ≤ v₁ ∈ᴮ y := mem_codomain_of_is_function H_pr₁ H_func
+  have Hv₂_mem : ctx ≤ v₂ ∈ᴮ y := mem_codomain_of_is_function H_pr₂ H_func
+  have Hw₁_ord : ctx ≤ Ord w₁ := Ord_of_mem_Ord Hw₁_mem (inf_le_left.trans H₁)
+  have Hw₂_ord : ctx ≤ Ord w₂ := Ord_of_mem_Ord Hw₂_mem (inf_le_left.trans H₁)
+  -- v₁ = v₂, so ¬(v₁ ∈ v₂) and ¬(v₂ ∈ v₁)
+  -- derive ¬(w₁ ∈ w₂) and ¬(w₂ ∈ w₁) from these via eps_iso_not_mem'
+  have H_v₁_nmem_v₂ : ctx ≤ (v₁ ∈ᴮ v₂)ᶜ :=
+    ((Ord.eq_iff_not_mem (Ord_of_mem_Ord Hv₁_mem (inf_le_left.trans H₂))
+                         (Ord_of_mem_Ord Hv₂_mem (inf_le_left.trans H₂))).mp H_veq).1
+  have H_v₂_nmem_v₁ : ctx ≤ (v₂ ∈ᴮ v₁)ᶜ :=
+    ((Ord.eq_iff_not_mem (Ord_of_mem_Ord Hv₁_mem (inf_le_left.trans H₂))
+                         (Ord_of_mem_Ord Hv₂_mem (inf_le_left.trans H₂))).mp H_veq).2
+  have H_w₁_nmem_w₂ : ctx ≤ (w₁ ∈ᴮ w₂)ᶜ :=
+    eps_iso_not_mem' (inf_le_left.trans H₃) Hw₁_mem Hw₂_mem Hv₁_mem H_pr₁ Hv₂_mem H_pr₂ H_v₁_nmem_v₂
+  have H_w₂_nmem_w₁ : ctx ≤ (w₂ ∈ᴮ w₁)ᶜ :=
+    eps_iso_not_mem' (inf_le_left.trans H₃) Hw₂_mem Hw₁_mem Hv₂_mem H_pr₂ Hv₁_mem H_pr₁ H_v₂_nmem_v₁
+  exact Ord.eq_of_not_mem Hw₁_ord Hw₂_ord H_w₁_nmem_w₂ H_w₂_nmem_w₁
 
 -- src/bvm_extras2.lean:423
 def eps_iso_inv {x y f : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y)
@@ -798,7 +827,28 @@ lemma eps_iso_eps_iso_inv {x y f : bSet 𝔹} {Γ : 𝔹} {H₁ : Γ ≤ Ord x} 
 -- src/bvm_extras2.lean:453
 lemma eps_iso_symm {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : Γ ≤ Ord y) :
     (Γ ≤ ⨆ f, eps_iso x y f) ↔ (Γ ≤ ⨆ f, eps_iso y x f) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:453
+  -- B_ext for eps_iso in f variable
+  have B_eps_iso_f : ∀ (a b : bSet 𝔹), B_ext (fun f : bSet 𝔹 => eps_iso a b f) := fun a b => by
+    unfold eps_iso is_surj strong_eps_hom
+    -- eps_iso a b f = (is_function a b f ⊓ strong_eps_hom a b f) ⊓ is_surj a b f
+    refine B_ext_inf (h₁ := B_ext_inf (h₁ := B_ext_is_function_right) (h₂ := ?_)) (h₂ := ?_)
+    · -- strong_eps_hom in f
+      refine B_ext_iInf (h := fun z₁ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+        B_ext_iInf (h := fun z₂ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+          B_ext_iInf (h := fun w₁ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+            B_ext_iInf (h := fun w₂ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+              B_ext_imp (h₁ := B_ext_mem_right) (h₂ :=
+                B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))))))))))
+    · -- is_surj in f
+      refine B_ext_iInf (h := fun v => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+        B_ext_iSup (h := fun w => B_ext_inf (h₁ := B_ext_const) (h₂ := B_ext_mem_right))))
+  constructor
+  · intro H
+    obtain ⟨f, Hf⟩ := exists_convert H (B_eps_iso_f x y)
+    exact le_iSup_of_le _ (@eps_iso_eps_iso_inv _ _ x y f _ H₁ H₂ Hf)
+  · intro H
+    obtain ⟨f, Hf⟩ := exists_convert H (B_eps_iso_f y x)
+    exact le_iSup_of_le _ (@eps_iso_eps_iso_inv _ _ y x f _ H₂ H₁ Hf)
 
 -- src/bvm_extras2.lean:460
 lemma eps_iso_mono {x y z f : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord y) (H₂ : Γ ≤ z ⊆ᴮ y)
