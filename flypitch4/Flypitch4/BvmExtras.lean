@@ -1719,7 +1719,24 @@ lemma pointed_extension_spec {x y : bSet 𝔹} {Γ : 𝔹} {S f b : bSet 𝔹}
 lemma surjects_onto_of_larger_than_and_exists_mem {x y : bSet 𝔹} {Γ : 𝔹}
     (H_larger_than : Γ ≤ larger_than x y) (H_nonempty : Γ ≤ ⨆ w, w ∈ᴮ y) :
     Γ ≤ surjects_onto x y := by
-  sorry -- TODO: port from src/bvm_extras.lean:1220
+  -- Extract b from H_nonempty = ⨆ w, w ∈ y
+  obtain ⟨b, Hb⟩ := exists_convert H_nonempty B_ext_mem_left
+  -- Extract S and f from H_larger_than = ⨆ S, ⨆ f, S ⊆ x ⊓ is_func' S y f ⊓ is_surj S y f
+  -- via carry-context
+  simp only [larger_than] at H_larger_than
+  apply le_trans (le_inf H_larger_than le_rfl)
+  rw [iSup_inf_eq']; apply iSup_le; intro S
+  simp_rw [iSup_inf_eq']; apply iSup_le; intro f
+  -- ctx = (S ⊆ x ⊓ is_func' S y f ⊓ is_surj S y f) ⊓ Γ
+  -- also need b ∈ y: carry it in from Hb
+  apply le_trans (le_inf (inf_le_right.trans Hb) le_rfl)
+  -- ctx_b = (b ∈ y) ⊓ ((S ⊆ x ⊓ is_func' S y f ⊓ is_surj S y f) ⊓ Γ)
+  apply pointed_extension_spec
+  · exact inf_le_left  -- b ∈ y
+  · exact inf_le_right.trans (inf_le_left.trans (inf_le_left.trans inf_le_left))  -- S ⊆ x
+  · -- is_func' S y f ⊓ is_surj S y f
+    exact le_inf (inf_le_right.trans (inf_le_left.trans (inf_le_left.trans inf_le_right)))
+                 (inf_le_right.trans (inf_le_left.trans inf_le_right))
 
 -- src/bvm_extras.lean:1230
 lemma larger_than_of_surjects_onto {x y : bSet 𝔹} {Γ} (H_surj : Γ ≤ surjects_onto x y) :
@@ -3283,7 +3300,30 @@ lemma function_eval_pair_mem {x y f : bSet 𝔹} {Γ : 𝔹} {H_func : Γ ≤ is
 -- src/bvm_extras.lean:1930
 lemma surjects_onto_of_injects_into' {x y : bSet 𝔹} {Γ} (H_inj : Γ ≤ injects_into x y)
     (H_exists_mem : Γ ≤ exists_mem x) : Γ ≤ surjects_onto y x := by
-  sorry -- TODO: port from src/bvm_extras.lean:1930
+  -- surjects_onto y x = ⨆ g, is_func' y x g ⊓ is_surj y x g
+  -- larger_than y x = ⨆ S, ⨆ h, S ⊆ y ⊓ is_func' S x h ⊓ is_surj S x h
+  -- Witness: S = image x y f, h = inj_inverse H_func H_inj
+  -- from H_inj: f with is_func' x y f and is_inj f
+  apply surjects_onto_of_larger_than_and_exists_mem _ H_exists_mem
+  -- Goal: Γ ≤ larger_than y x
+  simp only [larger_than, injects_into] at *
+  -- H_inj : Γ ≤ ⨆ f, is_func' x y f ⊓ is_inj f
+  apply le_trans (le_inf H_inj le_rfl)
+  rw [iSup_inf_eq']; apply iSup_le; intro f
+  -- ctx_f = (is_func' x y f ⊓ is_inj f) ⊓ Γ
+  -- provide S = image x y f, h = inj_inverse
+  apply le_iSup_of_le (image x y f)
+  apply le_iSup_of_le (inj_inverse
+    (inf_le_left.trans inf_le_left : _ ≤ is_func' x y f)
+    (inf_le_left.trans inf_le_right : _ ≤ is_inj f))
+  -- Need: S ⊆ y ⊓ is_func' S x h ⊓ is_surj S x h
+  refine le_inf (le_inf image_subset (le_inf ?_ ?_)) ?_
+  · -- is_func (inj_inverse ...): is_func part of is_func'
+    exact inj_inverse_is_func (inf_le_left.trans inf_le_left) (inf_le_left.trans inf_le_right)
+  · -- is_total: is_total part of is_func'
+    exact inj_inverse_is_total (inf_le_left.trans inf_le_left) (inf_le_left.trans inf_le_right)
+  · -- is_surj
+    exact inj_inverse_is_surj (inf_le_left.trans inf_le_left) (inf_le_left.trans inf_le_right)
 
 -- ============================================================
 -- src/bvm_extras.lean:1956-1989: functionMk (= function.mk) and check''
