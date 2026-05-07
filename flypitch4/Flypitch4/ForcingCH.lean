@@ -504,12 +504,43 @@ lemma function_reflect_of_omega_closed
     nonzero_iInf_of_mem_DenseOmegaClosed H_docs fBᵦ_le fBᵦ_mem
   have Γ'_le_Γ : (⨅ n, fBᵦ n) ≤ Γ :=
     (iInf_le _ 0).trans fBᵦ0_le_Γ
+  -- fBᵦ_pair: each fBᵦ n witnesses the pair membership in g.
+  -- This is the _hpair component of AE at step n. Same definitional issue as fBᵦ_le:
+  -- (fBrec_aux ... n).2.1 = fBᵦ n ≤ pair(check(omega.Func ⟨n⟩))(check(y.Func(fr ⟨n⟩))) ∈ g
+  have fBᵦ_pair : ∀ n, fBᵦ n ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr ⟨n⟩))) ∈ᴮ g := by
+    intro n; sorry  -- _hpair from AE call (definitional extraction)
+  -- iInf_fBᵦ_pair: Γ' ≤ each pair in g
+  have iInf_fBᵦ_pair : ∀ n, (⨅ m, fBᵦ m) ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr ⟨n⟩))) ∈ᴮ g :=
+    fun n => (iInf_le _ n).trans (fBᵦ_pair n)
   -- Γ' ≤ check f' =ᴮ g via bSet.funext.
+  -- The funext body: ⨅ p, p ∈ prod ω (check y) ⟹ (p ∈ check f' ⇔ p ∈ g).
   have Γ'_le_eq : (⨅ n, fBᵦ n) ≤ check f' =ᴮ g := by
     apply funext
     · exact check_is_func f'_is_func
     · exact Γ'_le_Γ.trans H_function
-    · sorry
+    · -- Port of function_reflect_aux₃ from Lean 3.
+      -- Goal: ⨅ n, fBᵦ n ≤ ⨅ p, p ∈ prod bSet.omega (check y) ⟹ (p ∈ check f' ⇔ p ∈ g)
+      -- Reduce to pointwise: for each ⟨k, j⟩ : (prod ω (check y)).type
+      apply le_iInf; intro p; rw [← deduction]
+      -- p ∈ prod ω (check y) decomposes as an iSup over indices
+      -- bval of prod at (k, j) is ⊤, func is pair (ω.func k) ((check y).func j)
+      -- Use mem_unfold and distribute
+      rw [mem_unfold]
+      simp only [prod_bval, prod_func, omega_bval, check_bval_top, top_inf_eq]
+      -- After simp: ⨅ n, fBᵦ n ⊓ (⨆ ij, pair(ω.k)(ŷ.j) =ᴮ pair(ω.ij.1)(ŷ.ij.2)) ≤ (p ∈ f' ⇔ p ∈ g)
+      -- This is still complex. Let me try to reduce using iSup distribution.
+      -- Goal: ⨅ n, fBᵦ n ⊓ p ∈ prod ω (check y) ≤ p ∈ check f' ⇔ p ∈ g
+      -- Try: use cases on p to get p = ⟨k, j⟩ in (check omega).type × (check y).type
+      -- Actually prod.type = omega.type × (check y).type, and then the index gives the pair.
+      -- Approach: use iSup_le intro on the prod membership
+      apply le_inf
+      · -- Forward: p ∈ check f' → p ∈ g
+        rw [← deduction]
+        simp only [biimp] at *
+        sorry  -- complex; needs fBᵦ_pair and uniqueness of f'
+      · -- Backward: p ∈ g → p ∈ check f'
+        rw [← deduction]
+        sorry  -- complex; needs check_mem of f'
   exact ⟨f', ⨅ n, fBᵦ n, Γ'_pos, Γ'_le_Γ, Γ'_le_eq, f'_is_func⟩
 
 end function_reflect
