@@ -546,23 +546,45 @@ lemma eq_zero_iff_eq_empty {Γ : 𝔹} {u : bSet 𝔹} : Γ ≤ u =ᴮ 0 ↔ Γ 
 lemma induced_rel_empty_of_eq_zero {η f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_function η omega f)
     (H_eq_zero : Γ ≤ η =ᴮ 0) : Γ ≤ induced_epsilon_rel η omega f =ᴮ ∅ := by
-  apply bv_by_contra; rw [← deduction]
-  have H_ex : Γ ⊓ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ ≤
-      ⨆ pr, pr ∈ᴮ induced_epsilon_rel η omega f :=
-    nonempty_iff_exists_mem.mp inf_le_right
-  sorry -- TODO: port from src/aleph_one.lean:662
+  rw [empty_iff_forall_not_mem]
+  apply le_iInf; intro pr
+  rw [← imp_bot, ← deduction]
+  -- goal: Γ ⊓ pr ∈ᴮ induced_epsilon_rel η omega f ≤ ⊥
+  set Γ' := Γ ⊓ pr ∈ᴮ induced_epsilon_rel η omega f
+  have H_mem' : Γ' ≤ pr ∈ᴮ induced_epsilon_rel η omega f := inf_le_right
+  have H_func' : Γ' ≤ is_function η omega f := le_trans inf_le_left H_func
+  obtain ⟨a, _b, _, _, _, Hab⟩ := eq_pair_of_mem_induced_epsilon_rel H_mem'
+  have Ha_img : Γ' ≤ a ∈ᴮ image η omega f :=
+    induced_epsilon_rel_sub_image_left H_func' Hab
+  rw [mem_image_iff] at Ha_img
+  have H_eq_empty : Γ' ≤ η =ᴮ ∅ :=
+    eq_zero_iff_eq_empty.mp (le_trans inf_le_left H_eq_zero)
+  have H_notz : Γ' ≤ ⨅ z, (z ∈ᴮ η)ᶜ := empty_iff_forall_not_mem.mp H_eq_empty
+  apply bv_absurd (⨆ z, z ∈ᴮ η ⊓ pair z a ∈ᴮ f) Ha_img.2
+  rw [compl_iSup]
+  apply le_iInf; intro z
+  exact le_trans (le_trans H_notz (iInf_le _ z)) (compl_le_compl inf_le_left)
 
 -- src/aleph_one.lean:679
 lemma nonempty_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_function η omega f)
     (H : Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ) : Γ ≤ (η =ᴮ ∅)ᶜ := by
-  sorry -- TODO: port from src/aleph_one.lean:679
+  rw [← imp_bot, ← deduction]
+  -- goal: Γ ⊓ (η =ᴮ ∅) ≤ ⊥
+  have H_eq_zero : Γ ⊓ (η =ᴮ ∅) ≤ induced_epsilon_rel η omega f =ᴮ ∅ :=
+    induced_rel_empty_of_eq_zero (le_trans inf_le_left H_func)
+      (eq_zero_iff_eq_empty.mpr inf_le_right)
+  exact bv_absurd _ H_eq_zero (le_trans inf_le_left H)
 
 -- src/aleph_one.lean:690
 lemma not_zero_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_function η omega f)
     (H' : Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ) : Γ ≤ (η =ᴮ 0)ᶜ := by
-  sorry -- TODO: port from src/aleph_one.lean:690
+  rw [← imp_bot, ← deduction]
+  -- goal: Γ ⊓ (η =ᴮ 0) ≤ ⊥
+  have H_rel_empty : Γ ⊓ (η =ᴮ 0) ≤ induced_epsilon_rel η omega f =ᴮ ∅ :=
+    induced_rel_empty_of_eq_zero (le_trans inf_le_left H_func) inf_le_right
+  exact bv_absurd _ H_rel_empty (le_trans inf_le_left H')
 
 -- src/aleph_one.lean:700
 lemma not_one_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
