@@ -630,10 +630,17 @@ lemma a1'_AE {Γ : 𝔹} : Γ ≤ ⨅ z, z ∈ᴮ a1' ⟹
   apply le_trans (le_inf H_from le_rfl)
   apply bv_cases_left; intro χ
   -- ctx: (bv_powerset...).bval χ ⊓ (z =ᴮ w ⊓ ϕ' w) ⊓ Γ, where w = (bv_powerset...).func χ
-  have h_zeq := inf_le_left.trans (inf_le_right.trans inf_le_left)
-  have h_phi := inf_le_left.trans (inf_le_right.trans inf_le_right)
-  -- H_congr w z: w =ᴮ z ⊓ ϕ' w ≤ ϕ' z = ⨆ η, ...
-  exact le_trans (le_inf (bv_symm h_zeq) h_phi) (H_congr _ z)
+  -- The type is: (bv_powerset (prod omega omega)).bval χ ⊓
+  --   (z =ᴮ (bv_powerset (prod omega omega)).func χ ⊓ (⨆ η, ...)) ⊓ Γ ≤ ⨆ η, ...
+  -- h_zeq: ctx ≤ z =ᴮ w  (from the left ⊓ part)
+  -- h_phi: ctx ≤ ϕ' w (the nested ⨆ expression)
+  -- Apply H_congr: ϕ' w ≤ ϕ' z given w =ᴮ z
+  refine le_trans (le_inf ?_ ?_) (H_congr ((bv_powerset (prod omega omega)).func χ) z)
+  · -- Need: ctx ≤ (bv_powerset...).func χ =ᴮ z
+    -- from inf_le_left (bval ⊓ (z=w ⊓ ϕ'w)) gives z=w; bv_symm gives w=z
+    exact bv_symm (inf_le_left.trans (inf_le_right.trans inf_le_left))
+  · -- Need: ctx ≤ ϕ' w (the outer ⨆ at w = func χ)
+    exact inf_le_left.trans (inf_le_right.trans inf_le_right)
 
 -- src/aleph_one.lean:620
 noncomputable def a1_func (χ : (a1' (𝔹 := 𝔹)).type) : bSet 𝔹 := ∅
