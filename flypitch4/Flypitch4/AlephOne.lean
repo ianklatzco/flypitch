@@ -336,7 +336,82 @@ def mem_rel (x : bSet 𝔹) : bSet 𝔹 :=
 -- src/aleph_one.lean:268
 lemma mem_mem_rel_iff {x y z : bSet 𝔹} {Γ} :
     Γ ≤ pair y z ∈ᴮ mem_rel x ↔ (Γ ≤ y ∈ᴮ x ∧ Γ ≤ z ∈ᴮ x ∧ Γ ≤ y ∈ᴮ z) := by
-  sorry -- TODO: port from src/aleph_one.lean:268 (uses bv_cases_at, bv_split_at, bv_cc)
+  -- mem_rel x = subset.mk (fun pr : (prod x x).type => x.func pr.1 ∈ x.func pr.2)
+  unfold mem_rel
+  rw [mem_subset.mk_iff]
+  simp only [prod_func, prod_bval]
+  constructor
+  · -- MP: Γ ≤ ⨆ (i,j), pair y z =ᴮ pair(xi,xj) ⊓ (xi∈xj ⊓ (bi⊓bj)) → each conclusion
+    intro H
+    refine ⟨?_, ?_, ?_⟩
+    · -- y ∈ x
+      apply le_trans H; apply iSup_le; intro ⟨i, j⟩
+      -- goal: pair y z =ᴮ pair(xi,xj) ⊓ (xi∈xj ⊓ (bi⊓bj)) ≤ y ∈ x
+      have hyi : pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+          (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j)) ≤ y =ᴮ x.func i :=
+        inf_le_left.trans (pair_eq_pair_iff.mp le_rfl).1
+      have hbi : pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+          (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j)) ≤ x.bval i :=
+        inf_le_right.trans (inf_le_right.trans inf_le_left)
+      calc pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+              (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j))
+          ≤ y =ᴮ x.func i ⊓ x.bval i := le_inf hyi hbi
+        _ ≤ y ∈ᴮ x := by
+            rw [mem_unfold]; apply le_iSup_of_le i
+            exact le_inf inf_le_right inf_le_left
+    · -- z ∈ x
+      apply le_trans H; apply iSup_le; intro ⟨i, j⟩
+      have hzj : pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+          (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j)) ≤ z =ᴮ x.func j :=
+        inf_le_left.trans (pair_eq_pair_iff.mp le_rfl).2
+      have hbj : pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+          (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j)) ≤ x.bval j :=
+        inf_le_right.trans (inf_le_right.trans inf_le_right)
+      calc pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+              (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j))
+          ≤ z =ᴮ x.func j ⊓ x.bval j := le_inf hzj hbj
+        _ ≤ z ∈ᴮ x := by
+            rw [mem_unfold]; apply le_iSup_of_le j
+            exact le_inf inf_le_right inf_le_left
+    · -- y ∈ z
+      apply le_trans H; apply iSup_le; intro ⟨i, j⟩
+      -- goal: pair y z =ᴮ pair(xi,xj) ⊓ (xi∈xj ⊓ (bi⊓bj)) ≤ y∈z
+      set T := pair y z =ᴮ pair (x.func i) (x.func j) ⊓
+        (x.func i ∈ᴮ x.func j ⊓ (x.bval i ⊓ x.bval j))
+      have hyi : T ≤ y =ᴮ x.func i := inf_le_left.trans (pair_eq_pair_iff.mp le_rfl).1
+      have hzj : T ≤ z =ᴮ x.func j := inf_le_left.trans (pair_eq_pair_iff.mp le_rfl).2
+      have hxixj : T ≤ x.func i ∈ᴮ x.func j := inf_le_right.trans inf_le_left
+      -- y = xi, xi ∈ xj, xj = z  →  y ∈ z via mem_congr
+      exact mem_congr (bv_symm hyi) (bv_symm hzj) hxixj
+  · -- MPI: y∈x ∧ z∈x ∧ y∈z → ⨆ ij, ...
+    intro ⟨Hy, Hz, Hyz⟩
+    rw [mem_unfold] at Hy Hz
+    -- Use iSup_inf_iSup to combine the two iSups, then bound elementwise
+    apply le_trans (le_inf (le_inf Hy Hz) Hyz)
+    -- goal: (⨆ i, bi⊓y=xi) ⊓ (⨆ j, bj⊓z=xj) ⊓ y∈z ≤ ⨆ (k,l), ...
+    rw [show (⨆ i : x.type, x.bval i ⊓ y =ᴮ x.func i) ⊓
+              (⨆ j : x.type, x.bval j ⊓ z =ᴮ x.func j) =
+              ⨆ ij : x.type × x.type, (x.bval ij.1 ⊓ y =ᴮ x.func ij.1) ⊓
+                (x.bval ij.2 ⊓ z =ᴮ x.func ij.2) from iSup_inf_iSup]
+    rw [inf_comm]
+    apply bv_cases_right; intro ⟨i, j⟩
+    apply le_iSup_of_le (i, j)
+    simp only [prod_func, prod_bval]
+    -- After bv_cases_right intro ⟨i, j⟩ and rw [inf_comm], context is:
+    -- y∈z ⊓ ((bi⊓y=xi) ⊓ (bj⊓z=xj)) ≤ pair y z =ᴮ pair(xi,xj) ⊓ (xi∈xj ⊓ (bi⊓bj))
+    -- Extract parts:
+    have hbeq_y : y ∈ᴮ z ⊓ ((x.bval i ⊓ y =ᴮ x.func i) ⊓ (x.bval j ⊓ z =ᴮ x.func j)) ≤
+        y =ᴮ x.func i := inf_le_right.trans (inf_le_left.trans inf_le_right)
+    have hbeq_z : y ∈ᴮ z ⊓ ((x.bval i ⊓ y =ᴮ x.func i) ⊓ (x.bval j ⊓ z =ᴮ x.func j)) ≤
+        z =ᴮ x.func j := inf_le_right.trans (inf_le_right.trans inf_le_right)
+    have hbval_i : y ∈ᴮ z ⊓ ((x.bval i ⊓ y =ᴮ x.func i) ⊓ (x.bval j ⊓ z =ᴮ x.func j)) ≤
+        x.bval i := inf_le_right.trans (inf_le_left.trans inf_le_left)
+    have hbval_j : y ∈ᴮ z ⊓ ((x.bval i ⊓ y =ᴮ x.func i) ⊓ (x.bval j ⊓ z =ᴮ x.func j)) ≤
+        x.bval j := inf_le_right.trans (inf_le_right.trans inf_le_left)
+    have hyz : y ∈ᴮ z ⊓ ((x.bval i ⊓ y =ᴮ x.func i) ⊓ (x.bval j ⊓ z =ᴮ x.func j)) ≤
+        y ∈ᴮ z := inf_le_left
+    refine le_inf (pair_eq_pair_iff.mpr ⟨hbeq_y, hbeq_z⟩)
+      (le_inf (mem_congr hbeq_y hbeq_z hyz) (le_inf hbval_i hbval_j))
 
 -- src/aleph_one.lean:286
 @[simp] lemma B_congr_mem_rel : B_congr (mem_rel : bSet 𝔹 → bSet 𝔹) := by
