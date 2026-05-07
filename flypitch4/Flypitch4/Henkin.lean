@@ -360,4 +360,320 @@ def cocone_of_bounded_term_L_infty {L : Language.{u}} (n l : ℕ) :
         ϕ.on_bounded_term t) hc
     simpa [Lhom.comp] using this
 
+/-! ## Cocone over the bounded formula chain (Task 16b, src/henkin.lean:452-499) -/
+
+/-- Cocone over the bounded preformula chain with vertex bounded_preformula (L_∞ L) n l -/
+def cocone_of_bounded_formula_L_infty {L : Language.{u}} (n l : ℕ) :
+    cocone (@henkin_bounded_formula_chain L n l) where
+  vertex := bounded_preformula (L_infty L) n l
+  map i := Lhom.on_bounded_formula (henkin_language_canonical_map i)
+  h_compat := by
+    intro i j H
+    have hc : henkin_language_canonical_map i =
+        (henkin_language_canonical_map j).comp (henkin_language_chain_maps L i j H) :=
+      (@cocone_of_L_infty L).h_compat H
+    funext f
+    simp only [Function.comp, henkin_bounded_formula_chain]
+    have := congr_arg (fun ϕ : @henkin_language_chain_objects L i →ᴸ L_infty L =>
+        ϕ.on_bounded_formula f) hc
+    simpa [Lhom.comp] using this
+
+/-- bounded_formula (L_∞ L) 1 is naturally a cocone over the diagram of bounded_formulas -/
+def cocone_of_bounded_formula'_L_infty {L : Language.{u}} :
+    cocone (@henkin_bounded_formula_chain' L) where
+  vertex := bounded_formula (L_infty L) 1
+  map i := Lhom.on_bounded_formula (henkin_language_canonical_map i)
+  h_compat := by
+    intro i j H
+    have hc : henkin_language_canonical_map i =
+        (henkin_language_canonical_map j).comp (henkin_language_chain_maps L i j H) :=
+      (@cocone_of_L_infty L).h_compat H
+    funext f
+    simp only [Function.comp, henkin_bounded_formula_chain', henkin_bounded_formula_chain]
+    have := congr_arg (fun ϕ : @henkin_language_chain_objects L i →ᴸ L_infty L =>
+        ϕ.on_bounded_formula f) hc
+    simpa [Lhom.comp] using this
+
+/-! ## Comparison maps (universal maps from colimits to L_∞) -/
+
+def term_comparison {L : Language.{u}} (l) :
+    colimit (@henkin_term_chain L l) → preterm (L_infty L) l :=
+  universal_map (V := cocone_of_term_L_infty l)
+
+def formula_comparison {L : Language.{u}} (l) :
+    colimit (@henkin_formula_chain L l) → @preformula (L_infty L) l :=
+  universal_map (V := cocone_of_formula_L_infty l)
+
+def bounded_term_comparison {L : Language.{u}} (n l) :
+    colimit (@henkin_bounded_term_chain L n l) → bounded_preterm (L_infty L) n l :=
+  universal_map (V := cocone_of_bounded_term_L_infty n l)
+
+@[reducible] def bounded_term'_comparison {L : Language.{u}} :
+    colimit (@henkin_bounded_term_chain' L) → bounded_term (L_infty L) 1 :=
+  @bounded_term_comparison L 1 0
+
+def bounded_formula_comparison {L : Language.{u}} (n l) :
+    colimit (@henkin_bounded_formula_chain L n l) → bounded_preformula (L_infty L) n l :=
+  universal_map (V := cocone_of_bounded_formula_L_infty n l)
+
+@[reducible] def bounded_formula'_comparison {L : Language.{u}} :
+    colimit (@henkin_bounded_formula_chain' L) → bounded_formula (L_infty L) 1 :=
+  @bounded_formula_comparison L 1 0
+
+/-! ## Bijectivity of comparison maps (src/henkin.lean:508-655) -/
+
+-- These are complex structural induction arguments; sorried pending full port.
+
+lemma term_comparison_bijective {L : Language.{u}} (l) :
+    Function.Bijective (@term_comparison L l) := by
+  sorry -- TODO: port from src/henkin.lean:508-541
+
+lemma formula_comparison_bijective {L : Language.{u}} (l) :
+    Function.Bijective (@formula_comparison L l) := by
+  sorry -- TODO: port from src/henkin.lean:545-580
+
+@[simp] lemma bounded_term_comparison_bijective {L : Language.{u}} (n l) :
+    Function.Bijective (@bounded_term_comparison L n l) := by
+  sorry -- TODO: port from src/henkin.lean:582-615
+
+@[simp] lemma bounded_formula_comparison_bijective {L : Language.{u}} (n l) :
+    Function.Bijective (@bounded_formula_comparison L n l) := by
+  sorry -- TODO: port from src/henkin.lean:617-652
+
+@[simp] lemma bounded_formula'_comparison_bijective {L : Language.{u}} :
+    Function.Bijective (@bounded_formula'_comparison L) :=
+  bounded_formula_comparison_bijective 1 0
+
+noncomputable def equiv_bounded_formula_comparison {L : Language.{u}} :
+    Equiv (colimit (@henkin_bounded_formula_chain' L)) (bounded_formula (L_infty L) 1) :=
+  Equiv.ofBijective bounded_formula'_comparison bounded_formula'_comparison_bijective
+
+/-! ## Henkin theory chain (src/henkin.lean:661-734) -/
+
+/-- The Henkin theory chain: T_n = Henkin^n step applied to T -/
+def henkin_theory_chain {L : Language.{u}} (T : SentTheory L) :
+    ∀ (n : ℕ), SentTheory ((@henkin_language_chain L).obj n)
+  | 0 => T
+  | n + 1 => henkin_theory_step (henkin_theory_chain T n)
+
+lemma is_consistent_henkin_theory_chain {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) (n : ℕ) : (henkin_theory_chain T n).is_consistent := by
+  induction n with
+  | zero => exact hT
+  | succ n ih => exact is_consistent_henkin_theory_step ih
+
+/-! ## has_enough_constants (from src/fol.lean:2482) -/
+
+/-- A theory has enough constants if every bounded formula has a Henkin witness -/
+def has_enough_constants {L : Language.{u}} (T : SentTheory L) : Prop :=
+  ∃ (C : ∀ (f : bounded_formula L 1), L.constants),
+    ∀ (f : bounded_formula L 1),
+      T.fst ⊢' (wit_property f (C f)).fst
+
+lemma has_enough_constants.intro {L : Language.{u}} (T : SentTheory L)
+    (H : ∀ (f : bounded_formula L 1), ∃ c : L.constants,
+      T.fst ⊢' (wit_property f c).fst) :
+    has_enough_constants T :=
+  Classical.axiom_of_choice H
+
+/-! ## ι: pushing T_n into Theory L_∞ -/
+
+/-- Given T_n from henkin_theory_chain, ι T_n is the expansion of T_n to an L_infty theory -/
+def ι {L : Language.{u}} {T : SentTheory L} (m : ℕ) : SentTheory (L_infty L) :=
+  Lhom.on_sentence (henkin_language_canonical_map m) '' (henkin_theory_chain T m)
+
+@[simp] lemma in_iota_of_in_step {L : Language.{u}} (i : ℕ) {T : SentTheory L}
+    (f : sentence ((@henkin_language_chain L).obj (i + 1))) :
+    f ∈ (henkin_theory_chain T (i + 1)) →
+    Lhom.on_bounded_formula (henkin_language_canonical_map (i + 1)) f ∈ @ι L T (i + 1) :=
+  fun H => Set.mem_image_of_mem _ H
+
+@[simp] lemma is_consistent_iota {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) (m : ℕ) : (@ι L T m).is_consistent := by
+  -- ι m is the image of henkin_theory_chain T m under an injective map,
+  -- so it inherits consistency.
+  sorry -- TODO: port from src/henkin.lean:679-688
+
+/-! ## Monotonicity: ι is increasing (src/henkin.lean:736-751) -/
+
+lemma henkin_theory_chain_inclusion_step {L : Language.{u}} {T : SentTheory L} {i : ℕ}
+    {f : sentence ((@henkin_language_chain L).obj i)}
+    (hf : f ∈ henkin_theory_chain T i) :
+    Lhom.on_bounded_formula (henkin_language_chain_maps L i (i + 1) (Nat.le_succ i)) f ∈
+    henkin_theory_chain T (i + 1) := by
+  simp only [henkin_theory_chain, henkin_theory_step]
+  apply Set.mem_union_left
+  -- Lhom.Theory_induced = on_sentence '' ...
+  -- henkin_language_chain_maps L i (i+1) = henkin_language_inclusion.comp ...
+  -- so on_bounded_formula (hcm i (i+1)) f = on_sentence (hcm i (i+1)) f
+  -- = on_sentence (henkin_language_inclusion ∘ hcm i i) f
+  -- = henkin_language_inclusion.on_sentence (on_sentence (hcm i i) f)
+  -- = henkin_language_inclusion.on_sentence f  (since hcm i i = id)
+  rw [← henkin_language_inclusion_chain_map]
+  exact Set.mem_image_of_mem _ hf
+
+lemma iota_inclusion_of_le {L : Language.{u}} {T : SentTheory L} :
+    ∀ {i j : ℕ}, i ≤ j → (@ι L T i) ⊆ (@ι L T j) := by
+  sorry -- TODO: port from src/henkin.lean:736-751
+
+/-! ## T_infty: the henkinization (src/henkin.lean:753-774) -/
+
+/-- T_infty is the henkinization of T; we define it to be the union ⋃ (n : ℕ), ι(T n). -/
+@[reducible] def T_infty {L : Language.{u}} (T : SentTheory L) : SentTheory (L_infty L) :=
+  ⋃ n : ℕ, @ι L T n
+
+@[reducible] def henkin_language {L : Language.{u}} {T : SentTheory L}
+    {_hT : T.is_consistent} : Language.{u} := L_infty L
+
+def henkin_language_over {L : Language.{u}} {T : SentTheory L} {_hT : T.is_consistent} :
+    L →ᴸ (@henkin_language L T _hT) :=
+  henkin_language_canonical_map 0
+
+lemma henkin_language_over_injective {L : Language.{u}} {T : SentTheory L}
+    {_hT : T.is_consistent} : Lhom.is_injective (@henkin_language_over L T _hT) :=
+  henkin_language_canonical_map_inj 0
+
+@[reducible] def henkinization {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : SentTheory (@henkin_language L T hT) := T_infty T
+
+/-! ## wit_infty: find a Henkin witness in henkinization (src/henkin.lean:778-783) -/
+
+noncomputable def wit_infty {L : Language.{u}} {T : SentTheory L} {hT : T.is_consistent}
+    (f : bounded_formula (@henkin_language L T hT) 1) :
+    Σ c : (@henkin_language L T hT).constants,
+      Σ (f' : Σ' (x : colimit (@henkin_bounded_formula_chain' L)),
+          bounded_formula'_comparison x = f),
+        Σ' (f'' : coproduct_of_directed_diagram (@henkin_bounded_formula_chain' L)),
+          ⟦f''⟧ = f'.fst ∧
+          c = (henkin_language_canonical_map (f''.1 + 1)).on_function (wit' f''.2) := by
+  have f_lift1 := Classical.psigma_of_exists (bounded_formula'_comparison_bijective.right f)
+  have f_lift2 := germ_rep f_lift1.fst
+  exact ⟨(henkin_language_canonical_map (f_lift2.fst.1 + 1)).on_function (wit' f_lift2.fst.2),
+         f_lift1, f_lift2.fst, f_lift2.snd, rfl⟩
+
+/-! ## henkinization has enough constants (src/henkin.lean:785-831) -/
+
+@[simp] lemma henkinization_is_henkin {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : has_enough_constants (henkinization hT) := by
+  apply has_enough_constants.intro
+  intro f
+  have big_sigma := wit_infty f
+  obtain ⟨c, _⟩ := big_sigma
+  exact ⟨c, by sorry⟩ -- TODO: port from src/henkin.lean:790-830
+
+/-! ## Directed union infrastructure (src/henkin.lean:833-874) -/
+
+/-- For every n, T_n as a Theory_over (ι T 0) -/
+def henkin_Theory_over {L : Language.{u}} (T : SentTheory L) (hT : T.is_consistent) (n : ℕ) :
+    Theory_over (@ι L T 0) (is_consistent_iota hT 0) :=
+  ⟨@ι L T n, iota_inclusion_of_le (Nat.zero_le n), is_consistent_iota hT n⟩
+
+def henkin_theory_schain {L : Language.{u}} (T : SentTheory L) (hT : T.is_consistent) :
+    Set (Theory_over (@ι L T 0) (is_consistent_iota hT 0)) :=
+  { T' | ∃ k : ℕ, @ι L T k = T'.val }
+
+lemma iota_union_rw {L : Language.{u}} (T : SentTheory L) (hT : T.is_consistent) :
+    @ι L T 0 ∪ ⋃₀ (Subtype.val '' henkin_theory_schain T hT) = henkinization hT := by
+  sorry -- TODO: port from src/henkin.lean:849-858
+
+lemma chain_henkin_theory_chain {L : Language.{u}} (T : SentTheory L) (hT : T.is_consistent) :
+    IsChain Theory_over_subset (henkin_theory_schain T hT) := by
+  intro T₁ hT₁ T₂ hT₂ hne
+  simp only [henkin_theory_schain, Set.mem_setOf_eq] at hT₁ hT₂
+  obtain ⟨i, hi⟩ := hT₁; obtain ⟨j, hj⟩ := hT₂
+  by_cases h : i ≤ j
+  · left
+    -- T₁.val = ι i ⊆ ι j = T₂.val
+    intro f hf
+    rw [← hj]
+    exact iota_inclusion_of_le h (hi ▸ hf)
+  · right
+    -- T₂.val = ι j ⊆ ι i = T₁.val
+    intro f hf
+    rw [← hi]
+    exact iota_inclusion_of_le (Nat.le_of_lt (Nat.lt_of_not_le h)) (hj ▸ hf)
+
+lemma is_consistent_henkinization {L : Language.{u}} {T : SentTheory L} (hT : T.is_consistent) :
+    (henkinization hT).is_consistent := by
+  have key := @consis_limit _ _ _ (henkin_theory_schain T hT)
+  rw [iota_union_rw] at key
+  exact key (chain_henkin_theory_chain T hT)
+
+/-! ## Completion of henkinization (src/henkin.lean:891-911) -/
+
+/-- The core completion: henkinization extends to a complete consistent theory -/
+noncomputable def completion_of_henkinization_core {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) :
+    Σ' (T' : Theory_over (henkinization hT) (is_consistent_henkinization hT)),
+        T'.val.is_complete :=
+  completion_of_consis (henkinization hT) (is_consistent_henkinization hT)
+
+/-- The completed henkinization theory -/
+noncomputable def completion_of_henkinization {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : SentTheory (@henkin_language L T hT) :=
+  (completion_of_henkinization_core hT).fst.val
+
+/-- The completed theory contains the henkinization -/
+lemma completion_of_henkinization_contains {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : henkinization hT ⊆ completion_of_henkinization hT :=
+  (completion_of_henkinization_core hT).fst.property.left
+
+/-- The completed theory is consistent -/
+lemma completion_of_henkinization_consistent {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : (completion_of_henkinization hT).is_consistent :=
+  (completion_of_henkinization_core hT).fst.property.right
+
+/-- The completed theory is complete -/
+def completion_of_henkinization_complete {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : (completion_of_henkinization hT).is_complete :=
+  (completion_of_henkinization_core hT).snd
+
+/-- The completed theory is Henkin -/
+@[simp] lemma completion_of_henkinization_is_henkin {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) : has_enough_constants (completion_of_henkinization hT) := by
+  apply has_enough_constants.intro
+  intro f
+  obtain ⟨C, HC⟩ := henkinization_is_henkin hT
+  refine ⟨C f, ?_⟩
+  apply weakening' (Γ := (henkinization hT).fst)
+  · exact Set.image_mono (completion_of_henkinization_contains hT)
+  · exact HC f
+
+/-! ## Term model and main completeness theorem -/
+
+/-- term_model of a complete Henkin theory (placeholder for src/fol.lean:2559) -/
+noncomputable def term_model {L : Language.{u}} {T : SentTheory L}
+    (_hcomp : T.is_complete) (_henk : has_enough_constants T) : Structure L :=
+  sorry -- TODO: port from src/fol.lean:2559-2580
+
+/-- The term model satisfies T (placeholder for src/fol.lean:2672) -/
+lemma term_model_ssatisfied {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T) :
+    all_realize_sentence (term_model hcomp henk) T := by
+  sorry -- TODO: port from src/fol.lean:2672-2673
+
+/-- The reduct of the term model of the complete henkinization satisfies T -/
+@[simp] lemma reduct_of_complete_henkinization_models_T {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) :
+    Lhom.reduct (@henkin_language_canonical_map L 0)
+      (term_model (completion_of_henkinization_complete hT)
+                  (completion_of_henkinization_is_henkin hT)) ⊨ₜ T := by
+  apply Lhom.reduct_all_ssatisfied (henkin_language_canonical_map_inj 0)
+  -- Goal: all_realize_sentence (term_model ...) ((hcm 0).on_sentence '' T)
+  intro f hf
+  -- hf : f ∈ (hcm 0).on_sentence '' T
+  obtain ⟨f₀, hf₀, rfl⟩ := hf
+  apply term_model_ssatisfied
+  apply completion_of_henkinization_contains hT
+  simp only [henkinization, T_infty]
+  exact Set.mem_iUnion.mpr ⟨0, Set.mem_image_of_mem _ hf₀⟩
+
+/-- Given ψ ∈ T, the term model satisfies ψ -/
+@[simp] lemma reduct_of_complete_henkinization_satisfies {L : Language.{u}} {T : SentTheory L}
+    (hT : T.is_consistent) (ψ : sentence L) (hψ : ψ ∈ T) :
+    Lhom.reduct (@henkin_language_canonical_map L 0)
+      (term_model (completion_of_henkinization_complete hT)
+                  (completion_of_henkinization_is_henkin hT)) ⊨ₘ ψ :=
+  reduct_of_complete_henkinization_models_T hT hψ
+
 end Fol
