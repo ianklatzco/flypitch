@@ -678,13 +678,39 @@ lemma mem_aleph_one_of_injects_into_omega {x : bSet 𝔹} {Γ : 𝔹}
     (H_aleph_one : Γ ≤ aleph_one_Ord_spec x) {z : bSet 𝔹}
     (H_x_Ord : Γ ≤ Ord x) (H_z_Ord : Γ ≤ Ord z)
     (H_inj : Γ ≤ injects_into z bSet.omega) : Γ ≤ z ∈ᴮ x := by
-  sorry -- TODO: port from src/aleph_one.lean:905
+  -- Proof by contradiction: assume z ∉ x, then x ⊆ z → x injects into omega → contradiction
+  have hbot : Γ ⊓ (z ∈ᴮ x)ᶜ ≤ ⊥ := by
+    -- By Ord.resolve_lt: (z ∈ x)ᶜ → x ∈ z ⊔ x = z
+    have H_z_Ord' : Γ ⊓ (z ∈ᴮ x)ᶜ ≤ Ord z := le_trans inf_le_left H_z_Ord
+    have H_x_Ord' : Γ ⊓ (z ∈ᴮ x)ᶜ ≤ Ord x := le_trans inf_le_left H_x_Ord
+    have H_not_mem : Γ ⊓ (z ∈ᴮ x)ᶜ ≤ (z ∈ᴮ x)ᶜ := inf_le_right
+    have H_tri := Ord.resolve_lt H_z_Ord' H_x_Ord' H_not_mem
+    -- H_tri : Γ ⊓ (z ∈ x)ᶜ ≤ x ∈ z ⊔ x = z, so x ⊆ z
+    have H_sub : Γ ⊓ (z ∈ᴮ x)ᶜ ≤ x ⊆ᴮ z := by
+      rw [Ord.le_iff_lt_or_eq H_x_Ord' H_z_Ord']
+      exact H_tri.trans (sup_le le_sup_left le_sup_right)
+    -- injects_into x omega
+    have H_inj_x : Γ ⊓ (z ∈ᴮ x)ᶜ ≤ injects_into x bSet.omega :=
+      injects_into_trans (injects_into_of_subset H_sub) (le_trans inf_le_left H_inj)
+    -- aleph_one_Ord_spec x says (injects_into x omega)ᶜ
+    exact bv_absurd _ H_inj_x (le_trans inf_le_left (bv_and_left H_aleph_one))
+  -- Convert hbot to conclusion
+  have : Γ ≤ (z ∈ᴮ x)ᶜ ⟹ ⊥ := deduction.mp hbot
+  rwa [imp_bot, compl_compl] at this
 
 -- src/aleph_one.lean:915
 lemma aleph_one_check_sub_aleph_one_aux {x : bSet 𝔹} {Γ : 𝔹}
     (H_ord : Γ ≤ Ord x) (H_aleph_one : Γ ≤ aleph_one_Ord_spec x) :
     Γ ≤ (check PSet.aleph_one : bSet 𝔹) ⊆ᴮ x := by
-  sorry -- TODO: port from src/aleph_one.lean:915
+  rw [subset_unfold']
+  apply le_iInf; intro w; rw [← deduction]
+  -- goal: Γ ⊓ w ∈ᴮ (check PSet.aleph_one) ≤ w ∈ᴮ x
+  apply mem_aleph_one_of_injects_into_omega (le_trans inf_le_left H_aleph_one)
+    (le_trans inf_le_left H_ord)
+  · -- Ord w: w ∈ check PSet.aleph_one and PSet.aleph_one is an Ord
+    exact Ord_of_mem_Ord inf_le_right (check_Ord PSet.aleph_one_Ord)
+  · -- injects_into w omega
+    exact injects_into_omega_of_mem_aleph_one_check inf_le_right
 
 end
 
