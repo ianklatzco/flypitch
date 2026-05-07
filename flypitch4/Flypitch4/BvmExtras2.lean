@@ -886,7 +886,54 @@ lemma is_epsilon_well_founded {x : bSet 𝔹} {Γ : 𝔹} : Γ ≤ epsilon_well_
 
 -- src/bvm_extras2.lean:546
 lemma Ord_succ {η : bSet 𝔹} {Γ : 𝔹} (H_Ord : Γ ≤ Ord η) : Γ ≤ Ord (succ η) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:546
+  -- Ord = epsilon_trichotomy ⊓ epsilon_well_founded ⊓ is_transitive
+  refine le_inf (le_inf ?_ ?_) ?_
+  · -- epsilon_trichotomy (succ η): use epsilon_trichotomy_of_sub_Ord
+    -- Need: ⨅ x, x ∈ succ η ⟹ Ord x
+    -- x ∈ succ η ↔ x = η ∨ x ∈ η
+    have H_all_ord : Γ ≤ ⨅ x, x ∈ᴮ succ η ⟹ Ord x := by
+      apply le_iInf; intro x; rw [← deduction]
+      -- goal: Γ ⊓ x ∈ succ η ≤ Ord x
+      have hx : Γ ⊓ x ∈ᴮ succ η ≤ x =ᴮ η ⊔ x ∈ᴮ η := by
+        have h : x ∈ᴮ succ η = x =ᴮ η ⊔ x ∈ᴮ η := by unfold succ; exact mem_insert1
+        rw [h]; exact inf_le_right
+      -- Case x = η: Ord η
+      have hx_eq : (x =ᴮ η) ⊓ (Γ ⊓ x ∈ᴮ succ η) ≤ Ord x :=
+        bv_rw'' (ϕ := fun v => Ord v) (bv_symm inf_le_left)
+          (inf_le_right.trans (inf_le_left.trans H_Ord)) B_ext_Ord
+      -- Case x ∈ η: Ord x (by Ord_of_mem_Ord)
+      have hx_mem : (x ∈ᴮ η) ⊓ (Γ ⊓ x ∈ᴮ succ η) ≤ Ord x :=
+        Ord_of_mem_Ord inf_le_left (inf_le_right.trans (inf_le_left.trans H_Ord))
+      exact le_trans (le_inf hx le_rfl) (bv_or_elim_left hx_eq hx_mem)
+    -- Now use epsilon_trichotomy_of_sub_Ord
+    have htri := epsilon_trichotomy_of_sub_Ord (succ η) H_all_ord
+    -- htri: Γ ≤ ⨅ y, y ∈ succ η ⟹ ⨅ z, z ∈ succ η ⟹ (y=z ⊔ y∈z ⊔ z∈y)
+    -- Unfold epsilon_trichotomy to match
+    unfold epsilon_trichotomy
+    apply le_iInf; intro y; rw [← deduction]
+    apply le_iInf; intro z; rw [← deduction]
+    -- ctx = Γ ⊓ y ∈ succ η ⊓ z ∈ succ η
+    have hy_mem : Γ ⊓ y ∈ᴮ succ η ⊓ z ∈ᴮ succ η ≤ y ∈ᴮ succ η := inf_le_left.trans inf_le_right
+    have hz_mem : Γ ⊓ y ∈ᴮ succ η ⊓ z ∈ᴮ succ η ≤ z ∈ᴮ succ η := inf_le_right
+    have htri_y := le_trans (le_inf (inf_le_left.trans (inf_le_left.trans (htri.trans (iInf_le _ y)))) hy_mem) bv_imp_elim
+    exact le_trans (le_inf (htri_y.trans (iInf_le _ z)) hz_mem) bv_imp_elim
+  · -- epsilon_well_founded: directly from regularity
+    rw [epsilon_well_founded]
+    apply le_iInf; intro x; rw [← deduction, ← deduction]
+    exact bSet_axiom_of_regularity x inf_le_right
+  · -- is_transitive (succ η): for z ∈ succ η, z ⊆ succ η
+    unfold is_transitive
+    apply le_iInf; intro z; rw [← deduction]
+    have hz : Γ ⊓ z ∈ᴮ succ η ≤ z =ᴮ η ⊔ z ∈ᴮ η := by
+      have h : z ∈ᴮ succ η = z =ᴮ η ⊔ z ∈ᴮ η := by unfold succ; exact mem_insert1
+      rw [h]; exact inf_le_right
+    have h1 : (z =ᴮ η) ⊓ (Γ ⊓ z ∈ᴮ succ η) ≤ z ⊆ᴮ succ η :=
+      bv_rw'' (ϕ := fun v => v ⊆ᴮ succ η) (bv_symm inf_le_left)
+        (inf_le_right.trans subset_succ) B_ext_subset_left
+    have h2 : (z ∈ᴮ η) ⊓ (Γ ⊓ z ∈ᴮ succ η) ≤ z ⊆ᴮ succ η :=
+      subset_trans' (subset_of_mem_Ord inf_le_left (inf_le_right.trans (inf_le_left.trans H_Ord)))
+                    (inf_le_right.trans subset_succ)
+    exact le_trans (le_inf hz le_rfl) (bv_or_elim_left h1 h2)
 
 -- src/bvm_extras2.lean:563
 lemma Ord.succ_le_of_lt {η ρ : bSet 𝔹} {Γ : 𝔹} (H_Ord' : Γ ≤ Ord ρ) (H_lt : Γ ≤ η ∈ᴮ ρ) :
