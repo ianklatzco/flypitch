@@ -1434,9 +1434,82 @@ lemma check_is_total {x y f : PSet.{u}} (H_total : PSet.is_total x y f) {Γ : �
   exact subst_congr_mem_left' check_pset_pair (check_mem Hpair)
 
 -- src/bvm_extras.lean:757
+-- Helper: membership in check f as iSup over indices
+private lemma check_mem_as_iSup {f : PSet.{u}} {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+    {z : bSet 𝔹} : z ∈ᴮ (check f : bSet 𝔹) = ⨆ k : f.Type, z =ᴮ check (f.Func k) := by
+  cases f with | mk α A =>
+  simp only [mem_unfold, check, bSet.bval, bSet.func, top_inf_eq, PSet.mk_func]
+  rfl
+
 lemma check_is_func {x y f : PSet.{u}} (H_func : PSet.is_func x y f) {Γ : 𝔹} :
     Γ ≤ is_function (check x) (check y) (check f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:757
+  -- is_function = is_func' ⊓ (check f ⊆ prod (check x) (check y))
+  refine le_inf (le_inf ?_ (check_is_total (PSet.is_total_of_is_func H_func))) ?_
+  · -- Goal: Γ ≤ is_func (check f)
+    apply le_iInf; intro w₁; apply le_iInf; intro w₂
+    apply le_iInf; intro v₁; apply le_iInf; intro v₂
+    rw [← deduction, ← deduction]
+    -- For each pair of indices k₁, k₂, prove the branch
+    -- For each pair of indices, prove the branch using PSet.is_func
+    suffices key : ∀ k₁ k₂ : f.Type,
+        Γ ⊓ (pair w₁ v₁ =ᴮ check (f.Func k₁) ⊓ pair w₂ v₂ =ᴮ check (f.Func k₂)) ⊓ w₁ =ᴮ w₂ ≤ v₁ =ᴮ v₂ by
+      -- Γ₀ ≤ ⨆ k₁ k₂, Γ_kk via iSup distribution
+      -- Rewrite pair wᵢ vᵢ ∈ check f as ⨆ k, A k, then distribute ⊓ over ⨆
+      rw [show pair w₁ v₁ ∈ᴮ (check f : bSet 𝔹) = ⨆ k₁ : f.Type, pair w₁ v₁ =ᴮ check (f.Func k₁)
+          from check_mem_as_iSup,
+          show pair w₂ v₂ ∈ᴮ (check f : bSet 𝔹) = ⨆ k₂ : f.Type, pair w₂ v₂ =ᴮ check (f.Func k₂)
+          from check_mem_as_iSup]
+      -- Now goal: Γ ⊓ ((⨆ k₁, A k₁) ⊓ (⨆ k₂, B k₂)) ⊓ C ≤ P
+      -- Use simp to distribute completely, then iSup_le
+      simp only [iSup_inf_eq', inf_iSup_eq', inf_assoc]
+      apply iSup_le; intro k₁
+      apply iSup_le; intro k₂
+      -- After simp, k₁/k₂ may be swapped relative to key's expectation
+      -- Try key k₂ k₁ with re-association
+      have h := key k₂ k₁; simp only [inf_assoc] at h; exact h
+    intro k₁ k₂
+    set Γ_kk := Γ ⊓ (pair w₁ v₁ =ᴮ check (f.Func k₁) ⊓ pair w₂ v₂ =ᴮ check (f.Func k₂)) ⊓ w₁ =ᴮ w₂
+    by_cases h_pos : ⊥ < Γ_kk
+    · obtain ⟨ij₁, hij₁⟩ := PSet.subset_prod_of_is_func H_func k₁
+      obtain ⟨ij₂, hij₂⟩ := PSet.subset_prod_of_is_func H_func k₂
+      simp only [PSet.pSet_prod, PSet.mk_func] at hij₁ hij₂
+      have hfk₁_bveq : Γ_kk ≤ check (f.Func k₁) =ᴮ pair (check (x.Func ij₁.1)) (check (y.Func ij₁.2)) := by
+        have h : (⊤ : 𝔹) ≤ check (f.Func k₁) =ᴮ check (PSet.pSet_pair (x.Func ij₁.1) (y.Func ij₁.2)) :=
+          check_bv_eq hij₁
+        rw [check_pset_pair_eq] at h; exact le_trans le_top h
+      have hfk₂_bveq : Γ_kk ≤ check (f.Func k₂) =ᴮ pair (check (x.Func ij₂.1)) (check (y.Func ij₂.2)) := by
+        have h : (⊤ : 𝔹) ≤ check (f.Func k₂) =ᴮ check (PSet.pSet_pair (x.Func ij₂.1) (y.Func ij₂.2)) :=
+          check_bv_eq hij₂
+        rw [check_pset_pair_eq] at h; exact le_trans le_top h
+      have hpair₁ : Γ_kk ≤ pair w₁ v₁ =ᴮ pair (check (x.Func ij₁.1)) (check (y.Func ij₁.2)) :=
+        bv_trans (inf_le_left.trans (inf_le_right.trans inf_le_left)) hfk₁_bveq
+      have hpair₂ : Γ_kk ≤ pair w₂ v₂ =ᴮ pair (check (x.Func ij₂.1)) (check (y.Func ij₂.2)) :=
+        bv_trans (inf_le_left.trans (inf_le_right.trans inf_le_right)) hfk₂_bveq
+      have hw_eq : Γ_kk ≤ w₁ =ᴮ w₂ := inf_le_right
+      have hw₁ : Γ_kk ≤ w₁ =ᴮ check (x.Func ij₁.1) := (pair_eq_pair_iff.mp hpair₁).1
+      have hv₁ : Γ_kk ≤ v₁ =ᴮ check (y.Func ij₁.2) := (pair_eq_pair_iff.mp hpair₁).2
+      have hw₂ : Γ_kk ≤ w₂ =ᴮ check (x.Func ij₂.1) := (pair_eq_pair_iff.mp hpair₂).1
+      have hv₂ : Γ_kk ≤ v₂ =ᴮ check (y.Func ij₂.2) := (pair_eq_pair_iff.mp hpair₂).2
+      have hx_bveq : Γ_kk ≤ check (x.Func ij₁.1) =ᴮ check (x.Func ij₂.1) :=
+        bv_trans (bv_symm hw₁) (bv_trans hw_eq hw₂)
+      have hEquiv_x : PSet.Equiv (x.Func ij₁.1) (x.Func ij₂.1) :=
+        check_eq_reflect h_pos hx_bveq
+      have hmemf₁ : PSet.pSet_pair (x.Func ij₁.1) (y.Func ij₁.2) ∈ f :=
+        PSet.mem_iff.mpr ⟨k₁, hij₁.symm⟩
+      have hmemf₂ : PSet.pSet_pair (x.Func ij₂.1) (y.Func ij₂.2) ∈ f :=
+        PSet.mem_iff.mpr ⟨k₂, hij₂.symm⟩
+      have hEquiv_y : PSet.Equiv (y.Func ij₁.2) (y.Func ij₂.2) :=
+        PSet.eq_of_is_func_of_eq H_func hmemf₁ hmemf₂ hEquiv_x
+      have hy_bveq : Γ_kk ≤ check (y.Func ij₁.2) =ᴮ check (y.Func ij₂.2) :=
+        le_trans le_top (check_eq hEquiv_y)
+      exact bv_trans hv₁ (bv_trans hy_bveq (bv_symm hv₂))
+    · rw [bot_lt_iff_not_le_bot, not_not] at h_pos
+      exact le_trans h_pos bot_le
+  · -- Goal: Γ ≤ check f ⊆ prod (check x) (check y)
+    -- Use subst_congr_subset_right : a ⊆ b ⊓ b =ᴮ c ≤ a ⊆ c
+    have h_sub : Γ ≤ check f ⊆ᴮ check (PSet.pSet_prod x y) :=
+      check_subset (PSet.subset_prod_of_is_func H_func)
+    exact le_trans (le_inf h_sub check_pset_prod) subst_congr_subset_right
 
 -- src/bvm_extras.lean:797
 def function_of_func' {x y f : bSet 𝔹} {Γ} (_H_is_func' : Γ ≤ is_func' x y f) : bSet 𝔹 :=
@@ -1488,7 +1561,61 @@ lemma is_func'_of_is_injective_function {x y f : bSet 𝔹} {Γ}
 lemma check_is_injective_function {x y f : PSet.{u}}
     (H_inj : PSet.is_injective_function x y f) {Γ : 𝔹} :
     Γ ≤ bSet.is_injective_function (check x) (check y) (check f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:828
+  refine le_inf (check_is_func H_inj.1) ?_
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction]
+  suffices key : ∀ k₁ k₂ : f.Type,
+      Γ ⊓ (pair w₁ v₁ =ᴮ check (f.Func k₁) ⊓ (pair w₂ v₂ =ᴮ check (f.Func k₂) ⊓ v₁ =ᴮ v₂)) ≤ w₁ =ᴮ w₂ by
+    -- Goal: Γ ⊓ (pair w₁ v₁ ∈ check f ⊓ pair w₂ v₂ ∈ check f ⊓ v₁ =ᴮ v₂) ≤ w₁ =ᴮ w₂
+    -- Rewrite membership as iSup, distribute
+    rw [show pair w₁ v₁ ∈ᴮ (check f : bSet 𝔹) = ⨆ k₁ : f.Type, pair w₁ v₁ =ᴮ check (f.Func k₁)
+        from check_mem_as_iSup,
+        show pair w₂ v₂ ∈ᴮ (check f : bSet 𝔹) = ⨆ k₂ : f.Type, pair w₂ v₂ =ᴮ check (f.Func k₂)
+        from check_mem_as_iSup]
+    simp only [iSup_inf_eq', inf_iSup_eq', inf_assoc]
+    apply iSup_le; intro k₁
+    apply iSup_le; intro k₂
+    have h := key k₂ k₁; simp only [inf_assoc] at h; exact h
+  intro k₁ k₂
+  set Γ_kk := Γ ⊓ (pair w₁ v₁ =ᴮ check (f.Func k₁) ⊓ (pair w₂ v₂ =ᴮ check (f.Func k₂) ⊓ v₁ =ᴮ v₂))
+  by_cases h_pos : ⊥ < Γ_kk
+  · obtain ⟨ij₁, hij₁⟩ := PSet.subset_prod_of_is_func H_inj.1 k₁
+    obtain ⟨ij₂, hij₂⟩ := PSet.subset_prod_of_is_func H_inj.1 k₂
+    simp only [PSet.pSet_prod, PSet.mk_func] at hij₁ hij₂
+    have hfk₁_bveq : Γ_kk ≤ check (f.Func k₁) =ᴮ pair (check (x.Func ij₁.1)) (check (y.Func ij₁.2)) := by
+      have h : (⊤ : 𝔹) ≤ check (f.Func k₁) =ᴮ check (PSet.pSet_pair (x.Func ij₁.1) (y.Func ij₁.2)) :=
+        check_bv_eq hij₁
+      rw [check_pset_pair_eq] at h; exact le_trans le_top h
+    have hfk₂_bveq : Γ_kk ≤ check (f.Func k₂) =ᴮ pair (check (x.Func ij₂.1)) (check (y.Func ij₂.2)) := by
+      have h : (⊤ : 𝔹) ≤ check (f.Func k₂) =ᴮ check (PSet.pSet_pair (x.Func ij₂.1) (y.Func ij₂.2)) :=
+        check_bv_eq hij₂
+      rw [check_pset_pair_eq] at h; exact le_trans le_top h
+    have hpair₁ : Γ_kk ≤ pair w₁ v₁ =ᴮ pair (check (x.Func ij₁.1)) (check (y.Func ij₁.2)) :=
+      bv_trans (inf_le_right.trans inf_le_left) hfk₁_bveq
+    have hpair₂ : Γ_kk ≤ pair w₂ v₂ =ᴮ pair (check (x.Func ij₂.1)) (check (y.Func ij₂.2)) :=
+      bv_trans (inf_le_right.trans (inf_le_right.trans inf_le_left)) hfk₂_bveq
+    have hv_eq : Γ_kk ≤ v₁ =ᴮ v₂ := inf_le_right.trans (inf_le_right.trans inf_le_right)
+    have hw₁ : Γ_kk ≤ w₁ =ᴮ check (x.Func ij₁.1) := (pair_eq_pair_iff.mp hpair₁).1
+    have hv₁ : Γ_kk ≤ v₁ =ᴮ check (y.Func ij₁.2) := (pair_eq_pair_iff.mp hpair₁).2
+    have hw₂ : Γ_kk ≤ w₂ =ᴮ check (x.Func ij₂.1) := (pair_eq_pair_iff.mp hpair₂).1
+    have hv₂ : Γ_kk ≤ v₂ =ᴮ check (y.Func ij₂.2) := (pair_eq_pair_iff.mp hpair₂).2
+    have hy_bveq : Γ_kk ≤ check (y.Func ij₁.2) =ᴮ check (y.Func ij₂.2) :=
+      bv_trans (bv_symm hv₁) (bv_trans hv_eq hv₂)
+    have hEquiv_y : PSet.Equiv (y.Func ij₁.2) (y.Func ij₂.2) :=
+      check_eq_reflect h_pos hy_bveq
+    have hmemf₁ : PSet.pSet_pair (x.Func ij₁.1) (y.Func ij₁.2) ∈ f :=
+      PSet.mem_iff.mpr ⟨k₁, hij₁.symm⟩
+    have hmemf₂ : PSet.pSet_pair (x.Func ij₂.1) (y.Func ij₂.2) ∈ f :=
+      PSet.mem_iff.mpr ⟨k₂, hij₂.symm⟩
+    have hEquiv_x : PSet.Equiv (x.Func ij₁.1) (x.Func ij₂.1) :=
+      H_inj.2 (x.Func ij₁.1) (x.Func ij₂.1) (y.Func ij₁.2) (y.Func ij₂.2)
+        ⟨hmemf₁, hmemf₂, hEquiv_y⟩
+    have hx_bveq : Γ_kk ≤ check (x.Func ij₁.1) =ᴮ check (x.Func ij₂.1) :=
+      le_trans le_top (check_eq hEquiv_x)
+    exact bv_trans hw₁ (bv_trans hx_bveq (bv_symm hw₂))
+  · rw [bot_lt_iff_not_le_bot, not_not] at h_pos
+    exact le_trans h_pos bot_le
 
 -- src/bvm_extras.lean:868
 @[simp] lemma eq_of_is_inj_of_eq {x y x' y' f : bSet 𝔹} {Γ : 𝔹}
@@ -1674,7 +1801,13 @@ lemma injects_into_iff_injection_into {x y : bSet 𝔹} {Γ} :
 -- src/bvm_extras.lean:972
 lemma check_injects_into {x y : PSet.{u}} (H_inj : PSet.injects_into x y) {Γ : 𝔹} :
     Γ ≤ bSet.injects_into (check x) (check y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:972
+  -- injects_into = ∃ f, is_injective_function x y f
+  -- bSet.injects_into = ⨆ f, is_func' f ⊓ is_inj f
+  obtain ⟨f, hf_inj⟩ := H_inj
+  apply le_iSup_of_le (check f)
+  refine le_inf ?_ ?_
+  · exact is_func'_of_is_function (check_is_func hf_inj.1)
+  · exact le_trans (check_is_injective_function hf_inj) inf_le_right
 
 -- src/bvm_extras.lean:981
 @[reducible] def is_surj_onto (x y f : bSet 𝔹) : 𝔹 := (is_func' x y f) ⊓ (is_surj x y f)
