@@ -838,7 +838,39 @@ lemma mem_prod_iff₂ {x y z : bSet 𝔹} {Γ} :
     Γ ≤ z ∈ᴮ prod x y ↔
     ∃ v, ∃ _hv : Γ ≤ v ∈ᴮ x, ∃ w, ∃ _hw : Γ ≤ w ∈ᴮ y, Γ ≤ z =ᴮ pair v w := by
   constructor
-  · intro H; sorry -- TODO: forward direction needs classical witness extraction
+  · intro H
+    -- H : Γ ≤ z ∈ prod x y
+    -- Convert to bSet-indexed iSup for classical extraction
+    have H_iSup : Γ ≤ ⨆ v : bSet 𝔹, v ∈ᴮ x ⊓ ⨆ w : bSet 𝔹, w ∈ᴮ y ⊓ z =ᴮ pair v w := by
+      rw [mem_unfold] at H
+      apply H.trans; apply iSup_le; intro ⟨i, j⟩
+      simp only [prod_func, prod_bval]
+      -- After simp: (x.bval i ⊓ y.bval j) ⊓ z =ᴮ pair (x.func i) (y.func j)
+      apply le_iSup_of_le (x.func i)
+      apply le_inf
+      · -- x.func i ∈ x: from x.bval i (left-left component)
+        exact (inf_le_left.trans inf_le_left).trans (mem_mk' x i)
+      · apply le_iSup_of_le (y.func j)
+        apply le_inf
+        · -- y.func j ∈ y: from y.bval j (left-right component)
+          exact (inf_le_left.trans inf_le_right).trans (mem_mk' y j)
+        · -- z =ᴮ pair (x.func i) (y.func j): from right component
+          exact inf_le_right
+    -- Extract witnesses classically using B_ext_iSup
+    -- B_ext for fun v => v ∈ x ⊓ ⨆ w, w ∈ y ⊓ z =ᴮ pair v w
+    have B_outer : B_ext (fun v => v ∈ᴮ x ⊓ ⨆ w : bSet 𝔹, w ∈ᴮ y ⊓ z =ᴮ pair v w) :=
+      B_ext_inf B_ext_mem_left (B_ext_iSup (h := fun w =>
+        B_ext_inf B_ext_const
+          (B_ext_term (fun p => z =ᴮ p) (fun v => pair v w)
+            B_ext_bv_eq_right (fun {_ _ _} h => pair_congr h bv_refl))))
+    -- B_ext for fun w => w ∈ y ⊓ z =ᴮ pair v w (for fixed v)
+    have B_inner (v : bSet 𝔹) : B_ext (fun w => w ∈ᴮ y ⊓ z =ᴮ pair v w) :=
+      B_ext_inf B_ext_mem_left
+        (B_ext_term (fun p => z =ᴮ p) (fun w => pair v w)
+          B_ext_bv_eq_right (fun {_ _ _} h => pair_congr bv_refl h))
+    obtain ⟨v, Hv⟩ := exists_convert H_iSup B_outer
+    obtain ⟨w, Hw⟩ := exists_convert (Hv.trans inf_le_right) (B_inner v)
+    exact ⟨v, Hv.trans inf_le_left, w, Hw.trans inf_le_left, Hw.trans inf_le_right⟩
   · intro ⟨v, Hv, w, Hw, H_eq⟩
     -- z =ᴮ pair v w and pair v w ∈ prod x y → z ∈ prod x y
     exact subst_congr_mem_left' (bv_symm H_eq) (prod_mem Hv Hw)
@@ -848,7 +880,53 @@ lemma prod_ext {S₁ S₂ x y : bSet 𝔹} {Γ : 𝔹}
     (H₁ : Γ ≤ S₁ ⊆ᴮ prod x y) (H₂ : Γ ≤ S₂ ⊆ᴮ prod x y)
     (H_prod_ext : Γ ≤ ⨅ v, v ∈ᴮ x ⟹ ⨅ w, w ∈ᴮ y ⟹ (pair v w ∈ᴮ S₁ ⇔ pair v w ∈ᴮ S₂)) :
     Γ ≤ S₁ =ᴮ S₂ := by
-  sorry -- TODO: port from src/bvm_extras.lean:465
+  -- Use mem_ext: prove ⨅ z, z ∈ S₁ ⟹ z ∈ S₂ and vice versa
+  apply mem_ext
+  · -- ⨅ z, z ∈ S₁ ⟹ z ∈ S₂
+    apply le_iInf; intro z; rw [← deduction]
+    -- ctx₀ = Γ ⊓ z ∈ S₁
+    have Hz_prod : Γ ⊓ z ∈ᴮ S₁ ≤ z ∈ᴮ prod x y :=
+      mem_of_mem_subset (inf_le_left.trans H₁) inf_le_right
+    obtain ⟨v, Hv, w, Hw, H_eq⟩ := mem_prod_iff₂.mp Hz_prod
+    -- Use H_prod_ext to get the biconditional for (v, w)
+    -- Specialize H_prod_ext at v and w using bv_specialize approach
+    -- Use H_prod_ext to get the biconditional for (v, w) via tactic mode
+    -- Use bv_specialize_left_twice to specialize ⨅ v, v ∈ x ⟹ ⨅ w, w ∈ y ⟹ φ at v and w
+    have H_spec₁ : Γ ⊓ z ∈ᴮ S₁ ≤ (pair v w ∈ᴮ S₁ ⇔ pair v w ∈ᴮ S₂) := by
+      have h1 : Γ ⊓ z ∈ᴮ S₁ ≤ v ∈ᴮ x ⟹ ⨅ w' : bSet 𝔹, w' ∈ᴮ y ⟹
+          (pair v w' ∈ᴮ S₁ ⇔ pair v w' ∈ᴮ S₂) :=
+        (inf_le_left.trans H_prod_ext).trans (iInf_le _ v)
+      have h2 : Γ ⊓ z ∈ᴮ S₁ ≤ ⨅ w' : bSet 𝔹, w' ∈ᴮ y ⟹
+          (pair v w' ∈ᴮ S₁ ⇔ pair v w' ∈ᴮ S₂) :=
+        le_trans (le_inf h1 Hv) bv_imp_elim
+      have h3 : Γ ⊓ z ∈ᴮ S₁ ≤ w ∈ᴮ y ⟹ (pair v w ∈ᴮ S₁ ⇔ pair v w ∈ᴮ S₂) :=
+        h2.trans (iInf_le _ w)
+      exact le_trans (le_inf h3 Hw) bv_imp_elim
+    -- pair v w ∈ S₁ from z =ᴮ pair v w
+    have Hvw_S₁ : Γ ⊓ z ∈ᴮ S₁ ≤ pair v w ∈ᴮ S₁ := subst_congr_mem_left' H_eq inf_le_right
+    -- Get pair v w ∈ S₂ via forward direction of biconditional
+    have Hvw_S₂ : Γ ⊓ z ∈ᴮ S₁ ≤ pair v w ∈ᴮ S₂ :=
+      le_trans (le_inf (H_spec₁.trans inf_le_left) Hvw_S₁) bv_imp_elim
+    exact subst_congr_mem_left' (bv_symm H_eq) Hvw_S₂
+  · -- ⨅ z, z ∈ S₂ ⟹ z ∈ S₁
+    apply le_iInf; intro z; rw [← deduction]
+    have Hz_prod : Γ ⊓ z ∈ᴮ S₂ ≤ z ∈ᴮ prod x y :=
+      mem_of_mem_subset (inf_le_left.trans H₂) inf_le_right
+    obtain ⟨v, Hv, w, Hw, H_eq⟩ := mem_prod_iff₂.mp Hz_prod
+    have H_spec₂ : Γ ⊓ z ∈ᴮ S₂ ≤ (pair v w ∈ᴮ S₁ ⇔ pair v w ∈ᴮ S₂) := by
+      have h1 : Γ ⊓ z ∈ᴮ S₂ ≤ v ∈ᴮ x ⟹ ⨅ w' : bSet 𝔹, w' ∈ᴮ y ⟹
+          (pair v w' ∈ᴮ S₁ ⇔ pair v w' ∈ᴮ S₂) :=
+        (inf_le_left.trans H_prod_ext).trans (iInf_le _ v)
+      have h2 : Γ ⊓ z ∈ᴮ S₂ ≤ ⨅ w' : bSet 𝔹, w' ∈ᴮ y ⟹
+          (pair v w' ∈ᴮ S₁ ⇔ pair v w' ∈ᴮ S₂) :=
+        le_trans (le_inf h1 Hv) bv_imp_elim
+      have h3 : Γ ⊓ z ∈ᴮ S₂ ≤ w ∈ᴮ y ⟹ (pair v w ∈ᴮ S₁ ⇔ pair v w ∈ᴮ S₂) :=
+        h2.trans (iInf_le _ w)
+      exact le_trans (le_inf h3 Hw) bv_imp_elim
+    have Hvw_S₂ : Γ ⊓ z ∈ᴮ S₂ ≤ pair v w ∈ᴮ S₂ := subst_congr_mem_left' H_eq inf_le_right
+    have Hvw_S₁ : Γ ⊓ z ∈ᴮ S₂ ≤ pair v w ∈ᴮ S₁ :=
+      le_trans (le_inf (H_spec₂.trans inf_le_right) Hvw_S₂) bv_imp_elim
+    exact subst_congr_mem_left' (bv_symm H_eq) Hvw_S₁
 
 -- src/bvm_extras.lean:489
 @[simp] lemma check_singleton {x : PSet.{u}} {Γ : 𝔹} :
