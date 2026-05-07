@@ -362,7 +362,22 @@ lemma sep {n} {Γ} {ν₁ ν₂} (H₁ : Γ ≤ of_nat n ∈ᴮ mk ν₁)
 -- src/forcing.lean:388-398
 lemma not_mem_of_not_mem {p : 𝒞} {ν} {n} (H : (ν, n) ∈ p.out) :
     ι p ≤ (of_nat n ∈ᴮ mk ν)ᶜ := by
-  sorry -- TODO: port from src/forcing.lean:388
+  rw [mem_unfold, compl_iSup]
+  apply le_iInf; intro k
+  rw [compl_inf]
+  by_cases hk : n = k.down
+  · subst hk
+    simp only [mk_bval, mk_func]
+    rw [bv_eq_refl, compl_top, sup_bot_eq]
+    intro S hS
+    apply mem_neg_principal_open_of_not_mem
+    have hS₂ := hS.2 (Finset.mem_coe.mpr H)
+    have key : ∀ {T1 T2 : Type} (h : T1 = T2) (T : Set T2) (x : T1),
+        x ∈ cast (congr_arg Set h).symm T ↔ cast h x ∈ T := by
+      intro T1 T2 h; subst h; intro T x; simp
+    exact (key eq₁ Sᶜ (ν, k.down)).mp hS₂
+  · have : of_nat n =ᴮ (of_nat k.down : bSet 𝔹) = ⊥ := of_nat_inj' hk
+    simp only [mk_bval, mk_func, this, compl_bot, sup_top_eq]; exact le_top
 
 -- src/forcing.lean:400-406
 private lemma inj_cast_lemma (ν' : (check (PSet.pSet_aleph2) : bSet 𝔹).type) (n' : ℕ) :
