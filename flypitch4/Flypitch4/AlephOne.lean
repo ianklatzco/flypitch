@@ -474,12 +474,181 @@ lemma B_congr_prod_map_self_left_aux {y f x x' : bSet 𝔹} {Γ : 𝔹} (H_eq : 
   · apply B_congr_prod_map_self_left_aux; exact bv_symm H_eq
 
 -- src/aleph_one.lean:336
+set_option maxHeartbeats 400000 in
 lemma mem_prod_map_self_iff {x y f a₁ a₂ b₁ b₂ : bSet 𝔹} {Γ : 𝔹}
     (_H_func : Γ ≤ is_function x y f) :
     Γ ≤ pair (pair a₁ a₂) (pair b₁ b₂) ∈ᴮ prod_map_self x y f ↔
     Γ ≤ a₁ ∈ᴮ x ∧ Γ ≤ a₂ ∈ᴮ x ∧ Γ ≤ b₁ ∈ᴮ y ∧ Γ ≤ b₂ ∈ᴮ y ∧
     Γ ≤ pair a₁ b₁ ∈ᴮ f ∧ Γ ≤ pair a₂ b₂ ∈ᴮ f := by
-  sorry -- TODO: port from src/aleph_one.lean:336 (uses bv_cases_at, bv_split_at, bv_cc)
+  constructor
+  · -- forward: prove each of the 6 conclusions from H
+    intro H
+    rw [show prod_map_self x y f = subset.mk (fun pr : (prod (prod x x) (prod y y)).type =>
+      pair (x.func pr.1.1) (y.func pr.2.1) ∈ᴮ f ⊓ pair (x.func pr.1.2) (y.func pr.2.2) ∈ᴮ f) from rfl] at H
+    rw [mem_subset.mk_iff₂] at H
+    -- H : Γ ≤ ⨆ pr, bval pr ⊓ (pair_eq pr ⊓ χ pr)
+    -- For pr = ((i₁,i₂),(j₁,j₂)):
+    --   bval = (x.bval i₁ ⊓ x.bval i₂) ⊓ (y.bval j₁ ⊓ y.bval j₂)
+    --   pair_eq = pair(pair a₁ a₂)(pair b₁ b₂) =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂)
+    --   χ = pair xi₁ yj₁ ∈ f ⊓ pair xi₂ yj₂ ∈ f
+    -- Each of the 6 conclusions: Γ ≤ P, proved by le_trans H (iSup_le ...)
+    -- Helper: extract component equalities from the body
+    -- body : bval ⊓ (peq ⊓ χ)
+    -- peq : inf_le_right.trans inf_le_left
+    -- after two pair_eq_pair_iff.mp: a₁=xi₁, a₂=xi₂, b₁=yj₁, b₂=yj₂
+    -- body after simp for pr = ((i₁,i₂),(j₁,j₂)):
+    -- bval ⊓ (peq ⊓ (χ₁ ⊓ χ₂)) where
+    --   bval = (x.bval i₁ ⊓ x.bval i₂) ⊓ (y.bval j₁ ⊓ y.bval j₂)
+    --   peq  = pair(pair a₁ a₂)(pair b₁ b₂) =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂)
+    --   χ₁   = pair xi₁ yj₁ ∈ f,   χ₂ = pair xi₂ yj₂ ∈ f
+    -- body after simp for pr = ((i₁,i₂),(j₁,j₂)):
+    -- bval ⊓ (peq ⊓ (χ₁ ⊓ χ₂)) where
+    --   bval = (x.bval i₁ ⊓ x.bval i₂) ⊓ (y.bval j₁ ⊓ y.bval j₂)  [inf_le_left]
+    --   peq  = pair(pair a₁ a₂)(pair b₁ b₂) =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂)  [inf_le_right.trans inf_le_left]
+    --   χ₁   = pair xi₁ yj₁ ∈ f  [inf_le_right.trans inf_le_right.trans inf_le_left]
+    --   χ₂   = pair xi₂ yj₂ ∈ f  [inf_le_right.trans inf_le_right.trans inf_le_right]
+    -- All are proved using this tactic:
+    -- body after simp for pr = ((i₁,i₂),(j₁,j₂)):
+    --   bval = (x.bval i₁ ⊓ x.bval i₂) ⊓ (y.bval j₁ ⊓ y.bval j₂)  [inf_le_left]
+    --   peq  = pair_eq                [inf_le_right.trans inf_le_left]
+    --   χ₁   = pair xi₁ yj₁ ∈ f     [inf_le_right.trans inf_le_right.trans inf_le_left]
+    --   χ₂   = pair xi₂ yj₂ ∈ f     [inf_le_right.trans inf_le_right.trans inf_le_right]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    -- body structure: ((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (peq ⊓ (χ1⊓χ2))
+    -- peq = pair(pair a₁ a₂)(pair b₁ b₂) =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂)
+    -- Chains: peq=ir.il; from peq: pair a₁ a₂ =ᴮ pair xi₁ xi₂ via eq_of_eq_pair_left
+    --         from that: a₁=xi₁ via eq_of_eq_pair_left, a₂=xi₂ via eq_of_eq_pair_right
+    -- bval: xb1=il.il.il, xb2=il.il.ir, yb1=il.ir.il, yb2=il.ir.ir
+    -- χ1=ir.ir.il, χ2=ir.ir.ir
+    -- body: ((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (peq ⊓ (χ1⊓χ2))
+    -- peq extraction: ir.il; bval: xb1=il.il.il; xb2=il.il.ir; yb1=il.ir.il; yb2=il.ir.ir
+    -- χ1=ir.ir.il; χ2=ir.ir.ir
+    -- body: ((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (peq ⊓ (χ1⊓χ2))
+    -- peq: ir.il; xb1=il.il.il; xb2=il.il.ir; yb1=il.ir.il; yb2=il.ir.ir
+    -- χ1=ir.ir.il; χ2=ir.ir.ir
+    -- body: ((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (peq ⊓ (χ1⊓χ2))
+    -- peq=ir.il; xb1=il.il.il; xb2=il.il.ir; yb1=il.ir.il; yb2=il.ir.ir; χ1=ir.ir.il; χ2=ir.ir.ir
+    -- Inline approach: avoid 'have' and use exact with full chains
+    -- After simp, body = ((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (peq ⊓ (χ1⊓χ2))
+    -- Use apply-based approach: each step creates a concrete goal, avoiding bidirectional inference
+    -- Helper for peq extraction (used repeatedly):
+    -- After simp: body ≤ peq ≡ body ≤ pair(pair a₁ a₂)(pair b₁ b₂)=ᴮpair(pair xi₁ xi₂)(pair yj₁ yj₂)
+    -- via inf_le_right.trans inf_le_left.
+    · -- a₁ ∈ x
+      apply H.trans; apply iSup_le; rintro ⟨⟨i₁, i₂⟩, j₁, j₂⟩; simp only [prod_func, prod_bval]
+      apply bv_rw' (ϕ := fun v => v ∈ᴮ x) (h_congr := B_ext_mem_left)
+        (H_new := (inf_le_left.trans (inf_le_left.trans inf_le_left)).trans (mem_mk' x i₁))
+      apply eq_of_eq_pair_left'; apply eq_of_eq_pair_left'
+      exact inf_le_right.trans inf_le_left
+    · -- a₂ ∈ x
+      apply H.trans; apply iSup_le; rintro ⟨⟨i₁, i₂⟩, j₁, j₂⟩; simp only [prod_func, prod_bval]
+      apply bv_rw' (ϕ := fun v => v ∈ᴮ x) (h_congr := B_ext_mem_left)
+        (H_new := (inf_le_left.trans (inf_le_left.trans inf_le_right)).trans (mem_mk' x i₂))
+      apply eq_of_eq_pair_right'; apply eq_of_eq_pair_left'
+      exact inf_le_right.trans inf_le_left
+    · -- b₁ ∈ y
+      apply H.trans; apply iSup_le; rintro ⟨⟨i₁, i₂⟩, j₁, j₂⟩; simp only [prod_func, prod_bval]
+      apply bv_rw' (ϕ := fun v => v ∈ᴮ y) (h_congr := B_ext_mem_left)
+        (H_new := (inf_le_left.trans (inf_le_right.trans inf_le_left)).trans (mem_mk' y j₁))
+      apply eq_of_eq_pair_left'; apply eq_of_eq_pair_right'
+      exact inf_le_right.trans inf_le_left
+    · -- b₂ ∈ y
+      apply H.trans; apply iSup_le; rintro ⟨⟨i₁, i₂⟩, j₁, j₂⟩; simp only [prod_func, prod_bval]
+      apply bv_rw' (ϕ := fun v => v ∈ᴮ y) (h_congr := B_ext_mem_left)
+        (H_new := (inf_le_left.trans (inf_le_right.trans inf_le_right)).trans (mem_mk' y j₂))
+      apply eq_of_eq_pair_right'; apply eq_of_eq_pair_right'
+      exact inf_le_right.trans inf_le_left
+    · -- pair a₁ b₁ ∈ f: use bv_rw' to rewrite pair a₁ b₁ to pair xi₁ yj₁ (which ∈ f)
+      apply H.trans; apply iSup_le; rintro ⟨⟨i₁, i₂⟩, j₁, j₂⟩; simp only [prod_func, prod_bval]
+      apply bv_rw' (ϕ := fun v => v ∈ᴮ f) (h_congr := B_ext_mem_left)
+        (H_new := inf_le_right.trans (inf_le_right.trans inf_le_left))
+      apply pair_congr
+      · apply eq_of_eq_pair_left'; apply eq_of_eq_pair_left'; exact inf_le_right.trans inf_le_left
+      · apply eq_of_eq_pair_left'; apply eq_of_eq_pair_right'; exact inf_le_right.trans inf_le_left
+    · -- pair a₂ b₂ ∈ f: same but using χ₂
+      apply H.trans; apply iSup_le; rintro ⟨⟨i₁, i₂⟩, j₁, j₂⟩; simp only [prod_func, prod_bval]
+      apply bv_rw' (ϕ := fun v => v ∈ᴮ f) (h_congr := B_ext_mem_left)
+        (H_new := inf_le_right.trans (inf_le_right.trans inf_le_right))
+      apply pair_congr
+      · apply eq_of_eq_pair_right'; apply eq_of_eq_pair_left'; exact inf_le_right.trans inf_le_left
+      · apply eq_of_eq_pair_right'; apply eq_of_eq_pair_right'; exact inf_le_right.trans inf_le_left
+  · -- backward: construct the witness index from the 6 hypotheses
+    intro ⟨Ha₁, Ha₂, Hb₁, Hb₂, Hpair₁, Hpair₂⟩
+    rw [show prod_map_self x y f = subset.mk (fun pr : (prod (prod x x) (prod y y)).type =>
+      pair (x.func pr.1.1) (y.func pr.2.1) ∈ᴮ f ⊓ pair (x.func pr.1.2) (y.func pr.2.2) ∈ᴮ f) from rfl]
+    rw [mem_subset.mk_iff₂]
+    -- Need: Γ ≤ ⨆ pr, bval pr ⊓ (pair_eq pr ⊓ χ pr)
+    -- Extract witnesses via mem_unfold and sequential bv_cases_left
+    rw [mem_unfold] at Ha₁ Ha₂ Hb₁ Hb₂
+    -- LHS0 = (((Ha₁ ⊓ Ha₂) ⊓ Hb₁) ⊓ Hb₂) ⊓ Γ
+    apply le_trans (le_inf (le_inf (le_inf (le_inf Ha₁ Ha₂) Hb₁) Hb₂) le_rfl)
+    -- Extract i₁ from Ha₁: inf_le_left^3 then inf_le_left
+    apply le_trans (le_inf (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans inf_le_left))) le_rfl)
+    apply bv_cases_left; intro i₁
+    -- ctx1 = (x.bval i₁ ⊓ a₁=xi₁) ⊓ LHS0
+    -- Extract i₂ from Ha₂ in LHS0: inf_le_right then inf_le_left^3 then inf_le_right
+    apply le_trans (le_inf (inf_le_right.trans (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans inf_le_right)))) le_rfl)
+    apply bv_cases_left; intro i₂
+    -- ctx2 = (x.bval i₂ ⊓ a₂=xi₂) ⊓ ctx1
+    -- Extract j₁ from Hb₁ in LHS0: inf_le_right^2 then inf_le_left^2 then inf_le_right
+    apply le_trans (le_inf (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (inf_le_left.trans inf_le_right)))) le_rfl)
+    apply bv_cases_left; intro j₁
+    -- ctx3 = (y.bval j₁ ⊓ b₁=yj₁) ⊓ ctx2
+    -- Extract j₂ from Hb₂ in LHS0: inf_le_right^3 then inf_le_left then inf_le_right
+    apply le_trans (le_inf (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right)))) le_rfl)
+    apply bv_cases_left; intro j₂
+    -- ctx4 = (y.bval j₂ ⊓ b₂=yj₂) ⊓ ctx3
+    -- ctx4 components (left-to-right nesting):
+    --   y.bval j₂: inf_le_left.trans inf_le_left
+    --   b₂=yj₂:   inf_le_left.trans inf_le_right
+    --   y.bval j₁: inf_le_right.trans (inf_le_left.trans inf_le_left)
+    --   b₁=yj₁:   inf_le_right.trans (inf_le_left.trans inf_le_right)
+    --   x.bval i₂: inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))
+    --   a₂=xi₂:   inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))
+    --   x.bval i₁: inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left)))
+    --   a₁=xi₁:   inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right)))
+    --   Γ:         inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans inf_le_right)))
+    apply bv_use ((i₁, i₂), j₁, j₂)
+    simp only [prod_func, prod_bval]
+    apply le_inf
+    · -- bval: (x.bval i₁ ⊓ x.bval i₂) ⊓ (y.bval j₁ ⊓ y.bval j₂)
+      exact le_inf (le_inf
+        (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))))
+        (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))))
+        (le_inf
+          (inf_le_right.trans (inf_le_left.trans inf_le_left))
+          (inf_le_left.trans inf_le_left))
+    · apply le_inf
+      · -- pair equality: pair(pair a₁ a₂)(pair b₁ b₂) =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂)
+        -- ctx4 component accesses: a₁=xi₁ at (.3.left.right), a₂=xi₂ at (.3.right), b₁=yj₁ at (.2.right), b₂=yj₂ at (.1.right)
+        -- But mem_unfold gives: a₁ =ᴮ x.func i₁, not x.func i₁ =ᴮ a₁
+        -- So we use them directly (no bv_symm needed):
+        apply pair_eq_pair_iff.mpr; constructor
+        · apply pair_eq_pair_iff.mpr; exact ⟨
+            inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))),
+            inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))⟩
+        · apply pair_eq_pair_iff.mpr; exact ⟨
+            inf_le_right.trans (inf_le_left.trans inf_le_right),
+            inf_le_left.trans inf_le_right⟩
+      · -- χ: pair(xi₁)(yj₁) ∈ f ⊓ pair(xi₂)(yj₂) ∈ f
+        -- Γ accessible via inf_le_right^5 from ctx4; then compose with Hpair₁, Hpair₂
+        apply le_inf
+        · -- pair(xi₁)(yj₁) ∈ f: use mem_congr (pair a₁ b₁ =ᴮ pair xi₁ yj₁) bv_refl (pair a₁ b₁ ∈ f)
+          apply mem_congr _ bv_refl
+          · -- pair a₁ b₁ ∈ f via Hpair₁
+            exact (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans
+                    (inf_le_right.trans inf_le_right)))).trans Hpair₁
+          · -- pair a₁ b₁ =ᴮ pair xi₁ yj₁ via pair_congr and equalities from ctx4
+            apply pair_eq_pair_iff.mpr
+            exact ⟨inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))),
+                   inf_le_right.trans (inf_le_left.trans inf_le_right)⟩
+        · -- pair(xi₂)(yj₂) ∈ f
+          apply mem_congr _ bv_refl
+          · exact (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans
+                    (inf_le_right.trans inf_le_right)))).trans Hpair₂
+          · apply pair_eq_pair_iff.mpr
+            exact ⟨inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right)),
+                   inf_le_left.trans inf_le_right⟩
 
 -- src/aleph_one.lean:379
 def induced_epsilon_rel (η : bSet 𝔹) (x : bSet 𝔹) (f : bSet 𝔹) : bSet 𝔹 :=
