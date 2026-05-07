@@ -475,8 +475,7 @@ lemma B_congr_prod_map_self_left_aux {y f x x' : bSet 𝔹} {Γ : 𝔹} (H_eq : 
 
 -- src/aleph_one.lean:336
 set_option maxHeartbeats 400000 in
-lemma mem_prod_map_self_iff {x y f a₁ a₂ b₁ b₂ : bSet 𝔹} {Γ : 𝔹}
-    (_H_func : Γ ≤ is_function x y f) :
+lemma mem_prod_map_self_iff {x y f a₁ a₂ b₁ b₂ : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ pair (pair a₁ a₂) (pair b₁ b₂) ∈ᴮ prod_map_self x y f ↔
     Γ ≤ a₁ ∈ᴮ x ∧ Γ ≤ a₂ ∈ᴮ x ∧ Γ ≤ b₁ ∈ᴮ y ∧ Γ ≤ b₂ ∈ᴮ y ∧
     Γ ≤ pair a₁ b₁ ∈ᴮ f ∧ Γ ≤ pair a₂ b₂ ∈ᴮ f := by
@@ -673,7 +672,88 @@ lemma mem_induced_epsilon_rel_iff {η x f a b : bSet 𝔹} {Γ}
     (Γ ≤ a ∈ᴮ x) ∧ (Γ ≤ b ∈ᴮ x) ∧
     (Γ ≤ ⨆ a', a' ∈ᴮ η ⊓ ⨆ b', b' ∈ᴮ η ⊓
       (pair a' a ∈ᴮ f ⊓ pair b' b ∈ᴮ f ⊓ a' ∈ᴮ b')) := by
-  sorry -- TODO: port from src/aleph_one.lean:391 (uses bv_cases_at etc.)
+  -- induced_epsilon_rel η x f = image (mem_rel η) (prod x x) (prod_map_self η x f)
+  -- mem_image_iff: pair a b ∈ image S Y F ↔ pair a b ∈ Y ∧ ∃ z, z ∈ S ∧ pair z (pair a b) ∈ F
+  -- unfold induced_epsilon_rel to allow mem_image_iff
+  show Γ ≤ pair a b ∈ᴮ image (mem_rel η) (prod x x) (prod_map_self η x f) ↔ _
+  constructor
+  · -- Forward: from pair a b ∈ image (mem_rel η) (prod x x) (prod_map_self η x f)
+    intro H
+    rw [mem_image_iff] at H
+    obtain ⟨H_prod, H_sup⟩ := H
+    rw [mem_prod_iff] at H_prod
+    obtain ⟨Ha, Hb⟩ := H_prod
+    refine ⟨Ha, Hb, ?_⟩
+    -- H_sup: Γ ≤ ⨆ z, z ∈ mem_rel η ⊓ pair z (pair a b) ∈ prod_map_self η x f
+    -- For each z in iSup, derive the iSup on a', b'
+    apply H_sup.trans; apply iSup_le; intro z
+    -- goal: (z ∈ mem_rel η ⊓ pair z (pair a b) ∈ prod_map_self η x f) ≤ ⨆ a', ...
+    -- Now we have a concrete LHS — no more `_` issues
+    have hz_prod : (z ∈ᴮ mem_rel η ⊓ pair z (pair a b) ∈ᴮ prod_map_self η x f) ≤ z ∈ᴮ prod η η :=
+      mem_of_mem_subset subset.mk_subset inf_le_left
+    obtain ⟨v, Hv, w, Hw, H_eq⟩ := mem_prod_iff₂.mp hz_prod
+    -- provide witnesses a' = v, b' = w
+    apply bv_use v; apply le_inf Hv
+    apply bv_use w; apply le_inf Hw
+    -- need: pair v a ∈ f ⊓ pair w b ∈ f ⊓ v ∈ w
+    -- From pair z (pair a b) ∈ prod_map_self η x f (rewrite z = pair v w via H_eq)
+    -- Get pair (pair v w) (pair a b) ∈ prod_map_self via bv_rw' on Hz_map
+    have Hz_map : (z ∈ᴮ mem_rel η ⊓ pair z (pair a b) ∈ᴮ prod_map_self η x f) ≤
+        pair (pair v w) (pair a b) ∈ᴮ prod_map_self η x f := by
+      apply bv_rw' (ϕ := fun s => pair s (pair a b) ∈ᴮ prod_map_self η x f)
+        (h_congr := B_ext_pair_mem_left) (H_new := inf_le_right)
+      exact bv_symm H_eq
+    -- Now use mem_prod_map_self_iff (no H_func needed) to extract components
+    obtain ⟨_Hv', _Hw', _Ha, _Hb, Hpva, Hwb⟩ := mem_prod_map_self_iff.mp Hz_map
+    -- Get v ∈ w from pair v w ∈ mem_rel η (via H_eq rewrite)
+    have Hpvw_mem_rel : (z ∈ᴮ mem_rel η ⊓ pair z (pair a b) ∈ᴮ prod_map_self η x f) ≤
+        pair v w ∈ᴮ mem_rel η := by
+      apply bv_rw' (ϕ := fun s => s ∈ᴮ mem_rel η)
+        (h_congr := B_ext_mem_left) (H_new := inf_le_left)
+      exact bv_symm H_eq
+    obtain ⟨_, _, Hvw⟩ := mem_mem_rel_iff.mp Hpvw_mem_rel
+    exact le_inf (le_inf Hpva Hwb) Hvw
+  · -- Backward: construct the image membership from the 3 conditions
+    intro ⟨Ha, Hb, H_sup⟩
+    rw [mem_image_iff]
+    refine ⟨mem_prod_iff.mpr ⟨Ha, Hb⟩, ?_⟩
+    -- H_sup: Γ ≤ ⨆ a', a'∈η ⊓ ⨆ b', b'∈η ⊓ (pair a' a ∈ f ⊓ pair b' b ∈ f ⊓ a'∈b')
+    -- Extract a', b' witnesses
+    apply le_trans (le_inf H_sup le_rfl)
+    apply bv_cases_left; intro a'
+    -- goal: (a'∈η ⊓ ⨆ b', b'∈η ⊓ ...) ⊓ Γ ≤ ⨆ z, z∈mem_rel η ⊓ pair z (pair a b) ∈ prod_map_self η x f
+    -- extract ⨆ b' from left: inf_le_left.trans inf_le_right
+    apply le_trans (le_inf (inf_le_left.trans inf_le_right) le_rfl)
+    apply bv_cases_left; intro b'
+    -- ctx: (b'∈η ⊓ (pair a' a ∈ f ⊓ pair b' b ∈ f ⊓ a'∈b')) ⊓ ((a'∈η ⊓ ⨆ b',..) ⊓ Γ)
+    -- Provide z = pair a' b'
+    apply bv_use (pair a' b')
+    apply le_inf
+    · -- pair a' b' ∈ mem_rel η: need a'∈η, b'∈η, a'∈b'
+      -- a'∈η: from right part, a'∈η at inf_le_right.trans inf_le_left.trans inf_le_left
+      -- b'∈η: from left part at inf_le_left.trans inf_le_left
+      -- a'∈b': from left part at inf_le_left.trans inf_le_right.trans inf_le_right
+      rw [mem_mem_rel_iff]
+      refine ⟨?_, ?_, ?_⟩
+      · exact inf_le_right.trans (inf_le_left.trans inf_le_left)
+      · exact inf_le_left.trans inf_le_left
+      · exact inf_le_left.trans (inf_le_right.trans inf_le_right)
+    · -- pair (pair a' b') (pair a b) ∈ prod_map_self η x f
+      -- a'∈η: inf_le_right.trans inf_le_left.trans inf_le_left
+      -- b'∈η: inf_le_left.trans inf_le_left
+      -- a∈x: from Ha (outer)
+      -- b∈x: from Hb (outer)
+      -- pair a' a ∈ f: inf_le_left.trans inf_le_right.trans inf_le_left.trans inf_le_left
+      -- pair b' b ∈ f: inf_le_left.trans inf_le_right.trans inf_le_left.trans inf_le_right
+      -- pair (pair a' b') (pair a b) ∈ prod_map_self η x f
+      -- Use mem_prod_map_self_iff with the ctx's H_func access
+      exact mem_prod_map_self_iff.mpr
+        ⟨inf_le_right.trans (inf_le_left.trans inf_le_left),
+         inf_le_left.trans inf_le_left,
+         inf_le_right.trans (inf_le_right.trans Ha),
+         inf_le_right.trans (inf_le_right.trans Hb),
+         inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_left)),
+         inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))⟩
 
 -- src/aleph_one.lean:425
 lemma mem_induced_epsilon_rel_of_mem {η x f a b : bSet 𝔹} {Γ}
