@@ -415,7 +415,38 @@ lemma mem_mem_rel_iff {x y z : bSet 𝔹} {Γ} :
 
 -- src/aleph_one.lean:286
 @[simp] lemma B_congr_mem_rel : B_congr (mem_rel : bSet 𝔹 → bSet 𝔹) := by
-  sorry -- TODO: port from src/aleph_one.lean:286 (uses bv_intro, bv_imp_intro, bv_cc)
+  intro x y Γ H_eq
+  -- Use prod_ext: both subsets of prod x x
+  have H_sub_x : Γ ≤ mem_rel x ⊆ᴮ prod x x := subset.mk_subset
+  have H_prod_eq : Γ ≤ prod x x =ᴮ prod y y := prod_congr H_eq H_eq
+  have H_sub_y : Γ ≤ mem_rel y ⊆ᴮ prod x x :=
+    bv_rw' (bv_symm H_prod_eq) (ϕ := fun z => mem_rel y ⊆ᴮ z) (h_congr := B_ext_subset_right)
+      (H_new := subset.mk_subset)
+  apply prod_ext H_sub_x H_sub_y
+  apply le_iInf; intro v; rw [← deduction]
+  apply le_iInf; intro w; rw [← deduction]
+  -- ctx: Γ ⊓ v ∈ x ⊓ w ∈ x
+  apply le_inf
+  · -- pair v w ∈ mem_rel x → pair v w ∈ mem_rel y  (forward direction)
+    rw [← deduction]
+    -- ctx': Γ ⊓ v ∈ x ⊓ w ∈ x ⊓ pair v w ∈ mem_rel x
+    set ctx' := Γ ⊓ v ∈ᴮ x ⊓ w ∈ᴮ x ⊓ pair v w ∈ᴮ mem_rel x
+    have hH_eq : ctx' ≤ x =ᴮ y := inf_le_left.trans (inf_le_left.trans (inf_le_left.trans H_eq))
+    have hpr := (mem_mem_rel_iff (x := x) (y := v) (z := w)).mp inf_le_right
+    rw [mem_mem_rel_iff (x := y) (y := v) (z := w)]
+    exact ⟨bv_rw'' hH_eq hpr.1 B_ext_mem_right,
+           bv_rw'' hH_eq hpr.2.1 B_ext_mem_right,
+           hpr.2.2⟩
+  · -- pair v w ∈ mem_rel y → pair v w ∈ mem_rel x  (backward direction)
+    rw [← deduction]
+    set ctx' := Γ ⊓ v ∈ᴮ x ⊓ w ∈ᴮ x ⊓ pair v w ∈ᴮ mem_rel y
+    have hH_eq_sym : ctx' ≤ y =ᴮ x :=
+      bv_symm (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans H_eq)))
+    have hpr := (mem_mem_rel_iff (x := y) (y := v) (z := w)).mp inf_le_right
+    rw [mem_mem_rel_iff (x := x) (y := v) (z := w)]
+    exact ⟨bv_rw'' hH_eq_sym hpr.1 B_ext_mem_right,
+           bv_rw'' hH_eq_sym hpr.2.1 B_ext_mem_right,
+           hpr.2.2⟩
 
 -- src/aleph_one.lean:297
 def prod_map (x y v w : bSet 𝔹) (f g : bSet 𝔹) : bSet 𝔹 :=

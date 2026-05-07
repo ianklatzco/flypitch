@@ -614,14 +614,36 @@ noncomputable def find_term_filter_symbols (p : Language.symbols L → Prop) :
   | _, &k, _h => ⟨&k, rfl⟩
   | _, preterm.func f, h => ⟨preterm.func ⟨f, h (Set.mem_singleton _)⟩, rfl⟩
   | _, preterm.app t₁ t₂, h => by
-      -- TODO: port from src/language_extension.lean:559-562
-      sorry
+      have ih₁ := find_term_filter_symbols p t₁ (Set.Subset.trans Set.subset_union_left h)
+      have ih₂ := find_term_filter_symbols p t₂ (Set.Subset.trans Set.subset_union_right h)
+      exact ⟨preterm.app ih₁.1 ih₂.1, by
+        simp only [on_term]
+        exact congrArg₂ preterm.app ih₁.2 ih₂.2⟩
 
 noncomputable def find_formula_filter_symbols (p : Language.symbols L → Prop) :
     ∀ {l} (f : @preformula L l) (_h : symbols_in_formula f ⊆ {s | p s}),
-    {f' : @preformula (filter_symbols p) l // (filter_symbols_Lhom p).on_formula f' = f} := by
-  -- TODO: port from src/language_extension.lean:565-593
-  sorry
+    {f' : @preformula (filter_symbols p) l // (filter_symbols_Lhom p).on_formula f' = f}
+  | _, preformula.falsum, _ => ⟨preformula.falsum, rfl⟩
+  | _, preformula.equal t₁ t₂, h => by
+      have ih₁ := find_term_filter_symbols p t₁ (Set.Subset.trans Set.subset_union_left h)
+      have ih₂ := find_term_filter_symbols p t₂ (Set.Subset.trans Set.subset_union_right h)
+      exact ⟨preformula.equal ih₁.1 ih₂.1, by
+        simp only [on_formula]; exact congrArg₂ preformula.equal ih₁.2 ih₂.2⟩
+  | _, preformula.rel R, h =>
+      ⟨preformula.rel ⟨R, h (Set.mem_singleton _)⟩, rfl⟩
+  | _, preformula.apprel f t, h => by
+      have ih₁ := find_formula_filter_symbols p f (Set.Subset.trans Set.subset_union_left h)
+      have ih₂ := find_term_filter_symbols p t (Set.Subset.trans Set.subset_union_right h)
+      exact ⟨preformula.apprel ih₁.1 ih₂.1, by
+        simp only [on_formula]; exact congrArg₂ preformula.apprel ih₁.2 ih₂.2⟩
+  | _, preformula.imp f₁ f₂, h => by
+      have ih₁ := find_formula_filter_symbols p f₁ (Set.Subset.trans Set.subset_union_left h)
+      have ih₂ := find_formula_filter_symbols p f₂ (Set.Subset.trans Set.subset_union_right h)
+      exact ⟨preformula.imp ih₁.1 ih₂.1, by
+        simp only [on_formula]; exact congrArg₂ preformula.imp ih₁.2 ih₂.2⟩
+  | _, preformula.all f, h => by
+      have ih := find_formula_filter_symbols p f h
+      exact ⟨preformula.all ih.1, by simp only [on_formula]; exact congrArg preformula.all ih.2⟩
 
 end
 
@@ -743,19 +765,39 @@ variable {ϕ}
 
 def reduct_id {S : Structure L'} : S.carrier → (ϕ.reduct S).carrier := id
 
-@[simp] lemma reduct_term_eq {S : Structure L'} (hϕ : ϕ.is_injective) {n} :
-    ∀ (xs : DVec S n) {l} (t : bounded_preterm L n l) (xs' : DVec S l),
+@[simp] lemma reduct_term_eq {S : Structure L'} (hϕ : ϕ.is_injective) {n} (xs : DVec S n) :
+    ∀ {l} (t : bounded_preterm L n l) (xs' : DVec S l),
     realize_bounded_term xs (ϕ.on_bounded_term t) xs' =
-    @realize_bounded_term L (ϕ.reduct S) n xs l t xs' := by
-  -- TODO: port from src/language_extension.lean:707-711
-  sorry
+    @realize_bounded_term L (ϕ.reduct S) n xs l t xs'
+  | _, bounded_preterm.bd_var k, xs' => rfl
+  | _, bounded_preterm.bd_func f, xs' => rfl
+  | _, bounded_preterm.bd_app t s, xs' => by
+      simp only [on_bounded_term, realize_bounded_term]
+      rw [reduct_term_eq hϕ xs s DVec.nil]
+      exact reduct_term_eq hϕ xs t _
 
 lemma reduct_bounded_formula_iff {S : Structure L'} (hϕ : ϕ.is_injective) :
     ∀ {n l} (xs : DVec S n) (xs' : DVec S l) (f : bounded_preformula L n l),
     realize_bounded_formula xs (ϕ.on_bounded_formula f) xs' ↔
-    @realize_bounded_formula L (ϕ.reduct S) n l xs f xs' := by
-  -- TODO: port from src/language_extension.lean:713-720
-  sorry
+    @realize_bounded_formula L (ϕ.reduct S) n l xs f xs'
+  | _, _, xs, xs', bd_falsum => Iff.rfl
+  | _, _, xs, xs', bd_equal t₁ t₂ => by
+      simp only [on_bounded_formula, realize_bounded_formula,
+                 reduct_term_eq hϕ xs t₁ DVec.nil, reduct_term_eq hϕ xs t₂ DVec.nil]
+      exact Iff.rfl
+  | _, _, xs, xs', bd_rel _ => Iff.rfl
+  | _, _, xs, xs', bd_apprel f t => by
+      simp only [on_bounded_formula, realize_bounded_formula,
+                 reduct_term_eq hϕ xs t DVec.nil]
+      exact reduct_bounded_formula_iff hϕ xs (DVec.cons _ xs') f
+  | _, _, xs, xs', bd_imp f₁ f₂ => by
+      simp only [on_bounded_formula, realize_bounded_formula]
+      exact Iff.imp (reduct_bounded_formula_iff hϕ xs xs' f₁) (reduct_bounded_formula_iff hϕ xs xs' f₂)
+  | _, _, xs, xs', bd_all f => by
+      simp only [on_bounded_formula, realize_bounded_formula]
+      constructor
+      · intro h x; exact (reduct_bounded_formula_iff hϕ (DVec.cons x xs) xs' f).mp (h x)
+      · intro h x; exact (reduct_bounded_formula_iff hϕ (DVec.cons x xs) xs' f).mpr (h x)
 
 lemma reduct_ssatisfied {S : Structure L'} {f : sentence L} (hϕ : ϕ.is_injective)
     (h : S ⊨ₘ ϕ.on_sentence f) : ϕ.reduct S ⊨ₘ f :=
