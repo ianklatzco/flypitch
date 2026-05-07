@@ -1024,17 +1024,18 @@ lemma boolean_realize_sentence_bd_alls {n} {f : bounded_formula L n} :
 
 /-- If there is a nontrivial boolean model satisfying all sentences in T,
     then T is consistent. -/
-lemma consis_of_exists_bmodel [NontrivialCompleteBooleanAlgebra β] {T : SentTheory L}
+lemma consis_of_exists_bmodel [Nontrivial β] {T : SentTheory L}
     {S : bStructure L β} [H_nonempty : Nonempty S] (H : ⊤ ⊩ₜ[S] T) :
     T.is_consistent := by
-  -- TODO: port from src/bfol.lean:785-793
-  -- Logic: boolean_soundness gives T ⊨[β] bd_falsum; instantiate at S to get ⊤ ≤ ⟦⊥⟧[S] = ⊥.
-  -- This contradicts NontrivialCompleteBooleanAlgebra.bot_lt_top.
-  -- Instance diamond: section variable [CompleteBooleanAlgebra β] vs
-  -- NontrivialCompleteBooleanAlgebra.toCompleteBooleanAlgebra causes two separate
-  -- CompleteBooleanAlgebra instances for β, making the LE types mismatch.
-  -- Resolution would require removing the section variable or using instance priority.
-  sorry
+  -- T.is_consistent = ¬(T.fst ⊢' ⊥')
+  intro H_inconsis
+  -- H_inconsis : T.fst ⊢' ⊥' = T ⊢ₛ' (bd_falsum : sentence L)
+  -- boolean_soundness gives T ⊨[β] bd_falsum
+  have hforced := boolean_soundness (β := β) (show T ⊢ₛ' (bd_falsum : sentence L) from H_inconsis) H_nonempty
+  -- Since ⊤ ⊩ₜ[S] T, the inf of all T-values at S equals ⊤
+  rw [inf_axioms_top_of_models H] at hforced
+  -- hforced : ⊤ ⊩[S] bd_falsum, i.e. ⊤ ≤ ⟦bd_falsum⟧[S] = ⊥
+  simp [forced_in] at hforced
 
 /-! ## subst0_bounded_formula_not — src/bfol.lean:799-801 -/
 
