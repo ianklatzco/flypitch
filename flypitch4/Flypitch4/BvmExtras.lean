@@ -4067,7 +4067,29 @@ lemma powerset_injects_F_inj : ∀ (i j : (bv_powerset x).type) {Γ : 𝔹},
     Γ ≤ (functions x 𝟚).func (powerset_injects_F x i) =ᴮ
         (functions x 𝟚).func (powerset_injects_F x j) →
     Γ ≤ (bv_powerset x).func i =ᴮ (bv_powerset x).func j := by
-  sorry -- TODO: port from src/bvm_extras.lean:2377
+  intro i j Γ H
+  -- (bv_powerset x).func i = set_of_indicator (u := x) i definitionally
+  -- Use mem_ext: show set_of_indicator i =ᴮ set_of_indicator j via mutual subset
+  -- Translating via mem_powerset_injects_F_iff: z ∈ set_of_indicator i ↔ pair z 0 ∈ F(i)
+  apply mem_ext
+  · -- ∀ z, z ∈ (bv_powerset x).func i → z ∈ (bv_powerset x).func j
+    apply le_iInf; intro z; rw [← deduction]
+    -- goal: Γ ⊓ z ∈ (bv_powerset x).func i ≤ z ∈ (bv_powerset x).func j
+    show Γ ⊓ z ∈ᴮ set_of_indicator i ≤ z ∈ᴮ set_of_indicator j
+    -- Use mem_powerset_injects_F_iff for both directions
+    have hFi : Γ ⊓ z ∈ᴮ set_of_indicator i ≤ pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x i) :=
+      (mem_powerset_injects_F_iff (x := x) (χ := i)).mpr inf_le_right
+    have hFi_to_Fj : Γ ⊓ z ∈ᴮ set_of_indicator i ≤ pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x j) :=
+      bv_rw'' (H := le_trans inf_le_left H) hFi B_ext_mem_right
+    exact (mem_powerset_injects_F_iff (x := x) (χ := j)).mp hFi_to_Fj
+  · -- ∀ z, z ∈ (bv_powerset x).func j → z ∈ (bv_powerset x).func i
+    apply le_iInf; intro z; rw [← deduction]
+    show Γ ⊓ z ∈ᴮ set_of_indicator j ≤ z ∈ᴮ set_of_indicator i
+    have hFj : Γ ⊓ z ∈ᴮ set_of_indicator j ≤ pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x j) :=
+      (mem_powerset_injects_F_iff (x := x) (χ := j)).mpr inf_le_right
+    have hFj_to_Fi : Γ ⊓ z ∈ᴮ set_of_indicator j ≤ pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x i) :=
+      bv_rw'' (H := le_trans inf_le_left (bv_symm H)) hFj B_ext_mem_right
+    exact (mem_powerset_injects_F_iff (x := x) (χ := i)).mp hFj_to_Fi
 
 -- src/bvm_extras.lean:2387
 noncomputable def powerset_injects_f : bSet 𝔹 :=
