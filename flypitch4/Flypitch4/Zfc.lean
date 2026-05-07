@@ -230,7 +230,14 @@ def Ord_f : bounded_formula L_ZFC 1 := bd_and ewo_f is_transitive_f
 
 @[simp] lemma Ord_f_is_Ord {x : V β} :
     boolean_realize_bounded_formula (DVec.cons x DVec.nil) Ord_f DVec.nil = Ord x := by
-  sorry -- TODO: port from src/zfc.lean:327
+  simp only [Ord_f, ewo_f, epsilon_trichotomy_f, epsilon_well_founded_f, is_transitive_f,
+             boolean_realize_bounded_formula, boolean_realize_bounded_formula_and,
+             boolean_realize_bounded_formula_not, boolean_realize_bounded_formula_or,
+             boolean_realize_bounded_formula_ex, boolean_realize_bounded_formula_mem',
+             boolean_realize_bounded_formula_subset', boolean_realize_bounded_term_emptyset',
+             boolean_realize_bounded_term, DVec.nth, V_forall, V_exists, V_eq]
+  unfold bSet.Ord epsilon_well_orders epsilon_trichotomy epsilon_well_founded is_transitive
+  rfl
 
 -- ============================================================
 -- The ZFC axioms as sentences (src/zfc.lean:179-382)
@@ -530,13 +537,17 @@ def is_func'_f₂ : bounded_formula L_ZFC 3 :=
     boolean_realize_bounded_formula
       (DVec.cons f (DVec.cons y (DVec.cons x DVec.nil))) is_func'_f DVec.nil =
     is_func' x y f := by
-  sorry -- TODO: port from src/zfc.lean:436-437
+  simp only [is_func'_f, is_func', boolean_realize_bounded_formula_and,
+             boolean_realize_cast_bounded_formula, DVec.trunc, realize_is_func_f,
+             realize_is_total'_f]
 
 @[simp] lemma realize_is_func'_f₂ {x y f : V β} :
     boolean_realize_bounded_formula
       (DVec.cons f (DVec.cons y (DVec.cons x DVec.nil))) is_func'_f₂ DVec.nil =
     is_func' y x f := by
-  sorry -- TODO: port from src/zfc.lean:439-440
+  simp only [is_func'_f₂, is_func', boolean_realize_bounded_formula_and,
+             boolean_realize_cast_bounded_formula, DVec.trunc, realize_is_func_f,
+             realize_is_total'_f₂]
 
 /-- at_most_f [y, x] ↔ larger_than x y (surjection from subset of y onto x) -/
 def at_most_f : bounded_formula L_ZFC 2 :=
