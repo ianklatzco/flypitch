@@ -683,8 +683,30 @@ lemma reflect_formula_subst [has_decidable_range ϕ] (hϕ : is_injective ϕ) (f 
     (n m : ℕ) (s : term L') :
     ϕ.reflect_formula (m + n) (f [s // n]f) =
     (ϕ.reflect_formula (m + n + 1) f) [ϕ.reflect_term s m // n]f := by
-  -- TODO: port from src/language_extension.lean:505-516
-  sorry
+  refine @formula.rec L'
+      (fun f => ∀ n, ϕ.reflect_formula (m + n) (f [s // n]f) =
+        (ϕ.reflect_formula (m + n + 1) f) [ϕ.reflect_term s m // n]f)
+      ?_ ?_ ?_ ?_ ?_ f n
+  · intro n; rfl
+  · intro t₁ t₂ n'
+    simp only [subst_formula, reflect_formula_equal, reflect_term_subst hϕ]
+  · intro l R ts n'
+    by_cases hR : R ∈ Set.range (ϕ.on_relation (n := l))
+    · show ϕ.reflect_formula (m + n') ((apps_rel (preformula.rel R) ts) [s // n']f) =
+          (ϕ.reflect_formula (m + n' + 1) (apps_rel (preformula.rel R) ts)) [ϕ.reflect_term s m // n']f
+      simp only [subst_formula_apps_rel, subst_formula, reflect_formula_apps_rel_pos hR,
+                 subst_formula_apps_rel, DVec.map_map, Function.comp]
+      congr 1
+      exact DVec.map_congr_pmem (fun t _ => reflect_term_subst hϕ n' m s t)
+    · show ϕ.reflect_formula (m + n') ((apps_rel (preformula.rel R) ts) [s // n']f) =
+          (ϕ.reflect_formula (m + n' + 1) (apps_rel (preformula.rel R) ts)) [ϕ.reflect_term s m // n']f
+      simp only [subst_formula_apps_rel, reflect_formula_apps_rel_neg hR, subst_formula]
+  · intro f₁ f₂ ih₁ ih₂ n'
+    simp only [subst_formula, reflect_formula_imp, ih₁ n', ih₂ n']
+  · intro f ih n'
+    simp only [subst_formula, reflect_formula_all]
+    rw [show m + n' + 1 = m + (n' + 1) from by omega]
+    exact congrArg preformula.all (ih (n' + 1))
 
 @[simp] lemma reflect_formula_subst0 [has_decidable_range ϕ] (hϕ : is_injective ϕ) (m : ℕ)
     (f : formula L') (s : term L') :
@@ -697,8 +719,45 @@ lemma reflect_formula_subst [has_decidable_range ϕ] (hϕ : is_injective ϕ) (f 
 noncomputable def reflect_prf_gen [has_decidable_range ϕ] (hϕ : is_injective ϕ) {Γ}
     {f : formula L'} (m : ℕ) (H : Γ ⊢ f) :
     (fun g => ϕ.reflect_formula m g) '' Γ ⊢ ϕ.reflect_formula m f := by
-  -- TODO: port from src/language_extension.lean:523-538
-  sorry
+  induction H generalizing m with
+  | axm hΓ => exact prf.axm (Set.mem_image_of_mem _ hΓ)
+  | impI _ ih =>
+      apply prf.impI
+      have h := ih m
+      rw [Set.image_insert_eq] at h
+      exact h
+  | impE A _ _ ih₁ ih₂ => exact prf.impE _ (ih₁ m) (ih₂ m)
+  | falsumE _ ih =>
+      apply prf.falsumE
+      have h := ih m
+      rw [Set.image_insert_eq] at h
+      exact h
+  | allI _ ih =>
+      apply prf.allI
+      rw [Set.image_image]
+      have h := ih (m + 1)
+      rw [Set.image_image] at h
+      -- Need: lift_formula1 ∘ (fun g => ϕ.reflect_formula m g) = (fun g => ϕ.reflect_formula (m+1) g) ∘ lift_formula1
+      -- i.e., lift_formula1 (ϕ.reflect_formula m g) = ϕ.reflect_formula (m+1) (lift_formula1 g)
+      -- which is reflect_formula_lift1 hϕ m g
+      have key : ∀ g : formula L', ϕ.reflect_formula (m + 1) (lift_formula1 g) =
+          lift_formula1 (ϕ.reflect_formula m g) :=
+        fun g => reflect_formula_lift1 hϕ m g
+      simp_rw [key] at h
+      exact h
+  | allE₂ A t _ ih =>
+      have h := ih m
+      rw [reflect_formula_all] at h
+      rw [reflect_formula_subst0 hϕ]
+      exact prf.allE₂ _ _ h
+  | ref _ _ => exact prf.ref _ _
+  | subst₂ s t f₁ _ _ ih₁ ih₂ =>
+      have h₁ := ih₁ m
+      simp only [reflect_formula_equal] at h₁
+      have h₂ := ih₂ m
+      rw [reflect_formula_subst0 hϕ] at h₂
+      rw [reflect_formula_subst0 hϕ]
+      exact prf.subst₂ _ _ _ h₁ h₂
 
 /-! ## filter_symbols -/
 
