@@ -527,8 +527,46 @@ lemma reflect_term_subst [has_decidable_range ϕ] (hϕ : is_injective ϕ) (n m :
     (s t : term L') :
     ϕ.reflect_term (subst_term t s n) (m + n) =
     subst_term (ϕ.reflect_term t (m + n + 1)) (ϕ.reflect_term s m) n := by
-  -- TODO: port from src/language_extension.lean:417-441
-  sorry
+  induction t using @term.rec L' with
+  | hvar k =>
+    show ϕ.reflect_term (subst_term (&k) s n) (m + n) =
+        subst_term (ϕ.reflect_term (&k) (m + n + 1)) (ϕ.reflect_term s m) n
+    rcases Nat.lt_trichotomy k n with hk | hk | hk
+    · -- k < n
+      simp only [subst_term_var_lt s hk, reflect_term_var, lift_term_at,
+                 if_neg (by omega : ¬(m + n ≤ k)),
+                 if_neg (by omega : ¬(m + n + 1 ≤ k)),
+                 subst_term_var_lt _ hk]
+    · -- k = n: reflect_term (s ↑' n # 0) (m+n) = subst_term (&n ↑' 1 # (m+n+1)) (reflect_term s m) n
+      simp only [hk, subst_term_var_eq, reflect_term_var,
+                 lift_term_at, if_neg (by omega : ¬(m + n + 1 ≤ n)),
+                 subst_term_var_eq, lift_term]
+      exact reflect_term_lift hϕ s
+    · -- k > n
+      have hk1 : 1 ≤ k := Nat.one_le_of_lt hk
+      by_cases h₂' : m + n + 1 ≤ k
+      · -- k ≥ m+n+1: both sides = &k
+        simp only [subst_term_var_gt s hk, reflect_term_var, lift_term_at, h₂', ite_true,
+                   if_pos (by omega : m + n ≤ k - 1),
+                   subst_term_var_gt _ (by omega : n < k - 1 + 1),
+                   Nat.sub_add_cancel hk1,
+                   subst_term_var_gt _ (by omega : n < k + 1),
+                   show k + 1 - 1 = k from by omega]
+      · -- n < k < m+n+1: both sides = &(k-1)
+        simp only [subst_term_var_gt s hk, reflect_term_var, lift_term_at,
+                   if_neg (by omega : ¬(m + n ≤ k - 1)),
+                   if_neg h₂', subst_term_var_gt _ hk]
+  | hfunc f ts ih_ts =>
+    show ϕ.reflect_term (subst_term (apps (preterm.func f) ts) s n) (m + n) =
+        subst_term (ϕ.reflect_term (apps (preterm.func f) ts) (m + n + 1)) (ϕ.reflect_term s m) n
+    have hn : n < m + n + 1 := by omega
+    by_cases hf : f ∈ Set.range ϕ.on_function
+    · simp only [subst_term_apps, reflect_term_apps_pos hf, subst_term_func, subst_term_apps,
+                 DVec.map_map, Function.comp]
+      exact congrArg (apps (preterm.func _))
+              (DVec.map_congr_pmem (fun t hmem => ih_ts t hmem))
+    · simp only [subst_term_apps, subst_term_func, reflect_term_apps_neg hf, reflect_term_var,
+                 subst_term_var_gt _ hn, show m + n + 1 - 1 = m + n from by omega]
 
 variable (ϕ)
 
