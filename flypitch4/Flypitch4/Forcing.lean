@@ -349,36 +349,32 @@ lemma 𝒞_disjoint_row (p : 𝒞) : ∃ n : ℕ, ∀ ξ : PSet.pSet_aleph2.Type
   by_cases h_empty : (p.ins ∪ p.out) = ∅
   · -- Case: p.ins ∪ p.out = ∅, so p.ins = ∅ and p.out = ∅
     use 0; intro ξ
-    have h_ins : p.ins = ∅ := by
-      ext x; simp only [Finset.mem_empty, iff_false]
-      intro hx; exact Finset.not_mem_empty x (h_empty ▸ Finset.mem_union_left _ hx)
-    have h_out : p.out = ∅ := by
-      ext x; simp only [Finset.mem_empty, iff_false]
-      intro hx; exact Finset.not_mem_empty x (h_empty ▸ Finset.mem_union_right _ hx)
-    exact ⟨h_ins ▸ Finset.not_mem_empty _, h_out ▸ Finset.not_mem_empty _⟩
+    have h_ins : p.ins = ∅ := Finset.subset_empty.mp (h_empty ▸ Finset.subset_union_left)
+    have h_out : p.out = ∅ := Finset.subset_empty.mp (h_empty ▸ Finset.subset_union_right)
+    refine ⟨?_, ?_⟩
+    all_goals intro h
+    · rw [h_ins] at h; exact Finset.notMem_empty _ h
+    · rw [h_out] at h; exact Finset.notMem_empty _ h
   · -- Case: Y' is nonempty
     have h_Y'_nonempty : Y'.Nonempty := by
-      simp only [Y', Finset.nonempty_image_iff]
+      apply Finset.Nonempty.image
       exact Finset.nonempty_of_ne_empty h_empty
     let N := Y'.max' h_Y'_nonempty
     use N + 1
     intro ξ
     constructor
     · intro H_mem
-      -- H_mem : cast eq₁.symm (ξ, N+1) ∈ p.ins
-      -- After eq₁_cast', get (cast eq₀.symm ξ, N+1) ∈ p.ins
       rw [eq₁_cast'] at H_mem
-      -- So N+1 ∈ Y'
-      have : N + 1 ∈ Y' := by
+      have hNmem : N + 1 ∈ Y' := by
         simp only [Y', Finset.mem_image]
-        exact ⟨(cast eq₀.symm ξ, N + 1), Finset.mem_union_left _ H_mem, rfl⟩
-      exact Nat.not_succ_le_self N (Finset.le_max' (N + 1) this)
+        exact ⟨_, Finset.mem_union_left _ H_mem, rfl⟩
+      exact Nat.not_succ_le_self N (Finset.le_max' _ _ hNmem)
     · intro H_mem
       rw [eq₁_cast'] at H_mem
-      have : N + 1 ∈ Y' := by
+      have hNmem : N + 1 ∈ Y' := by
         simp only [Y', Finset.mem_image]
-        exact ⟨(cast eq₀.symm ξ, N + 1), Finset.mem_union_right _ H_mem, rfl⟩
-      exact Nat.not_succ_le_self N (Finset.le_max' (N + 1) this)
+        exact ⟨_, Finset.mem_union_right _ H_mem, rfl⟩
+      exact Nat.not_succ_le_self N (Finset.le_max' _ _ hNmem)
 
 -- src/forcing.lean:352-353
 lemma 𝒞_anti {p₁ p₂ : 𝒞} : p₁.ins ⊆ p₂.ins → p₁.out ⊆ p₂.out → ι p₂ ≤ ι p₁ := by
