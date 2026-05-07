@@ -463,7 +463,101 @@ def prod_map_self (x y f : bSet 𝔹) : bSet 𝔹 :=
 -- src/aleph_one.lean:302
 lemma B_congr_prod_map_self_left_aux {y f x x' : bSet 𝔹} {Γ : 𝔹} (H_eq : Γ ≤ x =ᴮ x') :
     Γ ≤ ⨅ (z : bSet 𝔹), z ∈ᴮ prod_map_self x y f ⟹ z ∈ᴮ prod_map_self x' y f := by
-  sorry -- TODO: port from src/aleph_one.lean:302 (uses bv_cases_at etc.)
+  -- Goal: Γ ≤ ⨅ z, z ∈ prod_map_self x y f ⟹ z ∈ prod_map_self x' y f
+  -- prod_map_self x y f = subset.mk χ where parent = prod(prod x x)(prod y y)
+  -- Strategy: for each z, go through the iSup elements of prod_map_self x y f
+  --   and produce corresponding elements for prod_map_self x' y f by reindexing
+  apply le_iInf; intro z; rw [← deduction]
+  -- ctx: Γ ⊓ z ∈ prod_map_self x y f
+  -- unfold both sides
+  show Γ ⊓ z ∈ᴮ prod_map_self x y f ≤ z ∈ᴮ prod_map_self x' y f
+  -- Extract from iSup in prod_map_self x y f
+  have Hmem_iff : Γ ⊓ z ∈ᴮ prod_map_self x y f ≤ z ∈ᴮ prod_map_self x y f := inf_le_right
+  rw [show prod_map_self x y f = subset.mk (fun pr : (prod (prod x x) (prod y y)).type =>
+    pair (x.func pr.1.1) (y.func pr.2.1) ∈ᴮ f ⊓ pair (x.func pr.1.2) (y.func pr.2.2) ∈ᴮ f) from rfl] at Hmem_iff
+  rw [mem_subset.mk_iff₂] at Hmem_iff
+  apply le_trans (le_inf Hmem_iff le_rfl)
+  apply bv_cases_left; intro pr
+  obtain ⟨⟨i₁, i₂⟩, j₁, j₂⟩ := pr
+  simp only [prod_func, prod_bval]
+  -- ctx: ((x.bval i₁ ⊓ x.bval i₂) ⊓ (y.bval j₁ ⊓ y.bval j₂)) ⊓
+  --       (z=ᴮpair(pair xi₁ xi₂)(pair yj₁ yj₂) ⊓ (χ₁⊓χ₂)) ⊓ (Γ ⊓ z∈...)
+  -- Need: ctx ≤ z ∈ prod_map_self x' y f
+  -- bv_rw' on zeq: reduce to pair(xi₁ xi₂)(yj₁ yj₂) ∈ prod_map_self x' y f
+  -- Then provide the witness directly via mem_subset.mk_iff₂.mpr
+  -- xi₁ ∈ x' (via bv_rw'' Heq (xi₁∈x)): for the new index i₁', use mem_unfold + bv_cases_left
+  -- To avoid index extraction, we stay in the iSup form and use bv_use
+  rw [show prod_map_self x' y f = subset.mk (fun pr' : (prod (prod x' x') (prod y y)).type =>
+    pair (x'.func pr'.1.1) (y.func pr'.2.1) ∈ᴮ f ⊓ pair (x'.func pr'.1.2) (y.func pr'.2.2) ∈ᴮ f) from rfl,
+    mem_subset.mk_iff₂]
+  -- Goal: ctx ≤ ⨆ pr', bval'(pr') ⊓ (z=ᴮfunc'(pr') ⊓ χ'(pr'))
+  -- Ctx structure: ((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (zeq ⊓ (χ1⊓χ2)) ⊓ (Γ ⊓ z∈...)
+  -- xi₁ ∈ x' (via mem_congr) → get i₁' via le_trans + bv_cases_left
+  apply le_trans (b := (⨆ i₁' : x'.type, x'.bval i₁' ⊓ x.func i₁ =ᴮ x'.func i₁') ⊓ _)
+  · apply le_inf
+    · rw [← mem_unfold]
+      -- prove ctx ≤ x.func i₁ ∈ᴮ x'
+      exact mem_congr bv_refl (inf_le_right.trans (inf_le_left.trans H_eq))
+        ((inf_le_left.trans (inf_le_left.trans (inf_le_left.trans inf_le_left))).trans (mem_mk' x i₁))
+    · exact le_rfl
+  apply bv_cases_left; intro i₁'
+  -- ctx1 = (x'.bval i₁' ⊓ xi₁=x'.func i₁') ⊓ ctx
+  -- xi₂ ∈ x' → get i₂' via le_trans + bv_cases_left
+  apply le_trans (b := (⨆ i₂' : x'.type, x'.bval i₂' ⊓ x.func i₂ =ᴮ x'.func i₂') ⊓ _)
+  · apply le_inf
+    · rw [← mem_unfold]
+      -- prove ctx1 ≤ x.func i₂ ∈ᴮ x'
+      exact mem_congr bv_refl (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans H_eq)))
+        ((inf_le_right.trans (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans inf_le_right)))).trans
+          (mem_mk' x i₂))
+    · exact le_rfl
+  apply bv_cases_left; intro i₂'
+  -- ctx2 = (x'.bval i₂' ⊓ xi₂=x'.func i₂') ⊓ ctx1
+  -- ctx2 structure:
+  --   (x'.bval i₂' ⊓ x.func i₂ =ᴮ x'.func i₂') ⊓
+  --   ((x'.bval i₁' ⊓ x.func i₁ =ᴮ x'.func i₁') ⊓
+  --    (((xb1⊓xb2)⊓(yb1⊓yb2)) ⊓ (zeq ⊓ (χ1⊓χ2)) ⊓ (Γ ⊓ z∈...)))
+  apply bv_use ((i₁', i₂'), j₁, j₂)
+  simp only [prod_func, prod_bval]
+  -- Extractions from ctx2 (after simp):
+  --   x'.bval i₁' : ir.il.il
+  --   xi₁=x'.func i₁' : ir.il.ir
+  --   x'.bval i₂' : il.il
+  --   xi₂=x'.func i₂' : il.ir
+  --   xb1 : ir.ir.il.il.il
+  --   xb2 : ir.ir.il.il.ir
+  --   yb1 : ir.ir.il.ir.il
+  --   yb2 : ir.ir.il.ir.ir
+  --   zeq : ir.ir.ir.il
+  --   χ1  : ir.ir.ir.ir.il
+  --   χ2  : ir.ir.ir.ir.ir
+  apply le_inf
+  · -- bval': (x'.bval i₁' ⊓ x'.bval i₂') ⊓ (y.bval j₁ ⊓ y.bval j₂)
+    apply le_inf (le_inf ?_ ?_) (le_inf ?_ ?_)
+    · exact inf_le_right.trans (inf_le_left.trans inf_le_left)
+    · exact inf_le_left.trans inf_le_left
+    · exact inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (inf_le_left.trans (inf_le_right.trans inf_le_left))))
+    · exact inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (inf_le_left.trans (inf_le_right.trans inf_le_right))))
+  · apply le_inf
+    · -- z =ᴮ pair(pair x'.func(i₁') x'.func(i₂'))(pair yj₁ yj₂)
+      -- First prove z =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂), then rewrite xi₁ → x'.func i₁'
+      apply bv_trans
+      · -- zeq: ctx2 ≤ z =ᴮ pair(pair xi₁ xi₂)(pair yj₁ yj₂)
+        exact inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (inf_le_right.trans inf_le_left)))
+      · apply pair_eq_pair_iff.mpr; constructor
+        · apply pair_eq_pair_iff.mpr
+          -- Hi₁'eq: ir.il.ir, Hi₂'eq: il.ir
+          exact ⟨inf_le_right.trans (inf_le_left.trans inf_le_right), inf_le_left.trans inf_le_right⟩
+        · apply pair_eq_pair_iff.mpr; exact ⟨bv_refl, bv_refl⟩
+    · apply le_inf
+      · -- pair x'.func(i₁') yj₁ ∈ f
+        exact bv_rw' (ϕ := fun v => pair v (y.func j₁) ∈ᴮ f) (h_congr := B_ext_pair_mem_left)
+          (H := bv_symm (inf_le_right.trans (inf_le_left.trans inf_le_right)))
+          (H_new := inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (inf_le_right.trans (inf_le_right.trans inf_le_left)))))
+      · -- pair x'.func(i₂') yj₂ ∈ f
+        exact bv_rw' (ϕ := fun v => pair v (y.func j₂) ∈ᴮ f) (h_congr := B_ext_pair_mem_left)
+          (H := bv_symm (inf_le_left.trans inf_le_right))
+          (H_new := inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (inf_le_right.trans (inf_le_right.trans inf_le_right)))))
 
 -- src/aleph_one.lean:329
 @[simp] lemma B_congr_prod_map_self_left {y f : bSet 𝔹} :
