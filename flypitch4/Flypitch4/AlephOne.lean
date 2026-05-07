@@ -529,23 +529,27 @@ lemma mem_of_mem_induced_epsilon_rel {η x f a' b' a b : bSet 𝔹} {Γ}
   have H_inj' : Γ ≤ is_inj f := is_inj_of_is_injective_function H_inj
   apply le_trans (le_inf H le_rfl)
   apply bv_cases_left; intro a''
-  apply le_trans (le_inf inf_le_right le_rfl)
-  apply bv_cases_right; intro b''
-  -- ctx: (b''∈η ⊓ (pair a'' a ∈ f ⊓ pair b'' b ∈ f ⊓ a''∈b'')) ⊓ ((a''∈η ⊓ ⨆ b'', ...) ⊓ Γ)
-  -- In order: left = b''∈η ⊓ (pair a'' a ∈ f ⊓ pair b'' b ∈ f ⊓ a''∈b'')
-  --           right = (a''∈η ⊓ ...) ⊓ Γ
-  have Hpa''a : _ ≤ pair a'' a ∈ᴮ f :=
-    inf_le_left.trans (inf_le_right.trans inf_le_left.trans inf_le_left)
-  have Hpb''b : _ ≤ pair b'' b ∈ᴮ f :=
-    inf_le_left.trans (inf_le_right.trans inf_le_left.trans inf_le_right)
-  have Ha''_b'' : _ ≤ a'' ∈ᴮ b'' := inf_le_left.trans (inf_le_right.trans inf_le_right)
-  have Ha'_a'' : _ ≤ a' =ᴮ a'' :=
-    eq_of_is_inj_of_eq (inf_le_right.trans (inf_le_right.trans H_inj')) bv_refl
-      (inf_le_right.trans (inf_le_right.trans H_mem₁)) Hpa''a
-  have Hb'_b'' : _ ≤ b' =ᴮ b'' :=
-    eq_of_is_inj_of_eq (inf_le_right.trans (inf_le_right.trans H_inj')) bv_refl
-      (inf_le_right.trans (inf_le_right.trans H_mem₂)) Hpb''b
-  exact mem_congr Ha'_a'' Hb'_b'' Ha''_b''
+  -- goal: (a''∈η ⊓ ⨆ b'', b''∈η ⊓ (...)) ⊓ Γ ≤ a'∈b'
+  -- extract ⨆ b'' to left
+  apply le_trans (le_inf (inf_le_left.trans inf_le_right) le_rfl)
+  apply bv_cases_left; intro b''
+  -- goal: (b''∈η ⊓ ((pair a'' a ∈ f ⊓ pair b'' b ∈ f) ⊓ a''∈b'')) ⊓ ((a''∈η ⊓ ⨆ ..) ⊓ Γ) ≤ a'∈b'
+  -- use `apply` to decompose mem_congr, so each subgoal has a concrete type
+  apply mem_congr (x₁ := a'') (x₂ := b'')
+  · -- prove a'' =ᴮ a' via is_inj: pair a'' a ∈ f and pair a' a ∈ f
+    apply eq_of_is_inj_of_eq
+    · exact inf_le_right.trans (inf_le_right.trans H_inj')
+    · exact bv_refl (x := a)
+    · exact inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))
+    · exact inf_le_right.trans (inf_le_right.trans H_mem₁)
+  · -- prove b'' =ᴮ b' via is_inj: pair b'' b ∈ f and pair b' b ∈ f
+    apply eq_of_is_inj_of_eq
+    · exact inf_le_right.trans (inf_le_right.trans H_inj')
+    · exact bv_refl (x := b)
+    · exact inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))
+    · exact inf_le_right.trans (inf_le_right.trans H_mem₂)
+  · -- prove a'' ∈ b''
+    exact inf_le_left.trans (inf_le_right.trans inf_le_right)
 
 -- ============================================================
 -- src/aleph_one.lean:451-579: remaining well_ordering lemmas
