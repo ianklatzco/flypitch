@@ -303,8 +303,33 @@ lemma rel_of_array_is_func' (x y : bSet 𝔹) (af : x.type → y.type → 𝔹)
     (H_inj  : ∀ i₁ i₂, ⊥ < (x.func i₁) =ᴮ (x.func i₂) → i₁ = i₂)
     {Γ}
     : Γ ≤ is_func' x y (rel_of_array x y af) := by
-  -- TODO: port from src/forcing_CH.lean:171
-  sorry
+  -- is_func' = is_func ⊓ is_total
+  refine le_inf (rel_of_array_extensional x y af H_anti H_inj) ?_
+  -- Now show is_total x y (rel_of_array x y af)
+  rw [is_total_iff_is_total']
+  -- is_total' x y f = ⨅ i, x.bval i ⟹ ⨆ j, y.bval j ⊓ pair (x.func i) (y.func j) ∈ f
+  apply le_iInf; intro i₀
+  rw [← deduction]
+  -- Goal: Γ ⊓ x.bval i₀ ≤ ⨆ j₀, y.bval j₀ ⊓ pair (x.func i₀) (y.func j₀) ∈ rel_of_array x y af
+  -- pair (x.func i₀) (y.func j₀) ∈ rel = ⨆ (i,j), af i j ⊓ pair (x.func i₀) (y.func j₀) =ᴮ pair (x.func i) (y.func j)
+  -- This contains af i₀ j₀ ⊓ pair (x.func i₀) (y.func j₀) =ᴮ pair (x.func i₀) (y.func j₀) = af i₀ j₀
+  -- So ⨆ j₀, y.bval j₀ ⊓ pair (x.func i₀) (y.func j₀) ∈ rel
+  --   ≥ ⨆ j₀, ⊤ ⊓ af i₀ j₀ = ⨆ j₀, af i₀ j₀ = H_tall i₀ = ⊤
+  -- Goal: Γ ⊓ x.bval i₀ ≤ ⨆ j₀, y.bval j₀ ⊓ pair (x.func i₀) (y.func j₀) ∈ᴮ rel_of_array x y af
+  -- Use H_tall i₀ : ⨆ j₀, af i₀ j₀ = ⊤ to show ⨆ j₀, y.bval j₀ ⊓ pair... = ⊤
+  -- bound: ⨆ j₀, y.bval j₀ ⊓ pair (x.func i₀) (y.func j₀) ∈ rel ≥ ⨆ j₀, af i₀ j₀ = ⊤
+  apply le_trans le_top
+  rw [← H_tall i₀]
+  apply iSup_le; intro j₀
+  apply le_iSup_of_le j₀
+  refine le_inf ?_ ?_
+  · rw [H_bval₂]; exact le_top
+  · -- pair (x.func i₀) (y.func j₀) ∈ rel_of_array ≥ af i₀ j₀
+    unfold rel_of_array
+    rw [mem_unfold]
+    simp only [set_of_indicator_bval, set_of_indicator_func, prod_func]
+    apply le_iSup_of_le (i₀, j₀)
+    simp [bv_eq_refl]
 
 -- ============================================================
 -- section function_reflect (src lines 193-350)
