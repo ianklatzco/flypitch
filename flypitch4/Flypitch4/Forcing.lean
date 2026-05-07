@@ -67,7 +67,24 @@ lemma AE_of_check_larger_than_check' {x y : PSet.{u}} {Γ : 𝔹}
     (H_mem : ∃ z, z ∈ y) :
     ∃ f : bSet 𝔹, ∀ i : y.Type, ∃ j : x.Type,
       ⊥ < is_func f ⊓ pair (check (x.Func j)) (check (y.Func i)) ∈ᴮ f := by
-  sorry -- TODO: port from src/forcing.lean:50
+  -- surjects_onto (check x) (check y) = ⨆ f, is_func' (check x) (check y) f ⊓ is_surj ...
+  -- Use maximum_principle to extract a specific f
+  -- From surjects_onto, extract a concrete f using maximum_principle
+  -- surjects_onto (check x) (check y) = ⨆ f, is_surj_onto (check x) (check y) f
+  -- By maximum_principle, ∃ f, ⨆ g, is_surj_onto ... g = is_surj_onto ... f
+  -- But B_ext proof for is_surj_onto f is needed; use is_function_right + simp
+  -- B_ext (fun f => is_surj_onto (check x) (check y) f)
+  -- = B_ext (fun f => is_func' x y f ⊓ is_surj x y f)
+  -- = B_ext (fun f => (is_func f ⊓ is_total x y f) ⊓ is_surj x y f)
+  -- Extract f from surjects_onto = ⨆ f, is_surj_onto (check x) (check y) f
+  simp only [surjects_onto] at H
+  obtain ⟨f, Hf⟩ := nonzero_wit' H_nonzero H
+  -- Hf : ⊥ < is_surj_onto (check x) (check y) f ⊓ Γ
+  -- Use the context Γ' = is_surj_onto f ⊓ Γ which is nonzero and ≤ is_surj_onto f
+  have Hf_nonzero : ⊥ < is_surj_onto (check x) (check y) f ⊓ Γ := Hf
+  have Hf_le : is_surj_onto (check x) (check y) f ⊓ Γ ≤ is_surj_onto (check x) (check y) f :=
+    inf_le_left
+  exact ⟨f, AE_of_check_larger_than_check'' f Hf_nonzero Hf_le H_mem⟩
 
 -- src/forcing.lean:58-62
 lemma AE_of_check_larger_than_check {x y : PSet.{u}} {Γ : 𝔹}
@@ -78,7 +95,7 @@ lemma AE_of_check_larger_than_check {x y : PSet.{u}} {Γ : 𝔹}
       ⊥ < is_func f ⊓ pair (check (x.Func j)) (check (y.Func i)) ∈ᴮ f :=
   AE_of_check_larger_than_check' H_nonzero
     (surjects_onto_of_larger_than_and_exists_mem H
-      (by sorry))
+      (by obtain ⟨z, hz⟩ := H_mem; exact le_trans le_top (le_iSup_of_le (check z) (check_mem hz))))
     H_mem
 
 -- src/forcing.lean:63-100: not_CCC_of_uncountable_fiber
