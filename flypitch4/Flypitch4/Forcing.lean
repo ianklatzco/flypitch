@@ -332,7 +332,12 @@ noncomputable def mk (ν : (check (PSet.pSet_aleph2) : bSet 𝔹).type) : bSet �
 
 /-- bSet 𝔹 believes that each `mk ν` is a subset of omega -/
 lemma definite {ν} {Γ} : Γ ≤ mk ν ⊆ᴮ omega := by
-  sorry -- TODO: port from src/forcing.lean:373
+  rw [subset_unfold]
+  apply le_iInf; intro i
+  rw [← deduction]
+  simp only [mk_bval, mk_func]
+  -- Goal: χ ν i.down ⊓ Γ ≤ of_nat i.down ∈ᴮ omega
+  exact le_trans inf_le_left (le_trans le_top omega_definite)
 
 /-- bSet 𝔹 believes that each `mk ν` is an element of 𝒫(ω) -/
 lemma definite' {ν} {Γ} : Γ ≤ mk ν ∈ᴮ bv_powerset omega := bv_powerset_spec.mp definite
@@ -341,7 +346,18 @@ lemma definite' {ν} {Γ} : Γ ≤ mk ν ∈ᴮ bv_powerset omega := bv_powerset
 lemma sep {n} {Γ} {ν₁ ν₂} (H₁ : Γ ≤ of_nat n ∈ᴮ mk ν₁)
     (H₂ : Γ ≤ (of_nat n ∈ᴮ mk ν₂)ᶜ) :
     Γ ≤ (mk ν₁ =ᴮ mk ν₂)ᶜ := by
-  sorry -- TODO: port from src/forcing.lean:379
+  -- Show: (mk ν₁ =ᴮ mk ν₂) ⊓ Γ ≤ ⊥, which is equivalent
+  -- Use le_neg_of_inf_eq_bot: to show Γ ≤ (mk ν₁ =ᴮ mk ν₂)ᶜ, show (mk ν₁ =ᴮ mk ν₂) ⊓ Γ = ⊥
+  apply le_neg_of_inf_eq_bot
+  rw [le_antisymm_iff]; constructor
+  · -- (mk ν₁ =ᴮ mk ν₂) ⊓ Γ ≤ ⊥
+    apply le_bot_iff.mpr
+    -- Use subst_congr_mem_right: mk ν₁ =ᴮ mk ν₂ ⊓ of_nat n ∈ᴮ mk ν₁ ≤ of_nat n ∈ᴮ mk ν₂
+    rw [eq_bot_iff]
+    have hmem : mk ν₁ =ᴮ mk ν₂ ⊓ Γ ≤ of_nat n ∈ᴮ mk ν₂ :=
+      le_trans (le_inf inf_le_left (le_trans inf_le_right H₁)) subst_congr_mem_right
+    exact le_trans (le_inf hmem (le_trans inf_le_right H₂)) inf_compl_eq_bot.le
+  · exact bot_le
 
 -- src/forcing.lean:388-398
 lemma not_mem_of_not_mem {p : 𝒞} {ν} {n} (H : (ν, n) ∈ p.out) :
