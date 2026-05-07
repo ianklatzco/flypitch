@@ -338,6 +338,206 @@ lemma mem_of_mem_induced_epsilon_rel {η x f a' b' a b : bSet 𝔹} {Γ}
   obtain ⟨_Ha_mem, _Hb_mem, _H⟩ := H_mem
   sorry -- TODO: port from src/aleph_one.lean:437 (iSup unwrapping, bv_cc)
 
+-- ============================================================
+-- src/aleph_one.lean:451-579: remaining well_ordering lemmas
+-- ============================================================
+
+-- src/aleph_one.lean:451
+lemma induced_epsilon_rel_sub_image_left {η x f a b : bSet 𝔹} {Γ}
+    (H_func : Γ ≤ is_function η x f)
+    (H : Γ ≤ pair a b ∈ᴮ induced_epsilon_rel η x f) : Γ ≤ a ∈ᴮ image η x f := by
+  sorry -- TODO: port from src/aleph_one.lean:451
+
+-- src/aleph_one.lean:461
+lemma induced_epsilon_rel_sub_image_right {η x f a b : bSet 𝔹} {Γ}
+    (H_func : Γ ≤ is_function η x f)
+    (H : Γ ≤ pair a b ∈ᴮ induced_epsilon_rel η x f) : Γ ≤ b ∈ᴮ image η x f := by
+  sorry -- TODO: port from src/aleph_one.lean:461
+
+-- src/aleph_one.lean:471
+lemma image_eq_of_eq_induced_epsilon_rel_aux
+    {η ρ f g : bSet 𝔹} {Γ}
+    (Hη_inj : Γ ≤ is_injective_function η omega f)
+    (Hρ_inj : Γ ≤ is_injective_function ρ omega g)
+    (H_eq : Γ ≤ induced_epsilon_rel η omega f =ᴮ induced_epsilon_rel ρ omega g)
+    (H_exists_two : Γ ≤ exists_two η) :
+    Γ ≤ ⨅ (z : bSet 𝔹), z ∈ᴮ image η omega f ⟹ z ∈ᴮ image ρ omega g := by
+  sorry -- TODO: port from src/aleph_one.lean:471
+
+-- src/aleph_one.lean:503
+lemma image_eq_of_eq_induced_epsilon_rel
+    {η ρ f g : bSet 𝔹} {Γ}
+    (Hη_inj : Γ ≤ is_injective_function η omega f)
+    (Hρ_inj : Γ ≤ is_injective_function ρ omega g)
+    (H_eq : Γ ≤ induced_epsilon_rel η omega f =ᴮ induced_epsilon_rel ρ omega g)
+    (H_exists_two : Γ ≤ exists_two η)
+    (H_exists_two' : Γ ≤ exists_two ρ) :
+    Γ ≤ image η omega f =ᴮ image ρ omega g := by
+  refine mem_ext ?_ ?_
+  · apply image_eq_of_eq_induced_epsilon_rel_aux Hη_inj Hρ_inj H_eq H_exists_two
+  · apply image_eq_of_eq_induced_epsilon_rel_aux Hρ_inj Hη_inj (bv_symm H_eq) H_exists_two'
+
+-- src/aleph_one.lean:515
+lemma eq_of_eq_induced_epsilon_rel
+    {η ρ f g : bSet 𝔹} {Γ}
+    (Hη_ord : Γ ≤ Ord η) (Hρ_ord : Γ ≤ Ord ρ)
+    (Hη_inj : Γ ≤ is_injective_function η omega f)
+    (Hρ_inj : Γ ≤ is_injective_function ρ omega g)
+    (H_eq : Γ ≤ induced_epsilon_rel η omega f =ᴮ induced_epsilon_rel ρ omega g)
+    (H_exists_two : Γ ≤ exists_two η)
+    (H_exists_two' : Γ ≤ exists_two ρ) :
+    Γ ≤ η =ᴮ ρ := by
+  sorry -- TODO: port from src/aleph_one.lean:515
+
 end well_ordering
+
+-- ============================================================
+-- src/aleph_one.lean:583-888: section a1
+-- ============================================================
+
+section a1
+
+variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+
+-- src/aleph_one.lean:586
+-- The comprehension predicate for a1
+noncomputable def a1' : bSet 𝔹 :=
+  comprehend
+    (fun x : bSet 𝔹 => ⨆ η, Ord η ⊓ ⨆ f, is_injective_function η omega f ⊓
+      (image (mem_rel η) (prod omega omega) (prod_map_self η omega f) =ᴮ x) ⊓ (x =ᴮ ∅)ᶜ)
+    (bv_powerset (prod omega omega))
+
+-- src/aleph_one.lean:612
+lemma a1'_AE {Γ : 𝔹} : Γ ≤ ⨅ z, z ∈ᴮ a1' ⟹
+    ⨆ η, Ord η ⊓ ⨆ f, is_injective_function η omega f ⊓
+    image (mem_rel η) (prod omega omega) (prod_map_self η omega f) =ᴮ z ⊓ (z =ᴮ ∅)ᶜ := by
+  sorry -- TODO: port from src/aleph_one.lean:612
+
+-- src/aleph_one.lean:620
+noncomputable def a1_func (χ : (a1' (𝔹 := 𝔹)).type) : bSet 𝔹 := ∅
+
+-- src/aleph_one.lean:630
+noncomputable def a1_aux : bSet 𝔹 := ⟨(a1' (𝔹 := 𝔹)).type, a1_func, (a1' (𝔹 := 𝔹)).bval⟩
+
+-- src/aleph_one.lean:632
+lemma Ord_of_mem_a1_aux {Γ : 𝔹} {η : bSet 𝔹} (H_mem : Γ ≤ η ∈ᴮ a1_aux) : Γ ≤ Ord η := by
+  sorry -- TODO: port from src/aleph_one.lean:632
+
+-- src/aleph_one.lean:641
+noncomputable def a1 : bSet 𝔹 := insert 0 (insert 1 a1_aux)
+
+-- src/aleph_one.lean:643
+lemma mem_a1_iff₀ {z : bSet 𝔹} {Γ : 𝔹} :
+    Γ ≤ z ∈ᴮ a1 ↔ Γ ≤ z =ᴮ 0 ⊔ z =ᴮ 1 ⊔ z ∈ᴮ a1_aux := by
+  sorry -- TODO: port from src/aleph_one.lean:643
+
+-- src/aleph_one.lean:646
+lemma Ord_of_mem_a1 {Γ : 𝔹} {η : bSet 𝔹} (H_mem : Γ ≤ η ∈ᴮ a1) : Γ ≤ Ord η := by
+  sorry -- TODO: port from src/aleph_one.lean:646
+
+-- src/aleph_one.lean:655
+lemma eq_zero_iff_eq_empty {Γ : 𝔹} {u : bSet 𝔹} : Γ ≤ u =ᴮ 0 ↔ Γ ≤ u =ᴮ ∅ := by
+  constructor
+  · intro H
+    exact le_trans (le_inf H (zero_eq_empty (Γ := Γ))) bv_eq_trans
+  · intro H
+    exact le_trans (le_inf H (bv_symm (zero_eq_empty (Γ := Γ)))) bv_eq_trans
+
+-- src/aleph_one.lean:662
+lemma induced_rel_empty_of_eq_zero {η f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_function η omega f)
+    (H_eq_zero : Γ ≤ η =ᴮ 0) : Γ ≤ induced_epsilon_rel η omega f =ᴮ ∅ := by
+  sorry -- TODO: port from src/aleph_one.lean:662
+
+-- src/aleph_one.lean:679
+lemma nonempty_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_function η omega f)
+    (H : Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ) : Γ ≤ (η =ᴮ ∅)ᶜ := by
+  sorry -- TODO: port from src/aleph_one.lean:679
+
+-- src/aleph_one.lean:690
+lemma not_zero_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_function η omega f)
+    (H' : Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ) : Γ ≤ (η =ᴮ 0)ᶜ := by
+  sorry -- TODO: port from src/aleph_one.lean:690
+
+-- src/aleph_one.lean:700
+lemma not_one_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
+    (H_func : Γ ≤ is_function η omega f)
+    (H : Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ) : Γ ≤ (η =ᴮ 1)ᶜ := by
+  sorry -- TODO: port from src/aleph_one.lean:700
+
+-- src/aleph_one.lean:723
+lemma nonempty_induced_rel_iff_not_zero_and_not_one {η f : bSet 𝔹} {Γ : 𝔹}
+    (H_ord : Γ ≤ Ord η) (H_inj : Γ ≤ is_function η omega f) :
+    Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ ↔
+    (Γ ≤ (η =ᴮ 0)ᶜ ∧ Γ ≤ (η =ᴮ 1)ᶜ) := by
+  sorry -- TODO: port from src/aleph_one.lean:723
+
+-- src/aleph_one.lean:746
+/-- a1 contains every ordinal η which injects into ω -/
+lemma mem_a1_of_injects_into_omega_aux {Γ : 𝔹} {η : bSet 𝔹}
+    (H_ord : Γ ≤ Ord η) (H_inj : Γ ≤ ⨆ f, is_injective_function η omega f)
+    (H_not_zero : Γ ≤ (η =ᴮ 0)ᶜ) (H_not_one : Γ ≤ (η =ᴮ 1)ᶜ) :
+    Γ ≤ η ∈ᴮ a1_aux := by
+  sorry -- TODO: port from src/aleph_one.lean:746
+
+-- src/aleph_one.lean:777
+lemma mem_a1_iff {Γ : 𝔹} {η : bSet 𝔹} (H_ord : Γ ≤ Ord η) :
+    Γ ≤ η ∈ᴮ a1 ↔ Γ ≤ ⨆ f, is_injective_function η omega f := by
+  sorry -- TODO: port from src/aleph_one.lean:777
+
+-- src/aleph_one.lean:802
+lemma a1_transitive {Γ : 𝔹} : Γ ≤ is_transitive a1 := by
+  sorry -- TODO: port from src/aleph_one.lean:802
+
+-- src/aleph_one.lean:818
+lemma a1_ewo {Γ : 𝔹} : Γ ≤ ewo a1 := by
+  sorry -- TODO: port from src/aleph_one.lean:818
+
+-- src/aleph_one.lean:826
+lemma a1_Ord {Γ : 𝔹} : Γ ≤ Ord a1 := le_inf a1_ewo a1_transitive
+
+-- src/aleph_one.lean:828
+lemma a1_not_le_omega {Γ : 𝔹} : Γ ≤ (injects_into a1 omega)ᶜ := by
+  sorry -- TODO: port from src/aleph_one.lean:828
+
+-- src/aleph_one.lean:834
+lemma a1_spec {Γ : 𝔹} : Γ ≤ aleph_one_Ord_spec a1 := by
+  sorry -- TODO: port from src/aleph_one.lean:834
+
+-- src/aleph_one.lean:862
+lemma a1_le_of_omega_lt {Γ : 𝔹} : Γ ≤ le_of_omega_lt a1 := by
+  sorry -- TODO: port from src/aleph_one.lean:862
+
+end a1
+
+-- ============================================================
+-- src/aleph_one.lean:890-926: final section
+-- ============================================================
+
+section
+
+variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+
+-- src/aleph_one.lean:894
+lemma injects_into_omega_of_mem_aleph_one_check {Γ : 𝔹} {z : bSet 𝔹}
+    (H_mem : Γ ≤ z ∈ᴮ (check PSet.aleph_one : bSet 𝔹)) : Γ ≤ injects_into z bSet.omega := by
+  sorry -- TODO: port from src/aleph_one.lean:894
+
+-- src/aleph_one.lean:905
+lemma mem_aleph_one_of_injects_into_omega {x : bSet 𝔹} {Γ : 𝔹}
+    (H_aleph_one : Γ ≤ aleph_one_Ord_spec x) {z : bSet 𝔹}
+    (H_x_Ord : Γ ≤ Ord x) (H_z_Ord : Γ ≤ Ord z)
+    (H_inj : Γ ≤ injects_into z bSet.omega) : Γ ≤ z ∈ᴮ x := by
+  sorry -- TODO: port from src/aleph_one.lean:905
+
+-- src/aleph_one.lean:915
+lemma aleph_one_check_sub_aleph_one_aux {x : bSet 𝔹} {Γ : 𝔹}
+    (H_ord : Γ ≤ Ord x) (H_aleph_one : Γ ≤ aleph_one_Ord_spec x) :
+    Γ ≤ (check PSet.aleph_one : bSet 𝔹) ⊆ᴮ x := by
+  sorry -- TODO: port from src/aleph_one.lean:915
+
+end
 
 end bSet
