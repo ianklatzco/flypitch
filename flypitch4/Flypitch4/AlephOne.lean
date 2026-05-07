@@ -71,7 +71,11 @@ lemma subset_of_mem_Ord' {x z : PSet.{u}} (H_ord : Ord z) (H_mem₁ : x ∈ z) :
 
 -- src/aleph_one.lean:47
 lemma Ord_of_mem_Ord' {x z : PSet.{u}} (H_mem : x ∈ z) (H : Ord z) : Ord x := by
-  sorry -- TODO: port from src/aleph_one.lean:47
+  refine ⟨⟨?_, is_epsilon_well_founded x⟩, transitive_of_mem_Ord x z H H_mem⟩
+  intro y₁ Hy₁ y₂ Hy₂
+  apply epsilon_trichotomy_of_Ord H
+  · exact mem_of_mem_Ord' H Hy₁ H_mem
+  · exact mem_of_mem_Ord' H Hy₂ H_mem
 
 -- src/aleph_one.lean:56
 /-- Complement: elements of x not in y -/
@@ -140,16 +144,78 @@ lemma pSet_binary_inter_subset {x y : PSet.{u}} :
 -- src/aleph_one.lean:97
 lemma Ord_pSet_binary_inter {x y : PSet.{u}} (H₁ : Ord x) (H₂ : Ord y) :
     Ord (pSet_binary_inter x y) := by
-  sorry -- TODO: port from src/aleph_one.lean:97
+  refine ⟨⟨?_, is_epsilon_well_founded _⟩, ?_⟩
+  · intro w Hw_mem z Hz_mem
+    rw [mem_pSet_binary_inter_iff] at Hw_mem Hz_mem
+    exact epsilon_trichotomy_of_Ord H₁ w Hw_mem.1 z Hz_mem.1
+  · intro z H_mem
+    rw [mem_pSet_binary_inter_iff] at H_mem
+    rw [subset_iff_all_mem]; intro w Hw
+    rw [mem_pSet_binary_inter_iff]
+    exact ⟨mem_of_mem_Ord' H₁ Hw H_mem.1, mem_of_mem_Ord' H₂ Hw H_mem.2⟩
 
 -- src/aleph_one.lean:109
 lemma Ord.lt_of_ne_and_le {x y : PSet.{u}} (H₁ : Ord x) (H₂ : Ord y)
     (H_ne : ¬ (Equiv x y)) (H_le : x ⊆ y) : x ∈ y := by
-  sorry -- TODO: port from src/aleph_one.lean:109 (complex epsilon argument)
+  -- The complement y \ x is nonempty since x ≠ y but x ⊆ y
+  have H_compl_nonempty : non_empty (pSet_compl y x) := by
+    -- nonempty_compl_of_ne H_ne : non_empty (compl x y) ∨ non_empty (compl y x)
+    rcases nonempty_compl_of_ne H_ne with h | h
+    · -- non_empty (pSet_compl x y), i.e., x \ y is nonempty
+      -- But x ⊆ y, so x \ y is empty → contradiction
+      exfalso
+      obtain ⟨z, hz⟩ := nonempty_iff_exists_mem.mp h
+      rw [mem_pSet_compl_iff] at hz
+      exact hz.2 (mem_of_mem_subset' H_le hz.1)
+    · exact h
+  -- Find an ∈-minimal element z of y \ x
+  obtain ⟨z, Hz₁, Hz_min⟩ := regularity _ H_compl_nonempty
+  obtain ⟨Hz_mem_y, Hz_not_mem_x⟩ := mem_pSet_compl_iff.mp Hz₁
+  -- Show Equiv x z, then x ∈ z ∈ y implies x ∈ y? No: Equiv x z means x ∈ y since z ∈ y
+  suffices H_eq : Equiv x z by exact (PSet.Mem.congr_left H_eq).mpr Hz_mem_y
+  rw [ext_iff]
+  intro a
+  constructor
+  · intro Ha_mem_x
+    -- a ∈ x ⊆ y, z ∈ y: trichotomy of a and z as members of y
+    rcases epsilon_trichotomy_of_Ord' H₂ (mem_of_mem_subset' H_le Ha_mem_x) Hz_mem_y with h | h | h
+    · -- Equiv a z: but a ∈ x and z ∉ x, so a ∉ x, contradiction
+      -- Equiv a z means: a ∈ x ↔ z ∈ x (by Mem.congr_left h)
+      have : a ∈ x ↔ z ∈ x := ⟨fun H => (PSet.Mem.congr_left h).mp H,
+                                  fun H => (PSet.Mem.congr_left h).mpr H⟩
+      exact absurd (this.mp Ha_mem_x) Hz_not_mem_x
+    · exact h
+    · -- z ∈ a ∈ x, so z ∈ x by transitivity: contradiction
+      exact absurd (mem_of_mem_Ord' H₁ h Ha_mem_x) Hz_not_mem_x
+  · intro Ha_mem_z
+    -- a ∈ z ∈ y, so a ∈ y. If a ∉ x, then a ∈ y \ x, but z is ∈-minimal there
+    by_contra Ha_not_mem_x
+    have Ha_mem_yx : a ∈ pSet_compl y x :=
+      mem_pSet_compl_iff.mpr ⟨mem_of_mem_Ord' H₂ Ha_mem_z Hz_mem_y, Ha_not_mem_x⟩
+    exact Hz_min a Ha_mem_yx Ha_mem_z
 
 -- src/aleph_one.lean:137
 lemma Ord.le_or_le {x y : PSet.{u}} (H₁ : Ord x) (H₂ : Ord y) : x ⊆ y ∨ y ⊆ x := by
-  sorry -- TODO: port from src/aleph_one.lean:137
+  let w := pSet_binary_inter x y
+  have w_Ord : Ord w := Ord_pSet_binary_inter H₁ H₂
+  have hw : Equiv w x ∨ Equiv w y := by
+    classical
+    by_contra H_contra
+    push_neg at H_contra
+    obtain ⟨H_ne₁, H_ne₂⟩ := H_contra
+    -- w ∈ x and w ∈ y
+    have Hwx : w ∈ x := Ord.lt_of_ne_and_le w_Ord H₁ H_ne₁ (pSet_binary_inter_subset.1)
+    have Hwy : w ∈ y := Ord.lt_of_ne_and_le w_Ord H₂ H_ne₂ (pSet_binary_inter_subset.2)
+    -- w ∈ w
+    have Hww : w ∈ w := mem_pSet_binary_inter_iff.mpr ⟨Hwx, Hwy⟩
+    exact PSet.mem_irrefl w Hww
+  rcases hw with h | h
+  · left
+    exact subset_iff_all_mem.mpr (fun z hz =>
+      (mem_pSet_binary_inter_iff.mp ((ext_iff.mp h.symm z).mp hz)).2)
+  · right
+    exact subset_iff_all_mem.mpr (fun z hz =>
+      (mem_pSet_binary_inter_iff.mp ((ext_iff.mp h.symm z).mp hz)).1)
 
 -- src/aleph_one.lean:155
 lemma pSet_equiv_comm {x y : PSet.{u}} : Equiv x y ↔ Equiv y x :=
