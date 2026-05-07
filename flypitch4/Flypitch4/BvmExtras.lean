@@ -2661,7 +2661,33 @@ variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
 -- src/bvm_extras.lean:2154
 lemma check_powerset_subset_powerset (x : PSet) {Γ : 𝔹} :
     Γ ≤ (check (PSet.powerset x) : bSet 𝔹) ⊆ᴮ (bv_powerset (check x)) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2154
+  -- For each element s of check (PSet.powerset x), show s ∈ bv_powerset (check x), i.e., s ⊆ check x.
+  rw [subset_unfold']
+  apply le_iInf; intro z; rw [← deduction]
+  -- Goal: Γ ⊓ z ∈ check (PSet.powerset x) ≤ z ∈ bv_powerset (check x) = z ⊆ check x
+  rw [mem_powerset_iff]
+  -- Extract index p from z ∈ check (PSet.powerset x)
+  -- mem_unfold: z ∈ check (PSet.powerset x) = ⨆ p, ⊤ ⊓ z =ᴮ check ((PSet.powerset x).Func p)
+  have h_mem : Γ ⊓ z ∈ᴮ (check (PSet.powerset x) : bSet 𝔹) ≤
+      ⨆ p : (PSet.powerset x).Type, z =ᴮ check ((PSet.powerset x).Func p) := by
+    calc Γ ⊓ z ∈ᴮ (check (PSet.powerset x) : bSet 𝔹)
+        ≤ z ∈ᴮ (check (PSet.powerset x) : bSet 𝔹) := inf_le_right
+      _ = ⨆ p, ⊤ ⊓ z =ᴮ check ((PSet.powerset x).Func p) := mem_unfold
+      _ = ⨆ p, z =ᴮ check ((PSet.powerset x).Func p) := by simp [top_inf_eq]
+  -- Carry context through iSup
+  apply (le_inf h_mem le_rfl).trans
+  apply (iSup_inf_eq _ _).le.trans
+  apply iSup_le; intro p
+  -- (PSet.powerset x).Func p ⊆ x (since Func p ∈ powerset x)
+  have h_sub : (PSet.powerset x).Func p ⊆ x :=
+    PSet.mem_powerset.mp (PSet.func_mem _ p)
+  -- check ((PSet.powerset x).Func p) ⊆ check x by check_subset
+  have h_csub : Γ ≤ check ((PSet.powerset x).Func p) ⊆ᴮ (check x : bSet 𝔹) :=
+    check_subset h_sub
+  -- z =ᴮ check ((PSet.powerset x).Func p) ⊓ ctx ≤ z ⊆ check x
+  -- subst_congr_subset_left: (v ⊆ u) ⊓ (a =ᴮ v) ≤ a ⊆ u
+  -- Use: h_csub for check(Func p) ⊆ check x, and inf_le_left for z =ᴮ check(Func p)
+  exact le_trans (le_inf (le_trans le_top (check_subset h_sub)) inf_le_left) subst_congr_subset_left
 
 -- src/bvm_extras.lean:2193
 lemma check_functions_subset_functions {x y : PSet.{u}} {Γ : 𝔹} :
