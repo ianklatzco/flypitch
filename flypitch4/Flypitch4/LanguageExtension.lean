@@ -56,14 +56,61 @@ variable {L : Language.{u}}
   symbols_in_term_lift_at n 0 t
 
 lemma symbols_in_term_subst (s : term L) (n : ℕ) : ∀ {l} (t : preterm L l),
-    symbols_in_term (subst_term t s n) ⊆ symbols_in_term t ∪ symbols_in_term s := by
-  -- TODO: port from src/language_extension.lean:54-60
-  sorry
+    symbols_in_term (subst_term t s n) ⊆ symbols_in_term t ∪ symbols_in_term s
+  | _, &k => by
+      rcases Nat.lt_trichotomy k n with h | h | h
+      · simp [subst_term_var_lt s h]
+      · subst h; simp [subst_term_var_eq, symbols_in_term_lift_at]
+      · simp [subst_term_var_gt s h]
+  | _, preterm.func _ => Set.subset_union_left
+  | _, preterm.app t₁ t₂ => by
+      simp only [subst_term_app, symbols_in_term]
+      intro x hx
+      rcases hx with h | h
+      · rcases symbols_in_term_subst s n t₁ h with h' | h'
+        · exact Or.inl (Or.inl h')
+        · exact Or.inr h'
+      · rcases symbols_in_term_subst s n t₂ h with h' | h'
+        · exact Or.inl (Or.inr h')
+        · exact Or.inr h'
 
 lemma symbols_in_formula_subst : ∀ {l} (f : @preformula L l) (s : term L) (n : ℕ),
-    symbols_in_formula (subst_formula f s n) ⊆ symbols_in_formula f ∪ symbols_in_term s := by
-  -- TODO: port from src/language_extension.lean:62-77
-  sorry
+    symbols_in_formula (subst_formula f s n) ⊆ symbols_in_formula f ∪ symbols_in_term s
+  | _, preformula.falsum, _, _ => Set.empty_subset _
+  | _, preformula.equal t₁ t₂, s, n => by
+      simp only [subst_formula, symbols_in_formula]
+      intro x hx
+      rcases hx with h | h
+      · rcases symbols_in_term_subst s n t₁ h with h' | h'
+        · exact Or.inl (Or.inl h')
+        · exact Or.inr h'
+      · rcases symbols_in_term_subst s n t₂ h with h' | h'
+        · exact Or.inl (Or.inr h')
+        · exact Or.inr h'
+  | _, preformula.rel _, _, _ => Set.subset_union_left
+  | _, preformula.apprel f t, s, n => by
+      simp only [subst_formula, symbols_in_formula]
+      intro x hx
+      rcases hx with h | h
+      · rcases symbols_in_formula_subst f s n h with h' | h'
+        · exact Or.inl (Or.inl h')
+        · exact Or.inr h'
+      · rcases symbols_in_term_subst s n t h with h' | h'
+        · exact Or.inl (Or.inr h')
+        · exact Or.inr h'
+  | _, preformula.imp f₁ f₂, s, n => by
+      simp only [subst_formula, symbols_in_formula]
+      intro x hx
+      rcases hx with h | h
+      · rcases symbols_in_formula_subst f₁ s n h with h' | h'
+        · exact Or.inl (Or.inl h')
+        · exact Or.inr h'
+      · rcases symbols_in_formula_subst f₂ s n h with h' | h'
+        · exact Or.inl (Or.inr h')
+        · exact Or.inr h'
+  | _, preformula.all f, s, n => by
+      simp only [subst_formula, symbols_in_formula]
+      exact symbols_in_formula_subst f s (n + 1)
 
 /-! ## Lhom — language homomorphism -/
 
@@ -143,8 +190,7 @@ instance (priority := 100) inst_dec_rel [h : has_decidable_range ϕ] {n} :
       rcases Nat.lt_trichotomy k n with h | h | h
       · simp [subst_term_var_lt _ h]
       · subst h
-        -- TODO: subst h replaces k with n; goal: ϕ.on_term (lift_term_at s n 0) = lift_term_at (ϕ.on_term s) n 0
-        sorry
+        simp [subst_term_var_eq, on_term_lift_at]
       · simp [subst_term_var_gt _ h]
   | _, preterm.func _, _, _ => rfl
   | _, preterm.app t₁ t₂, s, n => by simp [on_term_subst t₁ s n, on_term_subst t₂ s n]
@@ -159,8 +205,13 @@ instance (priority := 100) inst_dec_rel [h : has_decidable_range ϕ] {n} :
 lemma not_mem_symbols_in_term_on_term {s : Language.symbols L'}
     (hs : s ∉ Set.range (ϕ.on_symbol)) : ∀ {l} (t : preterm L l),
     s ∉ symbols_in_term (ϕ.on_term t) := by
-  -- TODO: port from src/language_extension.lean:179-184
-  sorry
+  intro l t
+  induction t with
+  | var k => simp [on_term, symbols_in_term, Set.notMem_empty]
+  | func f => exact fun h' => hs ⟨Sum.inl ⟨_, f⟩, (Set.mem_singleton_iff.mp h').symm⟩
+  | app t₁ t₂ ih₁ ih₂ =>
+      simp only [on_term, symbols_in_term, Set.mem_union, not_or]
+      exact ⟨ih₁, ih₂⟩
 
 @[simp] def on_formula : ∀ {l}, @preformula L l → @preformula L' l
   | _, preformula.falsum => preformula.falsum
@@ -202,8 +253,20 @@ lemma not_mem_symbols_in_term_on_term {s : Language.symbols L'}
 lemma not_mem_symbols_in_formula_on_formula {s : Language.symbols L'}
     (hs : s ∉ Set.range (ϕ.on_symbol)) : ∀ {l} (f : @preformula L l),
     s ∉ symbols_in_formula (ϕ.on_formula f) := by
-  -- TODO: port from src/language_extension.lean:221-230
-  sorry
+  intro l f
+  induction f with
+  | falsum => simp [on_formula, symbols_in_formula, Set.notMem_empty]
+  | equal t₁ t₂ =>
+      simp only [on_formula, symbols_in_formula, Set.mem_union, not_or]
+      exact ⟨ϕ.not_mem_symbols_in_term_on_term hs t₁, ϕ.not_mem_symbols_in_term_on_term hs t₂⟩
+  | rel R => exact fun h' => hs ⟨Sum.inr ⟨_, R⟩, (Set.mem_singleton_iff.mp h').symm⟩
+  | apprel f t ihf =>
+      simp only [on_formula, symbols_in_formula, Set.mem_union, not_or]
+      exact ⟨ihf, ϕ.not_mem_symbols_in_term_on_term hs t⟩
+  | imp f₁ f₂ ihf₁ ihf₂ =>
+      simp only [on_formula, symbols_in_formula, Set.mem_union, not_or]
+      exact ⟨ihf₁, ihf₂⟩
+  | all f ihf => exact ihf
 
 lemma not_mem_function_in_formula_on_formula {l'} {f' : L'.functions l'}
     (h : f' ∉ Set.range (ϕ.on_function (n := l'))) {l} (f : @preformula L l) :
@@ -266,8 +329,20 @@ lemma not_mem_function_in_formula_on_formula {l'} {f' : L'.functions l'}
 
 @[simp] lemma comp_on_formula {L1 L2 L3 : Language.{u}} {l : ℕ} (g : L2 →ᴸ L3) (f : L1 →ᴸ L2) :
     @on_formula L1 L3 (g.comp f) l = Function.comp (@on_formula L2 L3 g l) (@on_formula L1 L2 f l) := by
-  -- TODO: port from src/language_extension.lean:300-303
-  sorry
+  funext x
+  induction x with
+  | falsum => rfl
+  | equal t₁ t₂ => simp [on_formula, comp_on_term]
+  | rel R => rfl
+  | apprel f t ihf =>
+      simp only [on_formula, Function.comp]
+      exact congrArg₂ preformula.apprel ihf (by simp [comp_on_term])
+  | imp f₁ f₂ ihf₁ ihf₂ =>
+      simp only [on_formula, Function.comp]
+      exact congrArg₂ preformula.imp ihf₁ ihf₂
+  | all f ihf =>
+      simp only [on_formula, Function.comp]
+      exact congrArg preformula.all ihf
 
 @[simp] lemma comp_on_bounded_term {L1 L2 L3 : Language.{u}} {n l : ℕ}
     (g : L2 →ᴸ L3) (f : L1 →ᴸ L2) :
@@ -353,8 +428,13 @@ noncomputable def on_prf {Γ : Set (formula L)} {f : formula L} (h : Γ ⊢ f) :
       exact prf.allE₂ _ _ ih
   | ref _ _ => exact prf.ref _ _
   | subst₂ s t f₁ _ _ ih₁ ih₂ =>
-      -- TODO: port from src/language_extension.lean:353-354
-      sorry
+      have heq1 : ϕ.on_formula (f₁ [s // 0]f) = (ϕ.on_formula f₁) [ϕ.on_term s // 0]f := by
+        simp [on_formula_subst]
+      have heq2 : ϕ.on_formula (f₁ [t // 0]f) = (ϕ.on_formula f₁) [ϕ.on_term t // 0]f := by
+        simp [on_formula_subst]
+      rw [heq2]
+      rw [heq1] at ih₂
+      exact prf.subst₂ _ _ _ ih₁ ih₂
 
 noncomputable def on_sprf {Γ : SentTheory L} {f : sentence L} (h : Γ ⊢ₛ f) :
     (ϕ.on_sentence '' Γ) ⊢ₛ ϕ.on_sentence f := by
