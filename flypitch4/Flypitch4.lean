@@ -11,3 +11,6 @@ import Flypitch4.RegularOpenAlgebra
 import Flypitch4.Bvm
 import Flypitch4.BvmExtras
 import Flypitch4.BvmExtras2
+import Flypitch4.Completion
+import Flypitch4.CantorSpace
+import Flypitch4.LanguageExtension
