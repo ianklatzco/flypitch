@@ -987,8 +987,14 @@ variable {ϕ}
 
 lemma is_consistent_Theory_induced (hϕ : ϕ.is_injective) {T : SentTheory L}
     (hT : T.is_consistent) : (ϕ.Theory_induced T).is_consistent := by
-  -- TODO: port from src/language_extension.lean:741-743
-  sorry
+  intro H
+  apply hT
+  -- H : (ϕ.Theory_induced T).fst ⊢' ⊥'
+  -- Need: T.fst ⊢' ⊥'
+  -- Use reflect_sprf: (ϕ.on_sentence '' T) ⊢ₛ ϕ.on_sentence bd_falsum → T ⊢ₛ bd_falsum
+  exact H.map (fun h => by
+    have := reflect_sprf hϕ (f := bd_falsum) h
+    exact this)
 
 /-! ## is_consistent_extend (the main compactness argument) -/
 
