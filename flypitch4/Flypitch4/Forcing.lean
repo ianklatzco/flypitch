@@ -216,7 +216,20 @@ lemma perp_eq_compl_of_clopen {β : Type*} [TopologicalSpace β] {S : Set β}
 -- src/forcing.lean:205-209
 lemma mem_neg_principal_open_of_not_mem {ν n S} :
     (cast eq₁ (ν, n) ∈ Sᶜ) → S ∈ ((principal_open ν n)ᶜ).val := by
-  sorry -- TODO: port from src/forcing.lean:205
+  intro H
+  -- (principal_open ν n)ᶜ in 𝔹 = RegularOpens has val = perp of (principal_open ν n).val
+  -- Since principal_open is clopen, perp = complement
+  -- (principal_open ν n)ᶜ in 𝔹 has val = perp of (principal_open ν n).val (by RegularOpens.compl_val)
+  -- and perp = compl since principal_open is clopen
+  have hval : ((principal_open ν n)ᶜ : 𝔹).val = (principal_open ν n).valᶜ := by
+    have h1 : ((principal_open ν n)ᶜ : 𝔹).val = (principal_open ν n).valᵖ :=
+      Flypitch.RegularOpens.compl_val (principal_open ν n)
+    rw [h1, perp_eq_compl_of_clopen is_clopen_principal_open]
+  rw [hval]
+  -- Goal: S ∈ (principal_open ν n).valᶜ  i.e. S ∉ (principal_open ν n).val
+  -- (principal_open ν n).val = CantorSpace.principalOpen (cast eq₁ (ν,n)) = {S | cast eq₁ (ν,n) ∈ S}
+  simp only [Set.mem_compl_iff, principal_open, CantorSpace.principalOpen, Set.mem_setOf_eq]
+  exact H
 
 -- src/forcing.lean:211-214: structure 𝒞
 structure 𝒞 : Type where
