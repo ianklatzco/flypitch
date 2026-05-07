@@ -607,8 +607,31 @@ lemma reflect_formula_apps_rel_neg [has_decidable_range ϕ] {l} {R : L'.relation
 lemma reflect_formula_lift_at [has_decidable_range ϕ] (hϕ : is_injective ϕ) {n m m' : ℕ}
     (h : m ≤ m') (f : formula L') :
     ϕ.reflect_formula (m' + n) (f ↑f' n # m) = ϕ.reflect_formula m' f ↑f' n # m := by
-  -- TODO: port from src/language_extension.lean:484-495
-  sorry
+  refine @formula.rec L'
+      (fun f => ∀ m m', m ≤ m' →
+        ϕ.reflect_formula (m' + n) (f ↑f' n # m) = ϕ.reflect_formula m' f ↑f' n # m)
+      ?_ ?_ ?_ ?_ ?_ f m m' h
+  · intro m m' _; rfl
+  · intro t₁ t₂ m m' h'
+    simp only [lift_formula_at, reflect_formula_equal, reflect_term_lift_at hϕ h']
+  · intro l R ts m m' h'
+    by_cases hR : R ∈ Set.range (ϕ.on_relation (n := l))
+    · show ϕ.reflect_formula (m' + n) ((apps_rel (preformula.rel R) ts) ↑f' n # m) =
+          ϕ.reflect_formula m' (apps_rel (preformula.rel R) ts) ↑f' n # m
+      simp only [lift_formula_at_apps_rel, lift_formula_at, reflect_formula_apps_rel_pos hR,
+                 lift_formula_at_apps_rel, DVec.map_map, Function.comp]
+      congr 1
+      apply DVec.map_congr_pmem
+      intro t _; exact reflect_term_lift_at hϕ h' t
+    · show ϕ.reflect_formula (m' + n) ((apps_rel (preformula.rel R) ts) ↑f' n # m) =
+          ϕ.reflect_formula m' (apps_rel (preformula.rel R) ts) ↑f' n # m
+      simp only [lift_formula_at_apps_rel, lift_formula_at, reflect_formula_apps_rel_neg hR]
+  · intro f₁ f₂ ih₁ ih₂ m m' h'
+    simp only [lift_formula_at, reflect_formula_imp, ih₁ m m' h', ih₂ m m' h']
+  · intro f ih m m' h'
+    simp only [lift_formula_at, reflect_formula_all]
+    rw [show m' + n + 1 = (m' + 1) + n from by omega,
+        ih (m + 1) (m' + 1) (Nat.add_le_add_right h' 1)]
 
 lemma reflect_formula_lift [has_decidable_range ϕ] (hϕ : is_injective ϕ) (n m : ℕ)
     (f : formula L') : ϕ.reflect_formula (m + n) (f ↑f n) = ϕ.reflect_formula m f ↑f n :=
