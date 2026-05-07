@@ -564,7 +564,14 @@ def at_most_f : bounded_formula L_ZFC 2 :=
 @[simp] lemma realize_at_most_f {x y : V β} :
     boolean_realize_bounded_formula (DVec.cons y (DVec.cons x DVec.nil)) at_most_f DVec.nil =
     larger_than x y := by
-  sorry -- TODO: prove via unfolding at_most_f and larger_than
+  simp only [at_most_f, boolean_realize_bounded_formula, boolean_realize_bounded_formula_ex,
+             boolean_realize_bounded_formula_and, boolean_realize_bounded_formula_mem',
+             boolean_realize_bounded_formula_subset', boolean_realize_cast_bounded_formula,
+             boolean_realize_bounded_term_pair', boolean_realize_bounded_term,
+             DVec.trunc, DVec.nth, V_forall, V_exists, V_eq, realize_is_func'_f₂]
+  unfold larger_than is_surj
+  -- LHS and RHS are α-equivalent (bound var name difference only)
+  rfl
 
 def is_inj_f : bounded_formula L_ZFC 1 :=
   bd_all (bd_all (bd_all (bd_all
@@ -588,7 +595,11 @@ def injects_into_f : bounded_formula L_ZFC 2 :=
 @[simp] lemma realize_injects_into {x y : V β} :
     boolean_realize_bounded_formula (DVec.cons y (DVec.cons x DVec.nil)) injects_into_f DVec.nil =
     injects_into x y := by
-  sorry -- TODO: prove via unfolding
+  simp only [injects_into_f, boolean_realize_bounded_formula_ex, boolean_realize_bounded_formula_and,
+             boolean_realize_cast_bounded_formula, DVec.trunc, realize_is_func'_f,
+             realize_is_inj_f, V_exists]
+  unfold injects_into
+  rfl
 
 def non_empty_f : bounded_formula L_ZFC 1 := bd_not (bd_equal (bd_var ⟨0, by omega⟩) ∅')
 
