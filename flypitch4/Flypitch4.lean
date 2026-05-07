@@ -18,3 +18,5 @@ import Flypitch4.Forcing
 import Flypitch4.Collapse
 import Flypitch4.Henkin
 import Flypitch4.AlephOne
+import Flypitch4.ForcingCH
+import Flypitch4.Completeness
