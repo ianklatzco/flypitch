@@ -1972,7 +1972,35 @@ lemma check_not_is_func {x y f : PSet.{u}} (H : ¬ PSet.is_func x y f) :
 -- src/bvm_extras.lean:1273
 lemma check_not_is_surj {x y f : PSet.{u}} (H : ¬ PSet.is_surj x y f) :
     ∀ {Γ : 𝔹}, Γ ≤ is_surj (check x) (check y) (check f) → Γ ≤ (⊥ : 𝔹) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1273
+  -- Unfold PSet.is_surj and negate
+  simp only [PSet.is_surj] at H
+  push_neg at H
+  obtain ⟨b, Hb₁, Hb₂⟩ := H
+  -- Convert Hb₂ to pSet_pair form: ∀ a ∈ x, pSet_pair a b ∉ f
+  have Hb₂' : ∀ a : PSet.{u}, a ∈ x → PSet.pSet_pair a b ∉ f := by
+    intro a ha hm
+    apply Hb₂ a ha
+    rwa [← PSet.pSet_pair_sound, ← PSet.mem_iff]
+  intro Γ H_surj
+  -- From is_surj applied to check b ∈ check y
+  have hb_mem : Γ ≤ check b ∈ᴮ check y := check_mem Hb₁
+  have h_spec : Γ ≤ check b ∈ᴮ check y ⟹ ⨆ w, w ∈ᴮ check x ⊓ pair w (check b) ∈ᴮ check f :=
+    le_trans H_surj (iInf_le _ (check b))
+  have h_ex : Γ ≤ ⨆ w, w ∈ᴮ check x ⊓ pair w (check b) ∈ᴮ check f :=
+    le_trans (le_inf h_spec hb_mem) bv_imp_elim
+  -- Rewrite to indexed form: ⨆ i : (check x).type, ...
+  rw [← @bounded_exists _ _ (check x) (fun w => pair w (check b) ∈ᴮ check f)
+      (h_congr := B_ext_pair_mem_left)] at h_ex
+  -- h_ex : Γ ≤ ⨆ i : (check x).type, (check x).bval i ⊓ pair ((check x).func i) (check b) ∈ check f
+  -- Each term is ≤ ⊥ since pair (check (x.Func (check_cast i))) (check b) ∉ check f
+  apply le_trans h_ex
+  apply iSup_le; intro i_a
+  simp only [check_bval_top, top_inf_eq, check_func]
+  -- Goal: pair (check (x.Func (check_cast i_a))) (check b) ∈ᴮ check f ≤ ⊥
+  have hxa_mem : x.Func (check_cast i_a) ∈ x := PSet.func_mem x (check_cast i_a)
+  have hpair_not : PSet.pSet_pair (x.Func (check_cast i_a)) b ∉ f := Hb₂' _ hxa_mem
+  rw [← check_pset_pair_eq]
+  exact check_not_mem hpair_not le_rfl
 
 -- src/bvm_extras.lean:1291
 lemma bot_lt_of_true {b : 𝔹} (H : ∀ {Γ}, Γ ≤ b) : ⊥ < b := by
@@ -3889,7 +3917,21 @@ lemma check_powerset_subset_powerset (x : PSet) {Γ : 𝔹} :
 -- src/bvm_extras.lean:2193
 lemma check_functions_subset_functions {x y : PSet.{u}} {Γ : 𝔹} :
     Γ ≤ (check (PSet.functions x y) : bSet 𝔹) ⊆ᴮ functions (check x) (check y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2193
+  -- For each element w ∈ check (PSet.functions x y), show w ∈ functions (check x) (check y)
+  rw [subset_unfold']; apply le_iInf; intro w; rw [← deduction]
+  -- w ∈ check (PSet.functions x y) = ⨆ i, w =ᴮ check ((PSet.functions x y).Func i)
+  rw [check_mem_as_iSup, inf_iSup_eq']
+  apply iSup_le; intro i
+  -- i : (PSet.functions x y).Type; (PSet.functions x y).Func i ∈ PSet.functions x y
+  have h_mem : (PSet.functions x y).Func i ∈ PSet.functions x y :=
+    PSet.func_mem (PSet.functions x y) i
+  rw [PSet.mem_functions_iff] at h_mem
+  -- check (functions x y).Func i ∈ᴮ functions (check x) (check y)
+  have h_in_func : (⊤ : 𝔹) ≤ check ((PSet.functions x y).Func i) ∈ᴮ functions (check x) (check y) :=
+    mem_functions_iff.mpr (le_trans le_top (check_is_func h_mem))
+  -- Rewrite using w =ᴮ check (Func i)
+  exact bv_rw' (H := inf_le_right) (ϕ := fun z => z ∈ᴮ functions (check x) (check y))
+    (h_congr := B_ext_mem_left) (H_new := le_trans le_top h_in_func)
 
 -- src/bvm_extras.lean:2203
 @[simp] lemma check_mem'' {y : PSet} {i : y.Type} :
