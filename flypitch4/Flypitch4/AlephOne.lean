@@ -501,7 +501,13 @@ noncomputable def a1_aux : bSet 𝔹 := ⟨(a1' (𝔹 := 𝔹)).type, a1_func, (
 
 -- src/aleph_one.lean:632
 lemma Ord_of_mem_a1_aux {Γ : 𝔹} {η : bSet 𝔹} (H_mem : Γ ≤ η ∈ᴮ a1_aux) : Γ ≤ Ord η := by
-  sorry -- TODO: port from src/aleph_one.lean:632
+  rw [mem_unfold] at H_mem; apply le_trans H_mem; apply iSup_le; intro χ
+  have hOrd : (⊤ : 𝔹) ≤ Ord (∅ : bSet 𝔹) :=
+    le_trans (le_inf zero_eq_empty Ord_zero) (B_ext_Ord _ _)
+  -- a1_aux.func χ = ∅ definitionally (a1_func χ = ∅)
+  -- goal: a1'.bval χ ⊓ η =ᴮ ∅ ≤ Ord η
+  -- ∅ =ᴮ η ⊓ Ord ∅ ≤ Ord η, and a1'.bval χ ⊓ η =ᴮ ∅ ≤ ∅ =ᴮ η ⊓ Ord ∅
+  exact le_trans (le_inf (bv_symm inf_le_right) (le_trans le_top hOrd)) (B_ext_Ord _ _)
 
 -- src/aleph_one.lean:641
 noncomputable def a1 : bSet 𝔹 := insert 0 (insert 1 a1_aux)
@@ -513,7 +519,12 @@ lemma mem_a1_iff₀ {z : bSet 𝔹} {Γ : 𝔹} :
 
 -- src/aleph_one.lean:646
 lemma Ord_of_mem_a1 {Γ : 𝔹} {η : bSet 𝔹} (H_mem : Γ ≤ η ∈ᴮ a1) : Γ ≤ Ord η := by
-  sorry -- TODO: port from src/aleph_one.lean:646
+  rw [mem_a1_iff₀] at H_mem; apply le_trans H_mem; apply sup_le; apply sup_le
+  · exact le_trans (le_inf (bv_symm le_rfl) (le_trans le_top (le_top.trans Ord_zero)))
+      (B_ext_Ord _ _)
+  · exact le_trans (le_inf (bv_symm le_rfl) (le_trans le_top (le_top.trans Ord_one)))
+      (B_ext_Ord _ _)
+  · exact Ord_of_mem_a1_aux le_rfl
 
 -- src/aleph_one.lean:655
 lemma eq_zero_iff_eq_empty {Γ : 𝔹} {u : bSet 𝔹} : Γ ≤ u =ᴮ 0 ↔ Γ ≤ u =ᴮ ∅ := by
