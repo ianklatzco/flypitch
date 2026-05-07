@@ -143,19 +143,19 @@ lemma bot_eq_empty : (⊥ : 𝔹) = ⟨∅, isRegularOpen_empty⟩ := by
 -- Type equality lemmas for cast operations
 -- These hold because check x has .type = x.Type by the definition of check
 private lemma eq₀ : (check (PSet.pSet_aleph2) : bSet 𝔹).type = PSet.pSet_aleph2.Type :=
-  sorry -- TODO: definitional equality via check
+  check_type'
 
 private lemma eq₁ :
     ((check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ) = (PSet.pSet_aleph2.Type × ℕ) :=
-  sorry -- TODO: follows from eq₀
+  congr_arg (· × ℕ) eq₀
 
 private lemma eq₂ :
     Set ((check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ) = Set (PSet.pSet_aleph2.Type × ℕ) :=
-  sorry -- TODO: follows from eq₁
+  congr_arg Set eq₁
 
 private lemma eq₃ :
     Finset ((check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ) = Finset (PSet.pSet_aleph2.Type × ℕ) :=
-  sorry -- TODO: follows from eq₁
+  congr_arg Finset eq₁
 
 -- src/forcing.lean:149-176: cast helper lemmas
 universe w in
@@ -175,11 +175,23 @@ lemma compl_cast₂ {α β : Type w} {a : Set α} {b : Set β} (H' : α = β) (H
 
 lemma eq₁_cast (p : (check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ) :
     cast eq₁ p = (cast eq₀ p.1, p.2) := by
-  sorry -- TODO: follows from eq₀ and eq₁
+  -- p : (check pSet_aleph2).type × ℕ =: α × ℕ, cast eq₁ p : pSet_aleph2.Type × ℕ
+  have hcast : HEq p (cast eq₁ p) := (cast_heq eq₁ p).symm
+  apply Prod.ext
+  · -- need (cast eq₁ p).1 = cast eq₀ p.1
+    -- pi₂_cast₁ eq₀ hcast : HEq p.1 (cast eq₁ p).1
+    -- cast_heq eq₀ p.1 : HEq (cast eq₀ p.1) p.1
+    apply eq_of_heq
+    exact (pi₂_cast₁ eq₀ hcast).symm.trans (cast_heq eq₀ p.1).symm
+  · exact (pi₂_cast₂ eq₀ hcast).symm
 
 lemma eq₁_cast' (p : PSet.pSet_aleph2.Type × ℕ) :
     cast eq₁.symm p = (cast eq₀.symm p.1, p.2) := by
-  sorry -- TODO: follows from eq₀ and eq₁
+  have hcast : HEq p (cast eq₁.symm p) := (cast_heq eq₁.symm p).symm
+  apply Prod.ext
+  · apply eq_of_heq
+    exact (pi₂_cast₁ eq₀.symm hcast).symm.trans (cast_heq eq₀.symm p.1).symm
+  · exact (pi₂_cast₂ eq₀.symm hcast).symm
 
 -- src/forcing.lean:178-179
 theorem 𝔹_CCC : CCC 𝔹 :=
@@ -228,7 +240,7 @@ universe w₁ in
 lemma prop_decidable_cast_lemma {α β : Type w₁} (H : α = β) {a b : α} {a' b' : β}
     (H_a : HEq a a') (H_b : HEq b b') :
     HEq (Classical.propDecidable (a = b)) (Classical.propDecidable (a' = b')) := by
-  sorry -- TODO: follows from H, H_a, H_b
+  subst H; cases H_a; cases H_b; rfl
 
 -- src/forcing.lean:252-272: 𝒞_dense_basis
 lemma 𝒞_dense_basis : ∀ T ∈ @standardBasis (PSet.pSet_aleph2.Type × ℕ), ∀ _h : T ≠ ∅,
