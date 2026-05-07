@@ -524,8 +524,28 @@ lemma mem_of_mem_induced_epsilon_rel {η x f a' b' a b : bSet 𝔹} {Γ}
     (H_mem₁ : Γ ≤ pair a' a ∈ᴮ f) (H_mem₂ : Γ ≤ pair b' b ∈ᴮ f)
     (H_mem : Γ ≤ pair a b ∈ᴮ induced_epsilon_rel η x f) : Γ ≤ a' ∈ᴮ b' := by
   rw [mem_induced_epsilon_rel_iff (bv_and_left H_inj)] at H_mem
-  obtain ⟨_Ha_mem, _Hb_mem, _H⟩ := H_mem
-  sorry -- TODO: port from src/aleph_one.lean:437 (iSup unwrapping, bv_cc)
+  obtain ⟨_Ha_mem, _Hb_mem, H⟩ := H_mem
+  -- H : Γ ≤ ⨆ a'', a'' ∈ η ⊓ ⨆ b'', b'' ∈ η ⊓ (pair a'' a ∈ f ⊓ pair b'' b ∈ f ⊓ a'' ∈ b'')
+  have H_inj' : Γ ≤ is_inj f := is_inj_of_is_injective_function H_inj
+  apply le_trans (le_inf H le_rfl)
+  apply bv_cases_left; intro a''
+  apply le_trans (le_inf inf_le_right le_rfl)
+  apply bv_cases_right; intro b''
+  -- ctx: (b''∈η ⊓ (pair a'' a ∈ f ⊓ pair b'' b ∈ f ⊓ a''∈b'')) ⊓ ((a''∈η ⊓ ⨆ b'', ...) ⊓ Γ)
+  -- In order: left = b''∈η ⊓ (pair a'' a ∈ f ⊓ pair b'' b ∈ f ⊓ a''∈b'')
+  --           right = (a''∈η ⊓ ...) ⊓ Γ
+  have Hpa''a : _ ≤ pair a'' a ∈ᴮ f :=
+    inf_le_left.trans (inf_le_right.trans inf_le_left.trans inf_le_left)
+  have Hpb''b : _ ≤ pair b'' b ∈ᴮ f :=
+    inf_le_left.trans (inf_le_right.trans inf_le_left.trans inf_le_right)
+  have Ha''_b'' : _ ≤ a'' ∈ᴮ b'' := inf_le_left.trans (inf_le_right.trans inf_le_right)
+  have Ha'_a'' : _ ≤ a' =ᴮ a'' :=
+    eq_of_is_inj_of_eq (inf_le_right.trans (inf_le_right.trans H_inj')) bv_refl
+      (inf_le_right.trans (inf_le_right.trans H_mem₁)) Hpa''a
+  have Hb'_b'' : _ ≤ b' =ᴮ b'' :=
+    eq_of_is_inj_of_eq (inf_le_right.trans (inf_le_right.trans H_inj')) bv_refl
+      (inf_le_right.trans (inf_le_right.trans H_mem₂)) Hpb''b
+  exact mem_congr Ha'_a'' Hb'_b'' Ha''_b''
 
 -- ============================================================
 -- src/aleph_one.lean:451-579: remaining well_ordering lemmas
