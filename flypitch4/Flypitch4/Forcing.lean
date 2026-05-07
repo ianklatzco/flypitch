@@ -339,7 +339,42 @@ lemma not_mem_of_inter_empty_right {α : Type*} {p₁ p₂ : Finset α}
 
 -- src/forcing.lean:305-319: 𝒞_nonzero
 lemma 𝒞_nonzero (p : 𝒞) : ⊥ ≠ ι p := by
-  sorry -- TODO: port from src/forcing.lean:305
+  -- Show ι p ≠ ⊥ by exhibiting an element S ∈ ι p
+  -- The witness is S = cast eq₂ p.ins.toSet
+  intro H
+  -- H : ⊥ = ι p, so (ι p).val = ∅ (since ⊥ in 𝔹 has empty val)
+  have hval_empty : (ι p).val = ∅ := by
+    rw [← H]; exact Flypitch.RegularOpens.bot_val
+  -- But S := cast eq₂ p.ins.toSet ∈ (ι p).val
+  let S : 𝒳 := cast eq₂ p.ins.toSet
+  have hS_mem : S ∈ (ι p).val := by
+    simp only [ι, Set.mem_setOf_eq]
+    constructor
+    · -- p.ins.toSet ⊆ cast eq₂.symm S = p.ins.toSet
+      intro x hx
+      -- Need: x ∈ cast eq₂.symm (cast eq₂ p.ins.toSet)
+      -- cast eq₂.symm ∘ cast eq₂ = id
+      have key : ∀ {T1 T2 : Type} (h : T1 = T2) (T : Set T1) (x : T1),
+          x ∈ cast (congr_arg Set h).symm (cast (congr_arg Set h) T) ↔ x ∈ T := by
+        intro T1 T2 h; subst h; intro T x; simp
+      exact (key eq₁ p.ins.toSet x).mpr hx
+    · -- p.out.toSet ⊆ cast eq₂.symm Sᶜ = (p.ins.toSet)ᶜ
+      intro x hx
+      -- Need: x ∈ cast eq₂.symm (cast eq₂ p.ins.toSet)ᶜ = (p.ins.toSet)ᶜ
+      have key : ∀ {T1 T2 : Type} (h : T1 = T2) (T : Set T1) (x : T1),
+          x ∈ cast (congr_arg Set h).symm (cast (congr_arg Set h) T)ᶜ ↔ x ∉ T := by
+        intro T1 T2 h; subst h; intro T x; simp
+      rw [key eq₁]
+      -- We need x ∉ p.ins.toSet.
+      -- p.H : p.ins ∩ p.out = ∅, x ∈ p.out.toSet
+      intro h_ins
+      have : x ∈ p.ins ∩ p.out := by
+        simp only [Finset.mem_inter, Finset.mem_coe] at *
+        exact ⟨h_ins, hx⟩
+      rw [p.H] at this
+      exact absurd this (Finset.notMem_empty _)
+  -- But (ι p).val = ∅ so S ∉ (ι p).val
+  exact absurd hS_mem (by rw [hval_empty]; simp)
 
 -- src/forcing.lean:323-350: 𝒞_disjoint_row
 lemma 𝒞_disjoint_row (p : 𝒞) : ∃ n : ℕ, ∀ ξ : PSet.pSet_aleph2.Type,
