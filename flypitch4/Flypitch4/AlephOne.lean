@@ -262,7 +262,21 @@ open Cardinal in
 lemma mk_injects_into_of_mk_le_omega {η : Ordinal.{u}}
     (H_le : Cardinal.mk (ordinalMk η).Type ≤ Cardinal.mk (PSet.omega : PSet.{u}).Type) :
     injects_into (ordinalMk η) PSet.omega := by
-  sorry -- TODO: port from src/aleph_one.lean:195 (function.mk construction)
+  obtain ⟨f, Hf⟩ := injection_of_mk_le H_le
+  let ψ : (ordinalMk η).Type → PSet.{u} := fun i => PSet.omega.Func (f i)
+  have H_ext : ∀ i j, Equiv ((ordinalMk η).Func i) ((ordinalMk η).Func j) → Equiv (ψ i) (ψ j) := by
+    intro i j H_eqv
+    by_cases hij : i = j
+    · subst hij; exact Equiv.refl _
+    · exfalso; exact ordinalMk_inj η i j hij H_eqv
+  refine ⟨function_mk.mk ψ H_ext, ?_, ?_⟩
+  · apply function_mk.mk_is_func
+    intro i; exact PSet.func_mem PSet.omega (f i)
+  · apply function_mk.mk_inj_of_inj
+    intro i₁ i₂ H_eqv
+    have h := omega_inj H_eqv
+    have hi := Hf h
+    subst hi; exact Equiv.refl _
 
 -- src/aleph_one.lean:216
 open Cardinal in
@@ -495,7 +509,7 @@ noncomputable def a1 : bSet 𝔹 := insert 0 (insert 1 a1_aux)
 -- src/aleph_one.lean:643
 lemma mem_a1_iff₀ {z : bSet 𝔹} {Γ : 𝔹} :
     Γ ≤ z ∈ᴮ a1 ↔ Γ ≤ z =ᴮ 0 ⊔ z =ᴮ 1 ⊔ z ∈ᴮ a1_aux := by
-  sorry -- TODO: port from src/aleph_one.lean:643
+  simp only [a1, mem_insert1, sup_assoc]
 
 -- src/aleph_one.lean:646
 lemma Ord_of_mem_a1 {Γ : 𝔹} {η : bSet 𝔹} (H_mem : Γ ≤ η ∈ᴮ a1) : Γ ≤ Ord η := by
@@ -589,7 +603,23 @@ variable {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
 -- src/aleph_one.lean:894
 lemma injects_into_omega_of_mem_aleph_one_check {Γ : 𝔹} {z : bSet 𝔹}
     (H_mem : Γ ≤ z ∈ᴮ (check PSet.aleph_one : bSet 𝔹)) : Γ ≤ injects_into z bSet.omega := by
-  sorry -- TODO: port from src/aleph_one.lean:894
+  rw [mem_unfold] at H_mem
+  apply le_trans H_mem
+  apply iSup_le; intro η
+  simp only [check_bval_top, top_inf_eq, check_func]
+  -- Goal: z =ᴮ check (PSet.aleph_one.Func (check_cast η)) ≤ injects_into z omega
+  -- check (PSet.aleph_one.Func (check_cast η)) injects into omega (PSet fact)
+  have h_pset : PSet.injects_into (PSet.aleph_one.Func (check_cast (𝔹 := 𝔹) η)) PSet.omega :=
+    PSet.injects_into_omega_of_mem_aleph_one (PSet.func_mem PSet.aleph_one (check_cast (𝔹 := 𝔹) η))
+  -- Lift to bSet
+  have h_inj : (⊤ : 𝔹) ≤ injects_into (check (𝔹 := 𝔹) (PSet.aleph_one.Func (check_cast (𝔹 := 𝔹) η)))
+      bSet.omega := check_injects_into h_pset
+  -- From z =ᴮ w and injects_into w omega ≥ ⊤, derive injects_into z omega
+  calc z =ᴮ check (𝔹 := 𝔹) (PSet.aleph_one.Func (check_cast (𝔹 := 𝔹) η))
+      ≤ check (𝔹 := 𝔹) (PSet.aleph_one.Func (check_cast (𝔹 := 𝔹) η)) =ᴮ z ⊓
+          injects_into (check (𝔹 := 𝔹) (PSet.aleph_one.Func (check_cast (𝔹 := 𝔹) η))) bSet.omega :=
+        le_inf (bv_symm le_rfl) (le_trans le_top h_inj)
+    _ ≤ injects_into z bSet.omega := B_ext_injects_into_left _ _
 
 -- src/aleph_one.lean:905
 lemma mem_aleph_one_of_injects_into_omega {x : bSet 𝔹} {Γ : 𝔹}
