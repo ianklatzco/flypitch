@@ -456,8 +456,34 @@ lemma AE_of_check_func_check' (x y : PSet.{u})
       Γ' ∈ Set.range
         (@collapseInclusion (pSet_aleph1 : PSet.{u}).Type
                            (PSet.powerset PSet.omega : PSet.{u}).Type) := by
-  -- TODO: port from src/forcing_CH.lean:390
-  sorry
+  -- Step 1: From is_total, get ⨆ j, pair (x.Func i)̌ (y.Func (check_cast j))̌ ∈ f
+  have Htot : Γ ≤ is_total (check x) (check y) f := is_total_of_is_func' H
+  have hmem : Γ ≤ (check (x.Func i)) ∈ᴮ check x := by
+    simp [check_bval_top]
+  have htot_i_raw : Γ ≤ ⨆ w, w ∈ᴮ check y ⊓ pair (check (x.Func i)) w ∈ᴮ f :=
+    le_trans (le_inf (le_trans Htot (iInf_le _ (check (x.Func i)))) hmem) bv_imp_elim
+  -- Convert to indexed form using bounded_exists
+  rw [← @bounded_exists 𝔹_collapse _ (check y) (fun w => pair (check (x.Func i)) w ∈ᴮ f)
+    (h_congr := B_ext_pair_mem_right)] at htot_i_raw
+  simp only [check_bval_top, top_inf_eq] at htot_i_raw
+  -- htot_i_raw : Γ ≤ ⨆ j₀, pair (check (x.Func i)) (check y).func j₀ ∈ f
+  -- Step 2: Build H' : Γ ≤ ⨆ j₀, is_func' ⊓ pair... j₀ ∈ f (nonzero_wit'' adds ⊓ Γ automatically)
+  have H' : Γ ≤ ⨆ (j₀ : (check y).type),
+      is_func' (check x) (check y) f ⊓ pair (check (x.Func i)) ((check y).func j₀) ∈ᴮ f := by
+    calc Γ ≤ is_func' (check x) (check y) f ⊓
+              ⨆ j₀, pair (check (x.Func i)) ((check y).func j₀) ∈ᴮ f :=
+          le_inf H htot_i_raw
+      _ = ⨆ j₀, is_func' (check x) (check y) f ⊓
+              pair (check (x.Func i)) ((check y).func j₀) ∈ᴮ f := inf_iSup_eq _ _
+  obtain ⟨j₀, Γ', HΓ'_nonzero, HΓ'_le, HΓ'_mem⟩ := nonzero_wit''
+    principalOpens_denseOmegaClosed H_nonzero H'
+  -- HΓ'_le : Γ' ≤ (is_func' ⊓ pair (x.Func i)̌ (check y).func j₀ ∈ f) ⊓ Γ
+  refine ⟨check_cast j₀, Γ', HΓ'_nonzero, HΓ'_le.trans inf_le_right,
+    HΓ'_le.trans (inf_le_left.trans inf_le_left), ?_, HΓ'_mem⟩
+  -- Γ' ≤ pair (check (x.Func i)) (check (y.Func (check_cast j₀))) ∈ f
+  have h := HΓ'_le.trans (inf_le_left.trans inf_le_right)
+  simp only [check_func] at h
+  exact h
 
 -- src/forcing_CH.lean:416-444
 lemma check_functions_eq_functions (y : PSet.{u}) {Γ : 𝔹_collapse} :

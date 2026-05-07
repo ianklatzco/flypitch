@@ -473,7 +473,38 @@ lemma cardinal_inequality_of_regular (κ₁ κ₂ : Cardinal)
     (H_reg₁ : Cardinal.IsRegular κ₁) (H_reg₂ : Cardinal.IsRegular κ₂)
     (H_inf : Cardinal.aleph0 ≤ κ₁) (H_lt : κ₁ < κ₂) {Γ : 𝔹} :
     Γ ≤ (larger_than (check (PSet.card_ex κ₁)) (check (PSet.card_ex κ₂)))ᶜ := by
-  sorry -- TODO: port from src/forcing.lean:468
+  -- Prove by contradiction: if Γ ≤ larger_than κ₁ κ₂, derive ¬CCC 𝔹, contradicting 𝔹_CCC
+  apply le_neg_of_inf_eq_bot
+  rw [inf_comm]
+  -- Goal: Γ ⊓ larger_than (check κ₁) (check κ₂) ≤ ⊥ ... actually need = ⊥
+  -- wait le_neg_of_inf_eq_bot needs b ⊓ a = ⊥ to conclude a ≤ bᶜ
+  -- So need larger_than ... ⊓ Γ = ⊥ i.e. Γ ⊓ larger_than ... = ⊥
+  rw [eq_bot_iff]
+  -- Goal: Γ ⊓ larger_than ... ≤ ⊥
+  by_contra H_nonzero
+  rw [← bot_lt_iff_not_le_bot] at H_nonzero
+  -- Apply AE_of_check_larger_than_check to get f and g
+  have H_larger : Γ ⊓ larger_than (check (PSet.card_ex κ₁)) (check (PSet.card_ex κ₂)) ≤
+      larger_than (check (PSet.card_ex κ₁)) (check (PSet.card_ex κ₂)) := inf_le_right
+  rcases AE_of_check_larger_than_check H_nonzero H_larger
+    (PSet.exists_mem_of_regular H_reg₂) with ⟨f, Hf⟩
+  -- Extract g : κ₂.Type → κ₁.Type from Hf
+  obtain ⟨g, g_spec⟩ := Classical.axiomOfChoice Hf
+  -- Apply not_CCC_of_uncountable_fiber
+  suffices h : ¬ CCC 𝔹 from absurd 𝔹_CCC h
+  apply not_CCC_of_uncountable_fiber (PSet.card_ex κ₁) (PSet.card_ex κ₂) _ _ _ f g
+  · -- H_infinite : ℵ₀ ≤ #((card_ex κ₁).Type)
+    simp [PSet.mk_type_mk_eq κ₁ H_inf, H_inf]
+  · -- H_lt : #(card_ex κ₁).Type < #(card_ex κ₂).Type
+    simp [PSet.mk_type_mk_eq κ₁ H_inf, PSet.mk_type_mk_eq κ₂ (le_of_lt (H_inf.trans_lt H_lt)), H_lt]
+  · -- H_inj₂
+    intro i j H_neq; exact PSet.ordinalMk_inj _ _ _ H_neq
+  · -- H : ∀ β, ⊥ < is_func f ⊓ pair (check (κ₁.Func (g β))) (check (κ₂.Func β)) ∈ᴮ f
+    exact g_spec
+  · -- H_ex : ∃ ξ, ℵ₀ < #(g⁻¹'{ξ})
+    apply uncountable_fiber_of_regular' κ₁ κ₂ H_inf H_lt H_reg₂.cof_eq
+    · simp [PSet.mk_type_mk_eq κ₁ H_inf]
+    · simp [PSet.mk_type_mk_eq κ₂ (le_of_lt (H_inf.trans_lt H_lt))]
 
 -- src/forcing.lean:489-504
 lemma aleph0_lt_aleph1_bSet : (⊤ : 𝔹) ≤
