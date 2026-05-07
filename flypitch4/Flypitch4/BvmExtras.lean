@@ -3976,7 +3976,72 @@ def powerset_injects_F : (bv_powerset x).type → (functions x 𝟚).type :=
 lemma mem_powerset_injects_F_iff {Γ : 𝔹} {χ : x.type → 𝔹} {z : bSet 𝔹} :
     Γ ≤ pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x χ) ↔
     Γ ≤ z ∈ᴮ set_of_indicator χ := by
-  sorry -- TODO: port from src/bvm_extras.lean:2231
+  -- (functions x 𝟚).func (powerset_injects_F x χ) = set_of_indicator (powerset_injects_F x χ)
+  -- where u = prod x 𝟚, and .type = x.type × 𝟚.type
+  -- (functions x 𝟚).func (powerset_injects_F x χ)
+  --   = (bv_powerset (prod x 𝟚)).func (powerset_injects_F x χ)  [by functions_func]
+  --   = set_of_indicator (u := prod x 𝟚) (powerset_injects_F x χ)  [definitionally]
+  -- The type of the resulting bSet has:
+  --   .type = x.type × 𝟚.type
+  --   .func (i,j) = (prod x 𝟚).func (i,j) = pair (x.func i) (𝟚.func j)
+  --   .bval (i,j) = powerset_injects_F x χ (i,j)
+  -- For the iff, use: pair z 0 ∈ F(χ) ↔ z ∈ set_of_indicator χ
+  -- where F(χ)(i,j) = (x.func i ∈ set_of_indicator χ ⊓ 𝟚.func j = 0) ⊔ (x.func i ∉ set_of_indicator χ ⊓ 𝟚.func j = 1)
+  -- The iff uses that the only indices contributing to pair z 0 are (i, some none) with z =ᴮ x.func i
+  -- since 𝟚.func (some none) = 0 and 𝟚.func none = 1, and 0 ≠ 1.
+  -- Reduce to indexed iSup form using mem_unfold
+  -- The key unfolding: pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x χ)
+  --   = ⨆ pr, (powerset_injects_F x χ pr) ⊓ pair z 0 =ᴮ pair (x.func pr.1) (𝟚.func pr.2)
+  -- This uses functions_func + definitional equality (bv_powerset u).func ξ = set_of_indicator ξ.
+  have hFuncs : pair z 0 ∈ᴮ (functions x 𝟚).func (powerset_injects_F x χ) =
+      ⨆ pr : x.type × (𝟚 : bSet 𝔹).type, (powerset_injects_F x χ pr) ⊓
+        pair z 0 =ᴮ pair (x.func pr.1) ((𝟚 : bSet 𝔹).func pr.2) := by
+    rw [functions_func]; rfl
+  have hSOI : z ∈ᴮ set_of_indicator χ =
+      ⨆ i : x.type, χ i ⊓ z =ᴮ x.func i := by rfl
+  constructor
+  · intro H
+    rw [hFuncs] at H
+    -- H : Γ ≤ ⨆ (i,j), powerset_injects_F x χ (i,j) ⊓ pair z 0 =ᴮ pair (x.func i) (𝟚.func j)
+    -- Goal: Γ ≤ z ∈ set_of_indicator χ = ⨆ i, χ i ⊓ z =ᴮ x.func i (definitionally)
+    apply le_trans H
+    apply iSup_le; intro ⟨i, j⟩
+    simp only [powerset_injects_F, inf_sup_right]
+    apply bv_or_elim
+    · -- Left: (x.func i ∈ set_of_indicator χ ⊓ 𝟚.func j =ᴮ 0) ⊓ pair z 0 =ᴮ pair (x.func i) (𝟚.func j)
+      --       ≤ z ∈ set_of_indicator χ (definitionally = ⨆ k, χ k ⊓ z =ᴮ x.func k)
+      -- From pair_eq_pair_iff: z =ᴮ x.func i, and x.func i ∈ set_of_indicator χ, use bv_rw'
+      set ctx₁ := (x.func i ∈ᴮ set_of_indicator χ ⊓ (𝟚 : bSet 𝔹).func j =ᴮ 0) ⊓
+          pair z 0 =ᴮ pair (x.func i) ((𝟚 : bSet 𝔹).func j)
+      have h_zeq : ctx₁ ≤ z =ᴮ x.func i := (pair_eq_pair_iff.mp inf_le_right).1
+      have h_xi_mem : ctx₁ ≤ x.func i ∈ᴮ set_of_indicator χ := inf_le_left.trans inf_le_left
+      exact bv_rw' (H := h_zeq) (h_congr := B_ext_mem_left) (H_new := h_xi_mem)
+    · -- Right: contradiction 0 =ᴮ 1 from pair eq and 𝟚.func j =ᴮ 1
+      set ctx₂ := (x.func i ∈ᴮ subset.mk (fun i_1 => (x.func i_1 ∈ᴮ set_of_indicator χ)ᶜ) ⊓
+          (𝟚 : bSet 𝔹).func j =ᴮ 1) ⊓ pair z 0 =ᴮ pair (x.func i) ((𝟚 : bSet 𝔹).func j)
+      have h_0eq : ctx₂ ≤ (0 : bSet 𝔹) =ᴮ (𝟚 : bSet 𝔹).func j :=
+        (pair_eq_pair_iff.mp inf_le_right).2
+      have h_1eq : ctx₂ ≤ (𝟚 : bSet 𝔹).func j =ᴮ 1 := inf_le_left.trans inf_le_right
+      exact (bot_of_zero_eq_one (le_trans (le_inf h_0eq h_1eq) bv_eq_trans)).trans bot_le
+  · intro H
+    -- H : Γ ≤ z ∈ set_of_indicator χ (= ⨆ i, χ i ⊓ z =ᴮ x.func i definitionally)
+    -- Use index (i, some none) where j = some none gives 𝟚.func (some none) = 0
+    rw [hFuncs]
+    apply le_trans H
+    apply iSup_le; intro i
+    apply le_iSup_of_le (i, (some none : (𝟚 : bSet 𝔹).type))
+    unfold powerset_injects_F
+    simp only [Prod.fst, Prod.snd]
+    apply le_inf
+    · -- Left branch of disjunction: x.func i ∈ set_of_indicator χ ⊓ 𝟚.func (some none) =ᴮ 0
+      apply le_trans _ le_sup_left
+      apply le_inf
+      · -- x.func i ∈ set_of_indicator χ: from χ i (inf_le_left) and x.func i =ᴮ x.func i (bv_refl)
+        exact le_iSup_of_le i (le_inf inf_le_left bv_refl)
+      · -- 𝟚.func (some none) =ᴮ 0: from zero_eq_some_none'
+        exact bv_symm zero_eq_some_none'
+    · -- pair z 0 =ᴮ pair (x.func i) (𝟚.func (some none))
+      exact pair_congr inf_le_right (bv_symm zero_eq_some_none')
 
 -- src/bvm_extras.lean:2249
 lemma powerset_injects_F_ext : ∀ (i j : (bv_powerset x).type) {Γ : 𝔹},
