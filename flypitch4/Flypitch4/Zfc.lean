@@ -622,7 +622,7 @@ def CH_f : sentence L_ZFC :=
       (subst0_bounded_formula at_most_f (Powerset omega'))))
 
 lemma CH_f_is_CH : ⟦CH_f⟧[V β] = CH₂ := by
-  sorry -- TODO: needs boolean_realize_substmax lemma (complex substitution semantics)
+  sorry -- TODO: needs boolean_realize of subst_bounded_formula -- complex
 
 lemma CH_f_sound {Γ : β} : (Γ ⊩[V β] CH_f) ↔ Γ ≤ CH₂ := by
   change _ ≤ _ ↔ _ ≤ _
