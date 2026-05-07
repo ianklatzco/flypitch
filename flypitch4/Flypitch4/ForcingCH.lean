@@ -525,21 +525,30 @@ lemma aleph_one_type_uncountable :
 lemma π_af_wide :
     ∀ (j : (check (PSet.powerset PSet.omega) : bSet 𝔹_collapse).type),
     (⨆ (i : (check pSet_aleph1 : bSet 𝔹_collapse).type), π_af i j) = (⊤ : 𝔹_collapse) := by
-  -- For fixed j, ⋃ i, {g | g (check_cast i) = check_cast j} is dense in the collapse topology
   intro j
   apply RegularOpens.sSup_eq_top_of_dense_Union
-  -- Use Mathlib's Dense which avoids universe issues with our Dense'
   rw [dense'_iff_mathlib, dense_iff_inter_open]
   intro U hU ⟨g, hg⟩
-  -- g ∈ U which is open. U meets ⋃ i, {h | h (check_cast i) = check_cast j}
-  -- Find η ∉ dom of any finite partial function in the basis containing g
-  -- Since U is open in the collapse topology, it contains some principalOpen(p) with g ∈ principalOpen(p)
   rcases collapseSpaceBasis_spec.exists_subset_of_mem_open hg hU with ⟨B, HB_basis, HB_mem, HB_sub⟩
-  -- B ∈ collapseSpaceBasis, g ∈ B, B ⊆ U
   rcases HB_basis with rfl | ⟨p, -, rfl⟩
   · exact absurd HB_mem (by simp)
-  · -- B = principalOpen(p), find η ∉ dom(p) (requires universe fix for exists_mem_compl_dom)
-    sorry
+  · -- p : CollapsePoset pSet_aleph1.Type PSet.omega.powerset.Type (ℵ₀ + 1)
+    -- Find η' ∉ PFun.Dom p.f using exists_mem_compl_of_mk_lt_mk
+    -- p.Hc : # (PFun.Dom p.f) < ℵ₀ + 1 = ℵ₀ < # pSet_aleph1.Type
+    -- (universe unification: p's X = pSet_aleph1.Type at u_1 = u via rcases unification)
+    obtain ⟨η', Hη'⟩ := exists_mem_compl_of_mk_lt_mk (PFun.Dom p.f) (by
+      calc # (PFun.Dom p.f) < ℵ₀ + 1 := p.Hc
+        _ = ℵ₀ := by simp
+        _ < _ := by simp [PSet.mk_type_mk_eq'''])
+    -- Build trivial extension mapping η' to check_cast j
+    let h := CPFun.trivial_extension p.f (check_cast j)
+    have Hh_open : h ∈ CollapsePoset.principalOpen p := trivialExtension_mem_principalOpen
+    have Hh_val : h η' = check_cast j := CPFun.trivial_extension_neg (Set.mem_compl_iff _ _ |>.mp Hη')
+    refine ⟨h, HB_sub Hh_open, ?_⟩
+    simp only [Set.mem_sUnion, Set.mem_image, Set.mem_range]
+    exact ⟨(π_af (check_cast_symm η') j).val,
+      ⟨_, ⟨check_cast_symm η', rfl⟩, rfl⟩,
+      by simp [π_af, Hh_val]⟩
 
 -- src/forcing_CH.lean:487-501
 lemma π_af_tall :

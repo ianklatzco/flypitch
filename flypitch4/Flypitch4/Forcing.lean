@@ -289,7 +289,77 @@ structure 𝒞 : Type where
 private noncomputable def ι : 𝒞 → 𝔹 :=
   fun p => ⟨{S | (p.ins.toSet) ⊆ (cast eq₂.symm S) ∧
                   (p.out.toSet) ⊆ (cast eq₂.symm Sᶜ)},
-    isRegularOpen_of_isClopen (by sorry)⟩  -- TODO: port clopen proof
+    isRegularOpen_of_isClopen (by
+      -- Cast membership: x ∈ cast eq₂.symm S ↔ cast eq₁ x ∈ S
+      have cast_mem_iff : ∀ {T1 T2 : Type} (h : T1 = T2) (T : Set T2) (x : T1),
+          x ∈ cast (congr_arg Set h).symm T ↔ cast h x ∈ T := by
+        intro T1 T2 h; subst h; intro T x; simp
+      -- The set equals principalOpenFinset (cast eq₃ p.ins) ∩ coPrincipalOpenFinset (cast eq₃ p.out)
+      have hset : {S : Set (PSet.pSet_aleph2.Type × ℕ) |
+                    p.ins.toSet ⊆ cast eq₂.symm S ∧ p.out.toSet ⊆ cast eq₂.symm Sᶜ} =
+                  CantorSpace.principalOpenFinset (cast eq₃ p.ins) ∩
+                  CantorSpace.coPrincipalOpenFinset (cast eq₃ p.out) := by
+        ext S
+        simp only [Set.mem_setOf_eq, Set.mem_inter_iff, CantorSpace.mem_principalOpenFinset_iff,
+          CantorSpace.coPrincipalOpenFinset, Set.mem_setOf_eq]
+        -- LHS: ∀ x ∈ p.ins.toSet, cast eq₁ x ∈ S  and  ∀ x ∈ p.out.toSet, cast eq₁ x ∉ S
+        -- RHS: (cast eq₃ p.ins).toSet ⊆ S  and  (cast eq₃ p.out).toSet ⊆ Sᶜ
+        -- Key: use cast_mem_iff directly to relate membership
+        -- For x ∈ cast eq₃ F ↔ cast eq₁.symm x ∈ F, we use:
+        -- eq₃ = congr_arg Finset eq₁, so cast eq₃ F = cast (congr_arg Finset eq₁) F
+        -- and x ∈ cast (congr_arg Finset h) F ↔ cast h.symm x ∈ F (by subst h)
+        have cast_finset_mem : ∀ (F : Finset ((check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ))
+            (x : PSet.pSet_aleph2.Type × ℕ),
+            x ∈ (cast eq₃ F : Finset (PSet.pSet_aleph2.Type × ℕ)) ↔ cast eq₁.symm x ∈ F := by
+          intro F x
+          -- cast eq₃ F : Finset B. Membership: x ∈ cast eq₃ F ↔ eq₁.symm cast x ∈ F
+          -- Use: cast eq₃ = Equiv.cast of the Finset type equality
+          -- Since eq₃ = congr_arg Finset eq₁, cast eq₃ maps Finset A → Finset B
+          -- and is the image map: cast eq₃ F = F.image (cast eq₁)
+          -- So x ∈ cast eq₃ F ↔ cast eq₁.symm x ∈ F (bijective)
+          have key : ∀ {A B : Type} (h : A = B) (F : Finset A) (x : B),
+              x ∈ cast (congr_arg Finset h) F ↔ cast h.symm x ∈ F := by
+            intro A B h; subst h; intro F x; simp
+          have heq : eq₃ = congr_arg Finset eq₁ := rfl
+          rw [heq]; exact key eq₁ F x
+        constructor
+        · intro ⟨h₁, h₂⟩
+          constructor
+          · -- S ∈ principalOpenFinset (cast eq₃ p.ins): ∀ x ∈ cast eq₃ p.ins, x ∈ S
+            intro x hx
+            rw [Finset.mem_coe, cast_finset_mem] at hx
+            -- hx : cast eq₁.symm x ∈ p.ins
+            have hmem := (cast_mem_iff eq₁ S (cast eq₁.symm x)).mp (h₁ (Finset.mem_coe.mpr hx))
+            -- hmem : cast eq₁ (cast eq₁.symm x) ∈ S; reduce to x ∈ S
+            have hx_eq : cast eq₁ (cast eq₁.symm x) = x := by
+              rw [cast_eq_iff_heq]; exact cast_heq eq₁.symm x
+            rw [hx_eq] at hmem; exact hmem
+          · intro x hx
+            rw [Finset.mem_coe, cast_finset_mem] at hx
+            have hmem := (cast_mem_iff eq₁ Sᶜ (cast eq₁.symm x)).mp (h₂ (Finset.mem_coe.mpr hx))
+            have hx_eq : cast eq₁ (cast eq₁.symm x) = x := by
+              rw [cast_eq_iff_heq]; exact cast_heq eq₁.symm x
+            rw [hx_eq] at hmem; exact hmem
+        · intro ⟨h₁, h₂⟩
+          constructor
+          · intro y hy
+            rw [cast_mem_iff eq₁]
+            apply h₁
+            rw [Finset.mem_coe, cast_finset_mem]
+            -- Goal: cast eq₁.symm (cast eq₁ y) ∈ p.ins; reduce to y ∈ p.ins
+            have hcast : cast eq₁.symm (cast eq₁ y) = y := by
+              rw [cast_eq_iff_heq]; exact cast_heq eq₁ y
+            rw [hcast]; exact hy
+          · intro y hy
+            rw [cast_mem_iff eq₁]
+            apply h₂
+            rw [Finset.mem_coe, cast_finset_mem]
+            have hcast : cast eq₁.symm (cast eq₁ y) = y := by
+              rw [cast_eq_iff_heq]; exact cast_heq eq₁ y
+            rw [hcast]; exact hy
+      rw [hset]
+      exact (CantorSpace.isClopen_principalOpenFinset _).inter
+        (CantorSpace.isClopen_coPrincipalOpenFinset _))⟩
 
 open CantorSpace
 
@@ -303,7 +373,78 @@ lemma prop_decidable_cast_lemma {α β : Type w₁} (H : α = β) {a b : α} {a'
 -- src/forcing.lean:252-272: 𝒞_dense_basis
 lemma 𝒞_dense_basis : ∀ T ∈ @standardBasis (PSet.pSet_aleph2.Type × ℕ), ∀ _h : T ≠ ∅,
     ∃ p : 𝒞, (ι p).val ⊆ T := by
-  sorry -- TODO: port from src/forcing.lean:252
+  intro T hT _h
+  simp only [standardBasis, Set.mem_union, Set.mem_setOf_eq, Set.mem_singleton_iff] at hT
+  rcases hT with ⟨p_ins, p_out, hTeq, hDisj⟩ | hTe
+  · -- T = p_ins.inf principalOpen ∩ p_out.inf coPrincipalOpen
+    -- Helpers for casting
+    -- General: x ∈ cast (congr_arg Finset h) F ↔ cast h.symm x ∈ F
+    have key_finset_mem : ∀ {A B : Type} (h : A = B) (F : Finset A) (x : B),
+        x ∈ cast (congr_arg Finset h) F ↔ cast h.symm x ∈ F := by
+      intro A B h; subst h; intro F x; simp
+    -- General: x ∈ cast (congr_arg Set h).symm S ↔ cast h x ∈ S
+    have key_set_mem : ∀ {A B : Type} (h : A = B) (S : Set B) (x : A),
+        x ∈ cast (congr_arg Set h).symm S ↔ cast h x ∈ S := by
+      intro A B h; subst h; intro S x; simp
+    -- (1) a ∈ cast eq₃.symm F' ↔ cast eq₁ a ∈ F' (for F' : Finset B, a : A)
+    have cast_finset_symm : ∀ (F' : Finset (PSet.pSet_aleph2.Type × ℕ))
+        (a : (check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ),
+        a ∈ (cast eq₃.symm F' : Finset ((check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ)) ↔ cast eq₁ a ∈ F' := by
+      intro F' a
+      -- cast eq₃.symm F' = cast (congr_arg Finset eq₁.symm) F' (since eq₃.symm = congr_arg Finset eq₁.symm)
+      -- Then by key_finset_mem with h = eq₁.symm: a ∈ cast (congr_arg Finset eq₁.symm) F' ↔ cast eq₁ a ∈ F'
+      have heq : eq₃.symm = congr_arg Finset eq₁.symm := rfl
+      rw [heq, key_finset_mem eq₁.symm F' a]
+    -- (2) a ∈ cast eq₂.symm S ↔ cast eq₁ a ∈ S (for S : Set B, a : A)
+    have cast_set_symm : ∀ (S : Set (PSet.pSet_aleph2.Type × ℕ))
+        (a : (check (PSet.pSet_aleph2) : bSet 𝔹).type × ℕ),
+        a ∈ cast eq₂.symm S ↔ cast eq₁ a ∈ S := by
+      intro S a
+      have heq : eq₂.symm = (congr_arg Set eq₁).symm := by rfl
+      rw [heq, key_set_mem eq₁ S a]
+    -- Construct p' with ins = cast eq₃.symm p_ins, out = cast eq₃.symm p_out
+    let p' : 𝒞 :=
+      { ins := cast eq₃.symm p_ins
+        out := cast eq₃.symm p_out
+        H := by
+          have hd := Finset.disjoint_left.mp hDisj
+          ext a
+          simp only [Finset.mem_inter, Finset.notMem_empty, iff_false]
+          intro ⟨ha1, ha2⟩
+          exact hd ((cast_finset_symm p_ins a).mp ha1) ((cast_finset_symm p_out a).mp ha2) }
+    refine ⟨p', ?_⟩
+    -- Show (ι p').val ⊆ T
+    -- T = principalOpenFinset p_ins ∩ coPrincipalOpenFinset p_out
+    rw [hTeq, ← principalOpenFinset_eq_inter, ← coPrincipalOpenFinset_eq_inter]
+    intro S hS
+    simp only [ι, Set.mem_setOf_eq] at hS
+    obtain ⟨hS_ins, hS_out⟩ := hS
+    simp only [Set.mem_inter_iff, mem_principalOpenFinset_iff, coPrincipalOpenFinset,
+      Set.mem_setOf_eq]
+    -- Helper: cast eq₁ (cast eq₁.symm z) = z for z : B
+    have cast_eq₁_symm_eq : ∀ (z : PSet.pSet_aleph2.Type × ℕ),
+        cast eq₁ (cast eq₁.symm z) = z := by
+      intro z; rw [cast_eq_iff_heq]; exact cast_heq eq₁.symm z
+    constructor
+    · intro z hz
+      -- z ∈ p_ins, need z ∈ S
+      -- cast eq₁.symm z ∈ cast eq₃.symm p_ins: by cast_finset_symm
+      have ha : cast eq₁.symm z ∈ p'.ins := (cast_finset_symm p_ins (cast eq₁.symm z)).mpr
+        (by rw [cast_eq₁_symm_eq]; exact hz)
+      have hmem := hS_ins (Finset.mem_coe.mpr ha)
+      rw [cast_set_symm] at hmem
+      rw [cast_eq₁_symm_eq] at hmem
+      exact hmem
+    · intro z hz hzS
+      -- z ∈ p_out, need z ∉ S
+      have ha : cast eq₁.symm z ∈ p'.out := (cast_finset_symm p_out (cast eq₁.symm z)).mpr
+        (by rw [cast_eq₁_symm_eq]; exact hz)
+      have hmem := hS_out (Finset.mem_coe.mpr ha)
+      rw [cast_set_symm] at hmem
+      rw [cast_eq₁_symm_eq] at hmem
+      exact hmem hzS
+  · -- T = ∅, contradicts _h
+    exact absurd hTe _h
 
 -- src/forcing.lean:274-284: 𝒞_dense
 lemma 𝒞_dense {b : 𝔹} (H : ⊥ < b) : ∃ p : 𝒞, ι p ≤ b := by
@@ -496,7 +637,80 @@ private lemma inj_cast_lemma (ν' : (check (PSet.pSet_aleph2) : bSet 𝔹).type)
 
 /-- Whenever ν₁ ≠ ν₂ < ℵ₂, bSet 𝔹 believes that `mk ν₁` and `mk ν₂` are distinct -/
 lemma inj {ν₁ ν₂} (H_neq : ν₁ ≠ ν₂) : mk ν₁ =ᴮ mk ν₂ ≤ (⊥ : 𝔹) := by
-  sorry -- TODO: port from src/forcing.lean:409
+  by_contra h
+  replace h : ⊥ < mk ν₁ =ᴮ mk ν₂ := lt_of_le_of_ne bot_le (Ne.symm (mt le_bot_iff.mpr h))
+  obtain ⟨p, H_p⟩ := 𝒞_dense h
+  obtain ⟨n, H_n⟩ := 𝒞_disjoint_row p
+  -- p'.ins = insert (ν₁, n) p.ins, p'.out = insert (ν₂, n) p.out
+  -- Note: ν₁, ν₂ : (check pSet_aleph2).type, so (ν₁, n), (ν₂, n) are in the right type
+  -- H_n gives: cast eq₁.symm (cast eq₀ ν₁, n) = (ν₁, n) ∉ p.ins ∧ ∉ p.out (by inj_cast_lemma)
+  have Hν₁_ins : (ν₁, n) ∉ p.ins := by
+    have := (H_n (cast eq₀ ν₁)).1
+    rwa [inj_cast_lemma] at this
+  have Hν₁_out : (ν₁, n) ∉ p.out := by
+    have := (H_n (cast eq₀ ν₁)).2
+    rwa [inj_cast_lemma] at this
+  have Hν₂_ins : (ν₂, n) ∉ p.ins := by
+    have := (H_n (cast eq₀ ν₂)).1
+    rwa [inj_cast_lemma] at this
+  have Hν₂_out : (ν₂, n) ∉ p.out := by
+    have := (H_n (cast eq₀ ν₂)).2
+    rwa [inj_cast_lemma] at this
+  let p' : 𝒞 :=
+    { ins := insert (ν₁, n) p.ins
+      out := insert (ν₂, n) p.out
+      H := by
+        ext a
+        simp only [Finset.mem_inter, Finset.notMem_empty, iff_false]
+        intro ⟨ha_ins, ha_out⟩
+        simp only [Finset.mem_insert] at ha_ins ha_out
+        rcases ha_ins with rfl | ha_ins
+        · -- a = (ν₁, n), and ha_out : (ν₁, n) = (ν₂, n) ∨ (ν₁, n) ∈ p.out
+          rcases ha_out with h_eq | ha_out
+          · -- (ν₁, n) = (ν₂, n), so ν₁ = ν₂
+            exact H_neq (Prod.mk.inj h_eq).1
+          · exact Hν₁_out ha_out
+        · -- a ∈ p.ins
+          rcases ha_out with rfl | ha_out
+          · -- (ν₂, n) ∈ p.ins, contradicts Hν₂_ins
+            exact Hν₂_ins ha_ins
+          · -- a ∈ p.ins ∩ p.out = ∅
+            have : a ∈ p.ins ∩ p.out := Finset.mem_inter.mpr ⟨ha_ins, ha_out⟩
+            rw [p.H] at this
+            exact Finset.notMem_empty _ this }
+  -- ι p' ≤ ι p (by 𝒞_anti, since p'.ins ⊇ p.ins and p'.out ⊇ p.out)
+  have anti : ι p' ≤ ι p :=
+    𝒞_anti (fun i hi => Finset.mem_insert_of_mem hi)
+           (fun i hi => Finset.mem_insert_of_mem hi)
+  -- ι p' ≤ of_nat n ∈ᴮ mk ν₁
+  have this₁ : ι p' ≤ of_nat n ∈ᴮ mk ν₁ := by
+    rw [mem_unfold]
+    apply le_iSup_of_le (ULift.up n)
+    simp only [mk_bval, mk_func, χ, bv_refl, le_inf_iff]
+    constructor
+    · -- ι p' ≤ principal_open ν₁ n
+      intro S hS
+      simp only [ι, Set.mem_setOf_eq] at hS
+      have hins : (ν₁, n) ∈ (p' : 𝒞).ins.toSet :=
+        Finset.mem_coe.mpr (Finset.mem_insert_self _ _)
+      have hmem := hS.1 hins
+      -- hmem : (ν₁, n) ∈ cast eq₂.symm S, i.e., cast eq₁ (ν₁, n) ∈ S
+      have key : ∀ {T1 T2 : Type} (h : T1 = T2) (T : Set T2) (x : T1),
+          x ∈ cast (congr_arg Set h).symm T ↔ cast h x ∈ T := by
+        intro T1 T2 h; subst h; intro T x; simp
+      rw [show (principal_open ν₁ n).val = CantorSpace.principalOpen (cast eq₁ (ν₁, n)) from rfl]
+      exact (key eq₁ S (ν₁, n)).mp hmem
+    · trivial  -- bv_refl : of_nat n =ᴮ of_nat n = ⊤ simplified to True
+  -- ι p' ≤ (of_nat n ∈ᴮ mk ν₂)ᶜ
+  have this₂ : ι p' ≤ (of_nat n ∈ᴮ mk ν₂)ᶜ :=
+    not_mem_of_not_mem (Finset.mem_insert_self (ν₂, n) p.out)
+  -- ι p' ≤ (mk ν₁ =ᴮ mk ν₂)ᶜ (from sep)
+  have this₃ : ι p' ≤ (mk ν₁ =ᴮ mk ν₂)ᶜ := sep this₁ this₂
+  -- ι p' ≤ mk ν₁ =ᴮ mk ν₂ (via ι p' ≤ ι p ≤ mk ν₁ =ᴮ mk ν₂)
+  have this₄ : ι p' ≤ mk ν₁ =ᴮ mk ν₂ := le_trans anti H_p
+  -- Contradiction: ι p' = ⊥, but 𝒞_nonzero says ⊥ ≠ ι p'
+  have this₅ : ι p' = ⊥ := le_antisymm (le_trans (le_inf this₄ this₃) inf_compl_eq_bot.le) bot_le
+  exact (𝒞_nonzero p') this₅.symm
 
 end cohen_real
 
@@ -640,9 +854,43 @@ noncomputable def neg_CH_func : bSet 𝔹 :=
   @functionMk _ _ (check PSet.pSet_aleph2) (fun x => cohen_real.mk x) cohen_real.mk_ext
 
 -- src/forcing.lean:534-546
+set_option maxHeartbeats 400000 in
 theorem aleph2_le_powerset_omega :
     ⊤ ≤ is_func' (check PSet.pSet_aleph2) 𝔠 neg_CH_func ⊓ is_inj neg_CH_func := by
-  sorry -- TODO: port from src/forcing.lean:534
+  apply le_inf
+  · -- is_func' (check PSet.pSet_aleph2) 𝔠 neg_CH_func = is_func neg_CH_func ⊓ is_total ...
+    apply le_inf
+    · -- is_func neg_CH_func
+      exact functionMk_is_func _ cohen_real.mk_ext
+    · -- is_total (check PSet.pSet_aleph2) 𝔠 neg_CH_func
+      apply le_iInf; intro w₁; rw [← deduction, top_inf_eq]
+      -- w₁ ∈ check PSet.pSet_aleph2 ≤ ⨆ w₂, w₂ ∈ 𝔠 ⊓ pair w₁ w₂ ∈ neg_CH_func
+      -- Unfold the membership w₁ ∈ check PSet.pSet_aleph2 to extract ν
+      rw [mem_unfold]
+      -- ⨆ ν, (check pSet_aleph2).bval ν ⊓ w₁ =ᴮ (check pSet_aleph2).func ν ≤ ⨆ w₂, ...
+      apply iSup_le; intro ν
+      -- (check pSet_aleph2).bval ν ⊓ w₁ =ᴮ (check pSet_aleph2).func ν ≤ ⨆ w₂, ...
+      rw [check_bval_top, top_inf_eq]
+      -- w₁ =ᴮ (check pSet_aleph2).func ν ≤ ⨆ w₂, w₂ ∈ 𝔠 ⊓ pair w₁ w₂ ∈ neg_CH_func
+      apply le_iSup_of_le (cohen_real.mk ν)
+      -- cohen_real.definite' : Γ ≤ cohen_real.mk ν ∈ 𝔠
+      -- functionMk_self : check.bval ν ≤ pair (check.func ν) (mk ν) ∈ neg_CH_func
+      -- We need: w₁ =ᴮ check.func ν ≤ mk ν ∈ 𝔠 ⊓ pair w₁ (mk ν) ∈ neg_CH_func
+      apply le_inf
+      · -- mk ν ∈ 𝔠
+        exact le_trans le_top cohen_real.definite'
+      · -- pair w₁ (mk ν) ∈ neg_CH_func
+        -- w₁ =ᴮ (check pSet_aleph2).func ν; pair (check.func ν) (mk ν) ∈ neg_CH_func by functionMk_self
+        -- Use bv_rw' with H := w₁ =ᴮ check.func ν (the current goal), ϕ := fun z => pair z (mk ν) ∈ neg_CH_func
+        have h_func_mem : (⊤ : 𝔹) ≤ pair ((check PSet.pSet_aleph2).func ν) (cohen_real.mk ν) ∈ᴮ neg_CH_func := by
+          have := @functionMk_self 𝔹 _ (check PSet.pSet_aleph2) (fun x => cohen_real.mk x)
+            cohen_real.mk_ext ν
+          rwa [check_bval_top] at this
+        -- Γ = w₁ =ᴮ check.func ν, use bv_rw' to get pair w₁ (mk ν) ∈ neg_CH_func from pair (check.func ν) (mk ν) ∈ neg_CH_func
+        exact bv_rw' (H := le_refl _) (ϕ := fun z => pair z (cohen_real.mk ν) ∈ᴮ neg_CH_func)
+          (h_congr := B_ext_pair_mem_left) (H_new := le_trans le_top h_func_mem)
+  · -- is_inj neg_CH_func
+    exact functionMk_inj_of_inj (fun i j h => cohen_real.inj h) cohen_real.mk_ext
 
 -- src/forcing.lean:548-550
 lemma aleph1_Ord {Γ : 𝔹} : Γ ≤ Ord (check (PSet.card_ex (Cardinal.aleph 1)) : bSet 𝔹) :=
