@@ -213,8 +213,87 @@ lemma rel_of_array_extensional (x y : bSet 𝔹) (af : x.type → y.type → �
     (H_inj  : ∀ i₁ i₂, ⊥ < (x.func i₁) =ᴮ (x.func i₂) → i₁ = i₂)
     {Γ}
     : Γ ≤ (is_func (rel_of_array x y af)) := by
-  -- TODO: port from src/forcing_CH.lean:128
-  sorry
+  -- is_func f = ⨅ w₁ w₂ v₁ v₂, pair w₁ v₁ ∈ f ⊓ pair w₂ v₂ ∈ f ⟹ (w₁ =ᴮ w₂ ⟹ v₁ =ᴮ v₂)
+  apply le_iInf; intro w₁; apply le_iInf; intro w₂
+  apply le_iInf; intro v₁; apply le_iInf; intro v₂
+  rw [← deduction, ← deduction]
+  -- Goal: Γ ⊓ (pair w₁ v₁ ∈ rel ⊓ pair w₂ v₂ ∈ rel) ⊓ (w₁ =ᴮ w₂) ≤ v₁ =ᴮ v₂
+  -- Unfold the membership in rel_of_array
+  unfold rel_of_array
+  simp only [mem_unfold, set_of_indicator_bval, set_of_indicator_func, prod_func] at *
+  -- H_mem₁: Γ ⊓ (⨆ pr₁, af pr₁.1 pr₁.2 ⊓ pair w₁ v₁ =ᴮ pair (x.func pr₁.1) (y.func pr₁.2)) ⊓
+  --        (⨆ pr₂, af pr₂.1 pr₂.2 ⊓ pair w₂ v₂ =ᴮ pair (x.func pr₂.1) (y.func pr₂.2)) ⊓
+  --        (w₁ =ᴮ w₂) ≤ v₁ =ᴮ v₂
+  -- Distribute the iSup through the meet
+  -- Goal: Γ ⊓ (⨆ p₁ : x.type × y.type, ...) ⊓ (⨆ p₂, ...) ⊓ (w₁ =ᴮ w₂) ≤ v₁ =ᴮ v₂
+  simp_rw [iSup_inf_eq', inf_iSup_eq', iSup_inf_eq']
+  apply iSup_le; intro p₁
+  obtain ⟨i₁, j₁⟩ := p₁
+  apply iSup_le; intro p₂
+  obtain ⟨i₂, j₂⟩ := p₂
+  simp only []
+  -- Context structure (from simp_rw of iSup_inf_eq', inf_iSup_eq'):
+  -- Γ ⊓ (af i₁ j₁ ⊓ pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) ⊓
+  --      (af i₂ j₂ ⊓ pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂))) ⊓ (w₁ =ᴮ w₂) ≤ v₁ =ᴮ v₂
+  -- Extract the pair equalities
+  have hpair₁ : Γ ⊓ (af i₁ j₁ ⊓ pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) ⊓
+              (af i₂ j₂ ⊓ pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂))) ⊓ (w₁ =ᴮ w₂) ≤
+              pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) :=
+    inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))
+  have hpair₂ : Γ ⊓ (af i₁ j₁ ⊓ pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) ⊓
+              (af i₂ j₂ ⊓ pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂))) ⊓ (w₁ =ᴮ w₂) ≤
+              pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂) :=
+    inf_le_left.trans (inf_le_right.trans (inf_le_right.trans inf_le_right))
+  have haf₁ : Γ ⊓ (af i₁ j₁ ⊓ pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) ⊓
+              (af i₂ j₂ ⊓ pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂))) ⊓ (w₁ =ᴮ w₂) ≤
+              af i₁ j₁ :=
+    inf_le_left.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))
+  have haf₂ : Γ ⊓ (af i₁ j₁ ⊓ pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) ⊓
+              (af i₂ j₂ ⊓ pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂))) ⊓ (w₁ =ᴮ w₂) ≤
+              af i₂ j₂ :=
+    inf_le_left.trans (inf_le_right.trans (inf_le_right.trans inf_le_left))
+  have heq_w : Γ ⊓ (af i₁ j₁ ⊓ pair w₁ v₁ =ᴮ pair (x.func i₁) (y.func j₁) ⊓
+              (af i₂ j₂ ⊓ pair w₂ v₂ =ᴮ pair (x.func i₂) (y.func j₂))) ⊓ (w₁ =ᴮ w₂) ≤
+              w₁ =ᴮ w₂ := inf_le_right
+  -- Get component equalities from pair equalities
+  have hw₁ := hpair₁.trans (eq_of_eq_pair_left (x := w₁) (y := v₁))
+  have hv₁ := hpair₁.trans (eq_of_eq_pair_right (x := w₁) (y := v₁))
+  have hw₂ := hpair₂.trans (eq_of_eq_pair_left (x := w₂) (y := v₂))
+  have hv₂ := hpair₂.trans (eq_of_eq_pair_right (x := w₂) (y := v₂))
+  -- x.func i₁ =ᴮ x.func i₂ from transitivity
+  have hxi := bv_trans (bv_symm hw₁) (bv_trans heq_w hw₂)
+  -- Case analysis on j₁ = j₂
+  by_cases hjj : j₁ = j₂
+  · -- j₁ = j₂: v₁ =ᴮ y.func j₁ =ᴮ v₂ since y.func j₁ = y.func j₂ and v₂ =ᴮ y.func j₂
+    -- Use transitivity: ctx ≤ v₁ =ᴮ y.func j₁ and ctx ≤ y.func j₁ =ᴮ v₂
+    -- y.func j₁ =ᴮ v₂ = y.func j₂ =ᴮ v₂ (since j₁ = j₂)
+    -- but we can't rewrite because it changes ctx too
+    -- Instead: the proof is ctx ≤ v₁ =ᴮ v₂ = (v₁ =ᴮ y.func j₁) ⊓ (y.func j₁ =ᴮ v₂) via bv_trans
+    -- y.func j₁ =ᴮ v₂: since j₁ = j₂, v₂ =ᴮ y.func j₁ from hv₂ + hjj
+    -- bv_symm hv₂ : ctx ≤ y.func j₂ =ᴮ v₂
+    -- show ctx ≤ y.func j₁ =ᴮ v₂ using convert or by rewriting at goal level:
+    apply bv_trans hv₁
+    -- Goal: ctx ≤ y.func j₁ =ᴮ v₂
+    -- hv₂ : ctx ≤ v₂ =ᴮ y.func j₂ and j₁ = j₂
+    -- so y.func j₁ =ᴮ v₂ = y.func j₂ =ᴮ v₂ ... same problem
+    -- Use convert to handle the j₁ ↔ j₂ discrepancy
+    convert bv_symm hv₂ using 2
+    exact congrArg y.func hjj
+  · -- j₁ ≠ j₂: must get contradiction
+    -- Case analysis on i₁ = i₂
+    by_cases hii : i₁ = i₂
+    · -- i₁ = i₂: by H_anti, af i₁ j₁ ⊓ af i₁ j₂ ≤ ⊥
+      -- We have haf₁ : ctx ≤ af i₁ j₁ and haf₂ : ctx ≤ af i₂ j₂ = af i₁ j₂ (since i₁ = i₂)
+      have haf₂_rw : af i₂ j₂ = af i₁ j₂ := by rw [hii]
+      have : af i₁ j₁ ⊓ af i₂ j₂ ≤ ⊥ := by rw [haf₂_rw]; exact H_anti i₁ j₁ j₂ hjj
+      exact bv_exfalso (le_trans (le_inf haf₁ haf₂) this)
+    · -- i₁ ≠ i₂: H_inj says ⊥ < x.func i₁ =ᴮ x.func i₂ → i₁ = i₂
+      -- So ¬ (⊥ < x.func i₁ =ᴮ x.func i₂), i.e., x.func i₁ =ᴮ x.func i₂ ≤ ⊥
+      have hbot : x.func i₁ =ᴮ x.func i₂ ≤ ⊥ := by
+        rw [le_bot_iff]
+        by_contra h
+        exact hii (H_inj i₁ i₂ (bot_lt_iff_ne_bot.mpr h))
+      exact bv_exfalso (hxi.trans hbot)
 
 -- src/forcing_CH.lean:171-191
 lemma rel_of_array_is_func' (x y : bSet 𝔹) (af : x.type → y.type → 𝔹)
