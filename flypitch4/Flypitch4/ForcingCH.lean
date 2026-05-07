@@ -426,6 +426,11 @@ noncomputable instance 𝔹_collapse_ncba :
   collapseAlgebra_ncba (X := (pSet_aleph1 : PSet.{u}).Type)
     (Y := (PSet.powerset PSet.omega : PSet.{u}).Type)
 
+-- Register the collapseSpace topology so RegularOpens lemmas work
+local instance collapseSpaceInstFCH :
+    TopologicalSpace ((pSet_aleph1 : PSet.{u}).Type → (PSet.powerset PSet.omega : PSet.{u}).Type) :=
+  collapseSpace (pSet_aleph1 : PSet.{u}).Type (PSet.powerset PSet.omega : PSet.{u}).Type
+
 -- ============================================================
 -- Nonzero witness for dense omega-closed sets (src lines 377-388)
 -- ============================================================
@@ -520,16 +525,47 @@ lemma aleph_one_type_uncountable :
 lemma π_af_wide :
     ∀ (j : (check (PSet.powerset PSet.omega) : bSet 𝔹_collapse).type),
     (⨆ (i : (check pSet_aleph1 : bSet 𝔹_collapse).type), π_af i j) = (⊤ : 𝔹_collapse) := by
-  -- TODO: port from src/forcing_CH.lean:464
-  sorry
+  -- For fixed j, ⋃ i, {g | g (check_cast i) = check_cast j} is dense in the collapse topology
+  intro j
+  apply RegularOpens.sSup_eq_top_of_dense_Union
+  -- Use Mathlib's Dense which avoids universe issues with our Dense'
+  rw [dense'_iff_mathlib, dense_iff_inter_open]
+  intro U hU ⟨g, hg⟩
+  -- g ∈ U which is open. U meets ⋃ i, {h | h (check_cast i) = check_cast j}
+  -- Find η ∉ dom of any finite partial function in the basis containing g
+  -- Since U is open in the collapse topology, it contains some principalOpen(p) with g ∈ principalOpen(p)
+  rcases collapseSpaceBasis_spec.exists_subset_of_mem_open hg hU with ⟨B, HB_basis, HB_mem, HB_sub⟩
+  -- B ∈ collapseSpaceBasis, g ∈ B, B ⊆ U
+  rcases HB_basis with rfl | ⟨p, -, rfl⟩
+  · exact absurd HB_mem (by simp)
+  · -- B = principalOpen(p), find η ∉ dom(p) (requires universe fix for exists_mem_compl_dom)
+    sorry
 
 -- src/forcing_CH.lean:487-501
 lemma π_af_tall :
     ∀ (i : (check pSet_aleph1 : bSet 𝔹_collapse).type),
     (⨆ (j : (check (PSet.powerset PSet.omega) : bSet 𝔹_collapse).type), π_af i j) =
     (⊤ : 𝔹_collapse) := by
-  -- TODO: port from src/forcing_CH.lean:487
-  sorry
+  -- π_af i j = {g | g (check_cast i) = check_cast j}
+  -- For fixed i, ⋃ j, {g | g (check_cast i) = check_cast j}
+  -- = {g | ∃ j, g (check_cast i) = check_cast j}
+  -- Since check_cast is bijective, for any g: g (check_cast i) = check_cast (check_cast_symm (g (check_cast i)))
+  -- So the union = Set.univ, hence dense, hence sSup = ⊤
+  intro i
+  -- For fixed i, ⋃ j, {g | g (check_cast i) = check_cast j} = Set.univ
+  -- since for any g, g(check_cast i) = check_cast (check_cast_symm (g (check_cast i)))
+  -- Hence the union is dense (= univ), so ⨆ j, π_af i j = ⊤
+  apply RegularOpens.sSup_eq_top_of_dense_Union
+  rw [dense'_iff_mathlib, dense_iff_inter_open]
+  intro U hU ⟨g, hg⟩
+  refine ⟨g, hg, ?_⟩
+  -- g ∈ ⋃₀ (image (·.val) (range (π_af i)))
+  simp only [Set.mem_sUnion, Set.mem_image, Set.mem_range]
+  -- Witness: j = check_cast_symm (g (check_cast i)), then g (check_cast i) = check_cast j
+  refine ⟨(π_af i (check_cast_symm (g (check_cast i)))).val,
+    ⟨_, ⟨check_cast_symm (g (check_cast i)), rfl⟩, rfl⟩, ?_⟩
+  -- Show g ∈ {h | h (check_cast i) = check_cast (check_cast_symm (g (check_cast i)))}
+  simp [π_af]
 
 -- src/forcing_CH.lean:503-505
 lemma π_af_anti :
