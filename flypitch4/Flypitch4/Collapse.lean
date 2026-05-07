@@ -460,6 +460,511 @@ lemma mem_pSup {ι : Type*} {f : ι → α →. β} {x : α} {y : β}
   · rintro ⟨i, hi⟩
     rwa [pSup_eq_of_mem hf (mem_Dom_of_mem hi)]
 
+/-! ### Additional Sup lemmas (src 453-470) -/
+
+/-- Sup_restrict: port of pfun.Sup_restrict (src line 453). -/
+lemma pSup_restrict {ι : Type*} {f : ι → α →. β} (hf : ∀ i j, compatible (f i) (f j)) (i : ι) :
+    (pSup f).restrict (subset_dom_pSup f i) = f i := by
+  apply PFun.ext; intros x y
+  simp only [PFun.mem_restrict, mem_pSup hf]
+  constructor
+  · rintro ⟨hx, j, hj⟩; exact mem_of_compatible (hf j i) hj hx
+  · intro hy; exact ⟨mem_Dom_of_mem hy, i, hy⟩
+
+/-- le_pSup: port of pfun.le_Sup (src line 462). -/
+lemma le_pSup {ι : Type*} {f : ι → α →. β} (hf : ∀ i j, compatible (f i) (f j)) (i : ι) :
+    le (f i) (pSup f) := by
+  intro x y hy; rw [mem_pSup hf]; exact ⟨i, hy⟩
+
+/-- pSup_le: port of pfun.Sup_le (src line 465). -/
+lemma pSup_le {ι : Type*} {f : ι → α →. β} (hf : ∀ i j, compatible (f i) (f j))
+    {g : α →. β} : le (pSup f) g ↔ ∀ i, le (f i) g := by
+  simp only [le, mem_pSup hf]
+  constructor
+  · intro h i x y hy; exact h x y ⟨i, hy⟩
+  · intro h x y ⟨i, hi⟩; exact h i x y hi
+
+/-! ### singleton PFun (src 489-509) -/
+
+/-- A partial function with one element in its domain. Port of pfun.singleton (src line 489). -/
+def singleton (x : α) (y : β) : α →. β :=
+  fun a => ⟨a = x, fun _ => y⟩
+
+@[simp] lemma fn_singleton {x x' : α} {y : β} (H_a : x' = x) :
+    PFun.fn (singleton x y) x' H_a = y := rfl
+
+@[simp] lemma mem_singleton {x x' : α} {y y' : β} :
+    y' ∈ singleton x y x' ↔ x = x' ∧ y = y' := by
+  simp only [singleton, Part.mem_mk_iff]
+  constructor
+  · rintro ⟨h, rfl⟩; exact ⟨h.symm, rfl⟩
+  · rintro ⟨rfl, rfl⟩; exact ⟨rfl, rfl⟩
+
+@[simp] lemma singleton_eq_some {x : α} {y : β} : singleton x y x = Part.some y := by
+  simp [singleton, Part.eq_some_iff]
+
+@[simp] lemma dom_singleton {x : α} {y : β} : PFun.Dom (singleton x y) = {x} := by
+  ext x'; simp [singleton, PFun.Dom]
+
+lemma mk_dom_singleton {x : α} {y : β} : #(PFun.Dom (singleton x y)) = 1 := by simp
+
+/-! ### extend_via and trivial_extension (src 512-541) -/
+
+/-- Extend `f` using `g` for all values where `f` is undefined.
+    Port of pfun.extend_via (src line 512). -/
+noncomputable def extend_via (f : α →. β) (g : α → β) : α → β :=
+  fun x => if hx : x ∈ PFun.Dom f then PFun.fn f x hx else g x
+
+lemma extend_via_pos {f : α →. β} {g : α → β} {x : α} (h : x ∈ PFun.Dom f) :
+    extend_via f g x = PFun.fn f x h := by simp [h, extend_via]
+
+lemma extend_via_neg {f : α →. β} {g : α → β} {x : α} (h : x ∉ PFun.Dom f) :
+    extend_via f g x = g x := by simp [h, extend_via]
+
+lemma le_extend_via (f : α →. β) (g : α → β) : le f ↑(extend_via f g) := by
+  intro x y hy
+  -- TODO: port from src/collapse.lean:523
+  sorry
+
+/-- Given a partial function f : X →. Y and a point y : Y, define an extension of f to X
+    such that g(x) = y whenever x ∉ f.dom. Port of pfun.trivial_extension (src line 529). -/
+noncomputable def trivial_extension (f : α →. β) (y : β) : α → β :=
+  extend_via f (fun _ => y)
+
+lemma trivial_extension_pos {f : α →. β} {y : β} {x : α} (h : x ∈ PFun.Dom f) :
+    trivial_extension f y x = PFun.fn f x h :=
+  extend_via_pos h
+
+lemma trivial_extension_neg {f : α →. β} {y : β} {x : α} (h : x ∉ PFun.Dom f) :
+    trivial_extension f y x = y :=
+  extend_via_neg h
+
+lemma le_trivial_extension (f : α →. β) (y : β) : le f ↑(trivial_extension f y) :=
+  le_extend_via f _
+
+/-! ### pfunRan: the range of a partial function (src 472-484) -/
+
+/-- The range of a partial function. Port of pfun.ran (used in src). -/
+def pfunRan {α β : Type*} (f : α →. β) : Set β := {y | ∃ x, y ∈ f x}
+
+lemma mem_pfunRan {α β : Type*} {f : α →. β} {y : β} :
+    y ∈ pfunRan f ↔ ∃ x, y ∈ f x := Iff.rfl
+
+lemma fn_mem_pfunRan {α β : Type*} {f : α →. β} {x : α} (Hx : x ∈ PFun.Dom f) :
+    PFun.fn f x Hx ∈ pfunRan f :=
+  ⟨x, fn_mem Hx⟩
+
+lemma mk_pfunRan_le_mk_dom {α β : Type u} (f : α →. β) : #(pfunRan f) ≤ #(PFun.Dom f) := by
+  -- TODO: port from src/collapse.lean:476
+  sorry
+
 end CPFun
+
+end Flypitch
+
+/-! ## Section collapse_poset (src lines 545-766)
+    Port of `section collapse_poset`. -/
+
+namespace Flypitch
+
+open CPFun Set TopologicalSpace Cardinal Flypitch.Regular
+
+/-! ### CollapsePoset structure (src lines 547-621) -/
+
+/-- The collapse poset: finite partial functions from X to Y with domain of cardinality < κ.
+    Port of `collapse_poset` (src line 547). -/
+structure CollapsePoset (X Y : Type u) (κ : Cardinal.{u}) : Type u where
+  f    : X →. Y
+  Hc   : #(PFun.Dom f) < κ
+
+namespace CollapsePoset
+
+variable {X Y : Type u} {κ : Cardinal.{u}}
+
+/-- The empty collapse poset. Port of collapse_poset.empty (src line 551). -/
+def empty {α β : Type u} {κ : Cardinal} (h : 0 < κ) : CollapsePoset α β κ :=
+  { f := CPFun.empty, Hc := by simp [h] }
+
+/-- The cardinality of the range is < κ. Port of collapse_poset.mk_ran_lt (src line 559). -/
+lemma mk_ran_lt (p : CollapsePoset X Y κ) : #(CPFun.pfunRan p.f) < κ :=
+  lt_of_le_of_lt (CPFun.mk_pfunRan_le_mk_dom p.f) p.Hc
+
+/-- Intersection of two collapse posets. Port of collapse_poset.inter (src line 562). -/
+noncomputable def inter (p₁ p₂ : CollapsePoset X Y κ) : CollapsePoset X Y κ :=
+  { f := CPFun.pfunInter p₁.f p₂.f,
+    Hc := by
+      apply lt_of_le_of_lt _ p₁.Hc
+      apply Cardinal.mk_le_mk_of_subset
+      intro x hx
+      have hmem := CPFun.mem_pfunInter.mp (Part.get_mem hx)
+      exact CPFun.mem_Dom_of_mem hmem.1 }
+
+/-- Union of two collapse posets (requires ℵ₀ ≤ κ).
+    Port of collapse_poset.union (src line 566). -/
+noncomputable def union (p₁ p₂ : CollapsePoset X Y κ) (h : ℵ₀ ≤ κ) : CollapsePoset X Y κ :=
+  { f := CPFun.pfunSup p₁.f p₂.f,
+    Hc := by
+      rw [CPFun.dom_pfunSup]
+      exact lt_of_le_of_lt (Cardinal.mk_union_le _ _)
+        (Cardinal.add_lt_of_lt h p₁.Hc p₂.Hc) }
+
+/-- There exists an x ∉ p.f.dom when κ ≤ #X.
+    Port of exists_mem_compl_dom_of_unctbl (src line 572). -/
+lemma exists_mem_compl_dom (p : CollapsePoset X Y κ) (H_card : κ ≤ #X) :
+    ∃ x : X, x ∉ PFun.Dom p.f :=
+  exists_mem_compl_of_mk_lt_mk _ (lt_of_lt_of_le p.Hc H_card)
+
+/-- There exists a y ∉ p.f.ran when κ ≤ #Y.
+    Port of exists_mem_compl_ran_of_unctbl (src line 576). -/
+lemma exists_mem_compl_ran (p : CollapsePoset X Y κ) (H_card : κ ≤ #Y) :
+    ∃ y : Y, y ∉ CPFun.pfunRan p.f :=
+  exists_mem_compl_of_mk_lt_mk _ (lt_of_lt_of_le (mk_ran_lt p) H_card)
+
+/-- The principal open set associated with a collapse poset.
+    Port of collapse_poset.principal_open (src line 580). -/
+def principalOpen (p : CollapsePoset X Y κ) : Set (X → Y) :=
+  {f | CPFun.le p.f (f : X →. Y)}
+
+@[simp] lemma principalOpen_empty (h : 0 < κ) :
+    principalOpen (empty h : CollapsePoset X Y κ) = Set.univ := by
+  ext f; simp [principalOpen, empty, CPFun.le, CPFun.empty]
+
+lemma mem_principalOpen_iff {p : CollapsePoset X Y κ} {f : X → Y} :
+    f ∈ principalOpen p ↔ ∀ x y, y ∈ p.f x → f x = y := by
+  simp [principalOpen, CPFun.le_lift]
+
+lemma mem_principalOpen_iff' {p : CollapsePoset X Y κ} {f : X → Y} :
+    f ∈ principalOpen p ↔ ∀ (x : X) (H_x : x ∈ PFun.Dom p.f), f x = PFun.fn p.f x H_x := by
+  rw [mem_principalOpen_iff]
+  apply forall_congr'; intro x
+  constructor
+  · intro H Hx; apply H; exact CPFun.fn_mem Hx
+  · intro H y hy
+    rw [H (CPFun.mem_Dom_of_mem hy)]
+    exact CPFun.fn_eq_of_mem hy _
+
+lemma mem_compl_principalOpen_iff {p : CollapsePoset X Y κ} {f : X → Y} :
+    f ∈ (principalOpen p)ᶜ ↔ ∃ x, ∃ H_x : x ∈ PFun.Dom p.f, f x ≠ PFun.fn p.f x H_x := by
+  rw [Set.mem_compl_iff, mem_principalOpen_iff']
+  push Not
+  rfl
+
+lemma mem_ran_of_mem_dom {p : CollapsePoset X Y κ} {f : X → Y} {x : X}
+    (H : f ∈ principalOpen p) (H_mem : x ∈ PFun.Dom p.f) : f x ∈ CPFun.pfunRan p.f := by
+  rw [mem_principalOpen_iff] at H
+  exact ⟨x, by
+    have heq := H x (PFun.fn p.f x H_mem) (CPFun.fn_mem H_mem)
+    -- heq : f x = PFun.fn p.f x H_mem
+    -- goal : f x ∈ p.f x
+    rw [heq]; exact CPFun.fn_mem H_mem⟩
+
+/-- The sup of a family of collapse posets (same universe, non-lifted).
+    Port of collapse_poset.Sup (src line 613). -/
+noncomputable def Sup {ι : Type u} (p : ι → CollapsePoset X Y κ)
+    (h : #ι < κ.ord.cof) (hκ : ℵ₀ ≤ κ) : CollapsePoset X Y κ :=
+  ⟨CPFun.pSup (fun i => (p i).f),
+    by
+      rw [CPFun.dom_pSup]
+      -- TODO: port from src/collapse.lean:619
+      sorry⟩
+
+/-- The sup of a family of collapse posets (lifted universe).
+    Port of collapse_poset.Sup_lift (src line 622). -/
+noncomputable def SupLift {ι : Type u} {X' Y' : Type (max u v)} {κ' : Cardinal.{max u v}}
+    (p : ι → CollapsePoset X' Y' κ')
+    (h : Cardinal.lift.{v} #ι < κ'.ord.cof)
+    (hκ : ℵ₀ ≤ κ') : CollapsePoset X' Y' κ' :=
+  ⟨CPFun.pSup (fun i => (p i).f),
+    by
+      rw [CPFun.dom_pSup]
+      -- TODO: port from src/collapse.lean:626
+      sorry⟩
+
+end CollapsePoset
+
+/-! ### collapse_space: the topology on X → Y (src lines 633-766) -/
+
+/-- The collapse space topology: generated by principal opens.
+    Port of collapse_space (src line 633). -/
+def collapseSpace (X Y : Type u) : TopologicalSpace (X → Y) :=
+  TopologicalSpace.generateFrom
+    (Set.image (CollapsePoset.principalOpen (κ := ℵ₀ + 1)) Set.univ)
+
+section CollapseSpaceLemmas
+
+variable {X Y : Type u}
+
+local instance collapseSpaceInst : TopologicalSpace (X → Y) := collapseSpace X Y
+
+@[simp] lemma principalOpen_isOpen {p : CollapsePoset X Y (ℵ₀ + 1)} :
+    IsOpen (CollapsePoset.principalOpen p) :=
+  TopologicalSpace.GenerateOpen.basic _ (Set.mem_image_of_mem _ trivial)
+
+lemma one_lt_aleph0_succ : 1 < ℵ₀ + 1 :=
+  lt_of_lt_of_le Cardinal.one_lt_aleph0 (le_add_right le_rfl)
+
+lemma zero_lt_aleph0_succ : 0 < ℵ₀ + 1 :=
+  lt_trans one_pos one_lt_aleph0_succ
+
+/-- singleton collapse poset. Port of singleton_collapse_poset (src line 651). -/
+noncomputable def singletonCollapsePoset (x : X) (y : Y) (hκ : 1 < κ) :
+    CollapsePoset X Y κ :=
+  { f := CPFun.singleton x y,
+    Hc := by simp [CPFun.mk_dom_singleton]; exact hκ }
+
+lemma singletonCollapsePoset_principalOpen' {x : X} {y : Y} {hκ : 1 < κ} :
+    CollapsePoset.principalOpen (singletonCollapsePoset x y hκ) = {g : X → Y | g x = y} := by
+  -- TODO: port from src/collapse.lean:655-662
+  sorry
+
+@[simp] lemma singletonCollapsePoset_principalOpen {x : X} {y : Y} {hκ : 1 < (ℵ₀ + 1 : Cardinal)} :
+    CollapsePoset.principalOpen (singletonCollapsePoset x y hκ) = {g : X → Y | g x = y} :=
+  singletonCollapsePoset_principalOpen'
+
+lemma compl_principalOpen_isUnion (hκ : 1 < κ) (p : CollapsePoset X Y κ) :
+    ∃ (ι : Type u) (s : ι → CollapsePoset X Y κ),
+      ⋃ i : ι, CollapsePoset.principalOpen (s i) = (CollapsePoset.principalOpen p)ᶜ := by
+  -- TODO: port from src/collapse.lean:664-681
+  sorry
+
+@[simp] lemma principalOpen_isClosed {p : CollapsePoset X Y (ℵ₀ + 1)} :
+    IsClosed (CollapsePoset.principalOpen p) := by
+  rcases compl_principalOpen_isUnion one_lt_aleph0_succ p with ⟨_, s, Hu⟩
+  rw [← isOpen_compl_iff, ← Hu]
+  exact isOpen_iUnion (fun i => principalOpen_isOpen)
+
+@[simp] lemma principalOpen_isRegular {p : CollapsePoset X Y (ℵ₀ + 1)} :
+    IsRegularOpen (CollapsePoset.principalOpen p) :=
+  isRegularOpen_of_isClopen ⟨principalOpen_isClosed, principalOpen_isOpen⟩
+
+lemma inter_principalOpen (hκ : ℵ₀ ≤ κ) {p₁ p₂ : CollapsePoset X Y κ}
+    (H : CPFun.compatible p₁.f p₂.f) :
+    CollapsePoset.principalOpen p₁ ∩ CollapsePoset.principalOpen p₂ =
+    CollapsePoset.principalOpen (p₁.union p₂ hκ) := by
+  ext f
+  simp only [Set.mem_inter_iff, CollapsePoset.mem_principalOpen_iff,
+             CollapsePoset.union, CPFun.mem_pfunSup_of_compatible H]
+  constructor
+  · intro ⟨h1, h2⟩ x y hy
+    rcases hy with h | h
+    · exact h1 x y h
+    · exact h2 x y h
+  · intro h
+    constructor
+    · intro x y hy; exact h x y (Or.inl hy)
+    · intro x y hy; exact h x y (Or.inr hy)
+
+/-- The basis for the collapse space. Port of collapse_space_basis (src line 704). -/
+def collapseSpaceBasis (X Y : Type u) : Set (Set (X → Y)) :=
+  insert (∅ : Set (X → Y))
+    (Set.image CollapsePoset.principalOpen
+      (Set.univ : Set (CollapsePoset X Y (ℵ₀ + 1))))
+
+/-- The basis is indeed a topological basis. Port of collapse_space_basis_spec (src line 709). -/
+lemma collapseSpaceBasis_spec : IsTopologicalBasis (collapseSpaceBasis X Y) := by
+  apply IsTopologicalBasis.mk
+  · -- Condition 1: For every pair P, P' in the basis and f ∈ P ∩ P', find P'' ∈ basis with f ∈ P'' ⊆ P ∩ P'
+    intro P HP P' HP' f H_mem_inter
+    rw [collapseSpaceBasis] at HP HP'
+    rcases HP with rfl | ⟨p, _, rfl⟩ <;> rcases HP' with rfl | ⟨p', _, rfl⟩
+    · exact absurd H_mem_inter.1 (Set.notMem_empty _)
+    · exact absurd H_mem_inter.1 (Set.notMem_empty _)
+    · exact absurd H_mem_inter.2 (Set.notMem_empty _)
+    · -- Both are principal opens
+      have hle : ℵ₀ ≤ ℵ₀ + 1 := le_add_right le_rfl
+      by_cases H_compat : CPFun.compatible p.f p'.f
+      · -- Use the union poset
+        refine ⟨CollapsePoset.principalOpen (p.union p' hle),
+               Set.mem_insert_of_mem _ ⟨p.union p' hle, trivial, rfl⟩,
+               ?_, ?_⟩
+        · rw [inter_principalOpen hle H_compat] at H_mem_inter; exact H_mem_inter
+        · rw [← inter_principalOpen hle H_compat]
+      · -- Incompatible: intersection is empty, contradiction
+        exfalso
+        rcases H_mem_inter with ⟨H₁, H₂⟩
+        rw [CollapsePoset.mem_principalOpen_iff] at H₁ H₂
+        rw [CPFun.compatible] at H_compat
+        push Not at H_compat
+        rcases H_compat with ⟨x, hx₁, hx₂, hneq⟩
+        apply hneq
+        have e1 := H₁ x (PFun.fn p.f x hx₁) (CPFun.fn_mem hx₁)
+        have e2 := H₂ x (PFun.fn p'.f x hx₂) (CPFun.fn_mem hx₂)
+        -- e1 : f x = PFun.fn p.f x hx₁
+        -- e2 : f x = PFun.fn p'.f x hx₂
+        -- need : p.f x = p'.f x
+        rw [← CPFun.some_fn hx₁, ← CPFun.some_fn hx₂, ← e1, e2]
+  · -- Condition 2: sUnion of basis = univ
+    simp only [Set.sUnion_eq_univ_iff, collapseSpaceBasis]
+    intro f
+    exact ⟨CollapsePoset.principalOpen (CollapsePoset.empty zero_lt_aleph0_succ),
+           Set.mem_insert_of_mem _ ⟨_, trivial, rfl⟩,
+           by simp [CollapsePoset.principalOpen_empty]⟩
+  · -- Condition 3: collapseSpaceInst = generateFrom collapseSpaceBasis
+    -- collapseSpace = generateFrom (principalOpen '' univ)
+    -- collapseSpaceBasis = {∅} ∪ (principalOpen '' univ)
+    -- TODO: port from src/collapse.lean:744-751
+    sorry
+
+@[simp] lemma isRegular_singletonPrincipalOpen {x : X} {y : Y} :
+    IsRegularOpen (CollapsePoset.principalOpen
+      (singletonCollapsePoset x y one_lt_aleph0_succ)) :=
+  principalOpen_isRegular
+
+@[simp] lemma isRegular_setOf {x : X} {y : Y} :
+    IsRegularOpen {g : X → Y | g x = y} := by
+  rw [← singletonCollapsePoset_principalOpen (hκ := one_lt_aleph0_succ)]
+  exact isRegular_singletonPrincipalOpen
+
+lemma trivialExtension_mem_principalOpen {p : CollapsePoset X Y κ} {y : Y} :
+    CPFun.trivial_extension p.f y ∈ CollapsePoset.principalOpen p := by
+  rw [CollapsePoset.mem_principalOpen_iff]
+  intro x z hz
+  rw [CPFun.trivial_extension_pos (CPFun.mem_Dom_of_mem hz)]
+  exact CPFun.fn_eq_of_mem hz _
+
+end CollapseSpaceLemmas
+
+/-! ## Section omega_closed_dense_subset (src lines 768-797) -/
+
+section OmegaClosedDense
+
+variable {α : Type*} [NontrivialCompleteBooleanAlgebra α]
+
+/-- Any ω-indexed downward chain in D has an intersection in D.
+    Port of omega_closed (src line 773). -/
+def OmegaClosed (D : Set α) : Prop :=
+  ∀ (s : ℕ → α), (∀ n, s n ∈ D) → (∀ n, ⊥ < s n) → (∀ n, s (n + 1) ≤ s n) → (⨅ n, s n) ∈ D
+
+/-- Dense subset: ⊥ ∉ D and every nonzero element has something in D below it.
+    Port of dense_subset (src line 776). -/
+def DenseSubset (D : Set α) : Prop :=
+  ⊥ ∉ D ∧ ∀ x, ⊥ < x → ∃ y ∈ D, y ≤ x
+
+/-- Port of dense_omega_closed_subset (src line 779). -/
+def DenseOmegaClosed (D : Set α) : Prop :=
+  DenseSubset D ∧ OmegaClosed D
+
+lemma nonzero_of_mem_DenseOmegaClosed {x : α} {D : Set α}
+    (H : DenseOmegaClosed D) (H_mem : x ∈ D) : ⊥ < x := by
+  rcases H.1 with ⟨hbot, _⟩
+  rcases lt_or_eq_of_le (bot_le (a := x)) with h | h
+  · exact h
+  · exact absurd (h ▸ H_mem) hbot
+
+lemma nonzero_iInf_of_mem_DenseOmegaClosed {s : ℕ → α} {D : Set α}
+    (H : DenseOmegaClosed D) (H_chain : ∀ n, s (n + 1) ≤ s n)
+    (H_mem : ∀ n, s n ∈ D) : ⊥ < ⨅ n, s n := by
+  apply nonzero_of_mem_DenseOmegaClosed H
+  exact H.2 s H_mem (fun n => nonzero_of_mem_DenseOmegaClosed H (H_mem n)) H_chain
+
+end OmegaClosedDense
+
+/-! ## Section collapse_algebra (src lines 800-812) -/
+
+/-- The collapse algebra: regular opens of X → Y with the collapse topology.
+    Port of collapse_algebra (src line 805). -/
+noncomputable def CollapseAlgebra (X Y : Type u) : Type u :=
+  @RegularOpens (X → Y) (collapseSpace X Y)
+
+variable {X Y : Type u}
+
+/-- CollapseAlgebra is a NontrivialCompleteBooleanAlgebra when X → Y is nonempty.
+    Port of collapse_algebra_boolean_algebra (src line 809). -/
+noncomputable instance collapseAlgebra_ncba [Nonempty (X → Y)] :
+    NontrivialCompleteBooleanAlgebra (CollapseAlgebra X Y) :=
+  @RegularOpens.instNontrivialCBA (X → Y) (collapseSpace X Y) ‹_›
+
+/-! ## Section collapse_poset_dense (src lines 814-906) -/
+
+section CollapsePosetDense
+
+local instance collapseSpaceInst' : TopologicalSpace (X → Y) := collapseSpace X Y
+
+/-- Inclusion of a collapse poset into the collapse algebra.
+    Port of collapse_poset.inclusion (src line 817). -/
+noncomputable def collapseInclusion (p : CollapsePoset X Y (ℵ₀ + 1)) :
+    CollapseAlgebra X Y :=
+  ⟨CollapsePoset.principalOpen p, principalOpen_isRegular⟩
+
+local notation "ι" => collapseInclusion
+
+lemma collapsePoset_dense_basis :
+    ∀ T ∈ collapseSpaceBasis X Y, ∀ _h_nonempty : T ≠ ∅,
+      ∃ p : CollapsePoset X Y (ℵ₀ + 1), (ι p).val ⊆ T := by
+  intro T H_mem_basis h_ne
+  rcases H_mem_basis with rfl | ⟨p, _, rfl⟩
+  · exact absurd rfl h_ne
+  · exact ⟨p, le_refl _⟩
+
+lemma collapsePoset_dense [Nonempty (X → Y)] {b : CollapseAlgebra X Y}
+    (H : ⊥ < b) : ∃ p : CollapsePoset X Y (ℵ₀ + 1), ι p ≤ b := by
+  have hne : b.val.Nonempty := by
+    rw [Set.nonempty_iff_ne_empty]
+    intro h
+    apply ne_of_gt H
+    apply RegularOpens.ext
+    rw [h, ← RegularOpens.bot_val]; rfl
+  rcases hne with ⟨f, hf⟩
+  have hopen : IsOpen b.val := isOpen_of_isRegularOpen b.property
+  rcases collapseSpaceBasis_spec.exists_subset_of_mem_open hf hopen with ⟨v, hv₁, hv₂, hv₃⟩
+  have hv_ne : v ≠ ∅ := fun h => absurd (h ▸ hv₂) (Set.notMem_empty _)
+  rcases collapsePoset_dense_basis v hv₁ hv_ne with ⟨p, hp⟩
+  exact ⟨p, hp.trans hv₃⟩
+
+/-- Port of compatible_of_inclusion_le_inclusion (src line 845). -/
+lemma compatible_of_inclusion_le [Nonempty (X → Y)]
+    {p q : CollapsePoset X Y (ℵ₀ + 1)} (h : ι p ≤ ι q) : CPFun.compatible p.f q.f := by
+  simp only [collapseInclusion, RegularOpens.le_iff_subset] at h
+  intro x px qx
+  have key : CPFun.trivial_extension p.f (PFun.fn p.f x px) ∈ CollapsePoset.principalOpen q :=
+    h trivialExtension_mem_principalOpen
+  rw [CollapsePoset.mem_principalOpen_iff] at key
+  have hfx := key x (PFun.fn q.f x qx) (CPFun.fn_mem qx)
+  rw [CPFun.trivial_extension_pos px] at hfx
+  -- hfx : PFun.fn p.f x px = PFun.fn q.f x qx
+  -- goal: p.f x = q.f x
+  rw [← CPFun.some_fn px, ← CPFun.some_fn qx]
+  congr 1
+
+lemma principal_open_eq_iInf_of_eq_inter [Nonempty (X → Y)] {I : Type*}
+    {s : I → CollapseAlgebra X Y} {s_infty : CollapseAlgebra X Y}
+    (H_eq_inter : s_infty.val = ⋂ n, (s n).val) : s_infty = ⨅ n, s n := by
+  -- TODO: port from src/collapse.lean:857-865
+  sorry
+
+/-- Principal opens form a dense ω-closed subset of the collapse algebra.
+    Port of principal_opens_dense_omega_closed (src line 867). -/
+lemma principalOpens_denseOmegaClosed [Nonempty (X → Y)] :
+    DenseOmegaClosed (Set.range ι : Set (CollapseAlgebra X Y)) := by
+  refine ⟨⟨?_, ?_⟩, ?_⟩
+  · -- ⊥ ∉ range ι
+    -- TODO: port from src/collapse.lean:871-875
+    sorry
+  · -- Dense: every nonzero element has something in range ι below it
+    intro o ho
+    have h2o : o.val ≠ ∅ := by
+      intro h; apply ne_of_gt ho
+      apply RegularOpens.ext
+      rw [h, ← RegularOpens.bot_val]; rfl
+    have hopen : IsOpen o.val := isOpen_of_isRegularOpen o.property
+    have hone : o.val.Nonempty := Set.nonempty_iff_ne_empty.mpr h2o
+    rcases hone with ⟨f, hf⟩
+    rcases collapseSpaceBasis_spec.exists_subset_of_mem_open hf hopen with ⟨u, hu, h2u, h3u⟩
+    have hu_ne : u ≠ ∅ := fun h => absurd (h ▸ h2u) (Set.notMem_empty _)
+    rcases collapsePoset_dense_basis u hu hu_ne with ⟨p, hp⟩
+    exact ⟨ι p, Set.mem_range_self p, hp.trans h3u⟩
+  · -- OmegaClosed: ω-indexed downward chain
+    intro f hf _ h3f
+    choose g hg using hf
+    -- TODO: port from src/collapse.lean:882-905
+    sorry
+
+end CollapsePosetDense
+
+/-! ## Final: collapse_boolean_algebra (src lines 910-916) -/
+
+/-- Port of has_dense_omega_closed_subset (src line 783). -/
+def HasDenseOmegaClosed (α : Type*) [NontrivialCompleteBooleanAlgebra α] : Prop :=
+  ∃ D : Set α, DenseOmegaClosed D
 
 end Flypitch
