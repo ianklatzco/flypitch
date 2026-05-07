@@ -1302,7 +1302,27 @@ lemma factor_image_is_function {x y f : bSet 𝔹} {Γ} (H_is_function : Γ ≤ 
 -- src/bvm_extras.lean:740
 lemma check_is_total {x y f : PSet.{u}} (H_total : PSet.is_total x y f) {Γ : 𝔹} :
     Γ ≤ is_total (check x) (check y) (check f) := by
-  sorry -- TODO: port from src/bvm_extras.lean:740
+  cases y with | mk yα yA =>
+  cases x with | mk xα xA =>
+  -- After cases: check_cast, check_cast_symm are id (types are definitionally equal)
+  rw [is_total_iff_is_total']
+  apply le_iInf; intro i
+  simp only [check_bval_top, top_imp]
+  -- Goal: Γ ≤ ⨆ j, (check (PSet.mk yα yA)).bval j ⊓
+  --            pair ((check (PSet.mk xα xA)).func i) ((check (PSet.mk yα yA)).func j) ∈ᴮ check f
+  -- .func and .bval are definitional from `check = bSet.mk ...`
+  -- (check (PSet.mk xα xA)).func i = check (xA i) definitionally
+  -- (check (PSet.mk yα yA)).bval j = ⊤ definitionally
+  -- (check (PSet.mk yα yA)).func j = check (yA j) definitionally
+  obtain ⟨w, Hw_mem, Hw_pair⟩ := H_total (xA i) (PSet.func_mem (PSet.mk xα xA) i)
+  obtain ⟨j₀, Hj₀⟩ := Hw_mem
+  apply le_iSup_of_le j₀
+  simp only [check_bval_top, top_inf_eq]
+  -- Goal: Γ ≤ pair (check (xA i)) (check (yA j₀)) ∈ᴮ check f
+  -- pSet_pair (xA i) (yA j₀) ∈ f
+  have Hpair : PSet.pSet_pair (xA i) (yA j₀) ∈ f :=
+    (PSet.pSet_pair_mem_congr_right Hj₀).mp Hw_pair
+  exact subst_congr_mem_left' check_pset_pair (check_mem Hpair)
 
 -- src/bvm_extras.lean:757
 lemma check_is_func {x y f : PSet.{u}} (H_func : PSet.is_func x y f) {Γ : 𝔹} :
@@ -1927,7 +1947,22 @@ lemma AE_of_check_func_check₀ (x y : PSet.{u}) {f : bSet 𝔹} {Γ : 𝔹}
     ∀ (i : x.Type), ∃ (j : y.Type),
       ⊥ < (is_func' (check x) (check y) f) ⊓
           (pair (check (x.Func i)) (check (y.Func j))) ∈ᴮ f := by
-  sorry -- TODO: port from src/bvm_extras.lean:1639
+  cases y with | mk α A =>
+  intro i
+  have H_total := is_total_of_is_func' H
+  have H_ex : Γ ≤ ⨆ w₂, w₂ ∈ᴮ (check (PSet.mk α A) : bSet 𝔹) ⊓
+      pair (check (x.Func i)) w₂ ∈ᴮ f :=
+    le_trans (le_inf (H_total.trans (iInf_le _ (check (x.Func i)))) mem_check_of_mem)
+      bv_imp_elim
+  rw [← @bounded_exists 𝔹 _ (check (PSet.mk α A) : bSet 𝔹)
+      (fun w₂ => pair (check (x.Func i)) w₂ ∈ᴮ f)
+      (h_congr := B_ext_pair_mem_right)] at H_ex
+  simp only [check_bval_top, top_inf_eq] at H_ex
+  -- H_ex : Γ ≤ ⨆ j : α, pair (check (x.Func i)) (check (A j)) ∈ᴮ f
+  have H_combined : ⊥ < ⨆ j : α, is_func' (check x) (check (PSet.mk α A)) f ⊓
+      pair (check (x.Func i)) (check (A j)) ∈ᴮ f :=
+    lt_of_lt_of_le H_nonzero (le_trans (le_inf H H_ex) (le_of_eq inf_iSup_eq'))
+  exact nonzero_wit H_combined
 
 -- src/bvm_extras.lean:1653
 lemma AE_of_check_func_check (x y : PSet.{u}) {f : bSet 𝔹} {Γ : 𝔹}
@@ -1935,7 +1970,28 @@ lemma AE_of_check_func_check (x y : PSet.{u}) {f : bSet 𝔹} {Γ : 𝔹}
     ∀ (i : x.Type), ∃ (j : y.Type) (Γ' : 𝔹) (_H_nonzero' : ⊥ < Γ') (_H_le : Γ' ≤ Γ),
       Γ' ≤ (is_func' (check x) (check y) f) ∧
       Γ' ≤ (pair (check (x.Func i)) (check (y.Func j))) ∈ᴮ f := by
-  sorry -- TODO: port from src/bvm_extras.lean:1653
+  cases y with | mk α A =>
+  intro i
+  have H_total := is_total_of_is_func' H
+  have H_ex : Γ ≤ ⨆ w₂, w₂ ∈ᴮ (check (PSet.mk α A) : bSet 𝔹) ⊓
+      pair (check (x.Func i)) w₂ ∈ᴮ f :=
+    le_trans (le_inf (H_total.trans (iInf_le _ (check (x.Func i)))) mem_check_of_mem)
+      bv_imp_elim
+  rw [← @bounded_exists 𝔹 _ (check (PSet.mk α A) : bSet 𝔹)
+      (fun w₂ => pair (check (x.Func i)) w₂ ∈ᴮ f)
+      (h_congr := B_ext_pair_mem_right)] at H_ex
+  simp only [check_bval_top, top_inf_eq] at H_ex
+  -- H_ex : Γ ≤ ⨆ j : α, pair (check (x.Func i)) (check (A j)) ∈ᴮ f
+  -- Combined: Γ ≤ is_func' ... ⊓ ⨆ j, pair ... ∈ f = ⨆ j, is_func' ... ⊓ pair ... ∈ f
+  have H_supr : Γ ≤ ⨆ j : α,
+      is_func' (check x) (check (PSet.mk α A)) f ⊓ pair (check (x.Func i)) (check (A j)) ∈ᴮ f :=
+    le_trans (le_inf H H_ex) (le_of_eq inf_iSup_eq')
+  obtain ⟨j, Hj⟩ := nonzero_wit' H_nonzero H_supr
+  exact ⟨j,
+    is_func' (check x) (check (PSet.mk α A)) f ⊓ pair (check (x.Func i)) (check (A j)) ∈ᴮ f ⊓ Γ,
+    Hj,
+    inf_le_right,
+    ⟨inf_le_left.trans inf_le_left, inf_le_left.trans inf_le_right⟩⟩
 
 -- src/bvm_extras.lean:1692
 lemma exists_surjection_of_surjects_onto {x y : bSet 𝔹} {Γ : 𝔹}
