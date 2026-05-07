@@ -1967,7 +1967,64 @@ lemma larger_than_of_surjects_onto {x y : bSet 𝔹} {Γ} (H_surj : Γ ≤ surje
 -- src/bvm_extras.lean:1238
 lemma check_not_is_func {x y f : PSet.{u}} (H : ¬ PSet.is_func x y f) :
     ∀ {Γ : 𝔹}, (Γ ≤ is_function (check x) (check y) (check f) → Γ ≤ (⊥ : 𝔹)) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1238
+  rw [PSet.is_func_iff] at H
+  simp only [not_and_or] at H
+  intro Γ H'
+  have H'_func' : Γ ≤ is_func' (check x) (check y) (check f) := H'.trans inf_le_left
+  have H'_sub : Γ ≤ check f ⊆ᴮ prod (check x) (check y) := H'.trans inf_le_right
+  rcases H with H_notsubset | H_notfunc
+  · -- Case 1: ¬ f ⊆ pSet_prod x y
+    have h_notsubset : (Γ : 𝔹) ≤ (check f ⊆ᴮ check (PSet.pSet_prod x y))ᶜ :=
+      check_not_subset H_notsubset
+    have h_subset : Γ ≤ check f ⊆ᴮ check (PSet.pSet_prod x y) :=
+      le_trans (le_inf H'_sub (bv_symm check_pset_prod)) subst_congr_subset_right
+    exact le_trans (le_inf h_subset h_notsubset) (le_of_eq inf_compl_eq_bot)
+  · -- Case 2: ¬ ∀ z ∈ x, ∃ w, pSet_pair z w ∈ f ∧ ∀ v, pSet_pair z v ∈ f → Equiv v w
+    push_neg at H_notfunc
+    obtain ⟨z, Hz_mem, Hz⟩ := H_notfunc
+    -- Hz : ∀ w, pSet_pair z w ∈ f → ∃ v, pSet_pair z v ∈ f ∧ ¬ Equiv v w
+    -- From totality, get w with pair (check z) w ∈ check f and w ∈ check y
+    have h_z_mem : (Γ : 𝔹) ≤ check z ∈ᴮ check x := check_mem Hz_mem
+    have H_total := is_total_of_is_func' H'_func'
+    have h_ex : Γ ≤ ⨆ w, w ∈ᴮ check y ⊓ pair (check z) w ∈ᴮ check f :=
+      le_trans (le_inf (le_trans H_total (iInf_le _ (check z))) h_z_mem) bv_imp_elim
+    -- Use instantiate_existential_over_check to extract a classical index into y
+    -- First need ⊥ < Γ by contradiction
+    suffices h : Γ ≤ ⊥ from h
+    by_contra H_nonzero
+    have H_nonzero' : ⊥ < Γ := bot_lt_iff_ne_bot.mpr
+      (fun heq => H_nonzero (heq.symm ▸ le_refl ⊥))
+    -- Extract classical index i_y : y.Type such that pair (check z) (check (y.Func i_y)) ∈ check f
+    -- at context Γ' ⊆ Γ with Γ' > ⊥
+    let i_y := @instantiate_existential_over_check 𝔹 _ (fun w => pair (check z) w ∈ᴮ check f)
+        B_ext_pair_mem_right y Γ H_nonzero' h_ex
+    -- HΓ' : ⊥ < pair (check z) (check (y.Func i_y)) ∈ᴮ check f ⊓ Γ
+    have HΓ'_pos := @instantiate_existential_over_check_spec 𝔹 _
+        (fun w => pair (check z) w ∈ᴮ check f) B_ext_pair_mem_right y Γ H_nonzero' h_ex
+    -- Γ' = pair (check z) (check (y.Func i_y)) ∈ᴮ check f ⊓ Γ
+    let Γ' := pair (check z) (check (y.Func i_y)) ∈ᴮ check f ⊓ Γ
+    have HΓ'_le_Γ : Γ' ≤ Γ := inf_le_right
+    have HΓ'_le_pair : Γ' ≤ pair (check z) (check (y.Func i_y)) ∈ᴮ check f := inf_le_left
+    have HΓ'_func' : Γ' ≤ is_func' (check x) (check y) (check f) := HΓ'_le_Γ.trans H'_func'
+    -- Apply Hz: pSet_pair z (y.Func i_y) is in f → ∃ v, pSet_pair z v ∈ f ∧ ¬ Equiv v (y.Func i_y)
+    -- First: pSet_pair z (y.Func i_y) ∈ f?
+    -- We have Γ' ≤ pair (check z) (check (y.Func i_y)) ∈ check f
+    -- This doesn't directly give pSet_pair z (y.Func i_y) ∈ f classically.
+    -- Instead, use classical case analysis:
+    rcases Classical.em (PSet.pSet_pair z (y.Func i_y) ∈ f) with H_mem_pset | H_notmem_pset
+    · -- pSet_pair z (y.Func i_y) ∈ f: use Hz to get witness b
+      obtain ⟨b, Hb_mem, Hb_neq⟩ := Hz _ H_mem_pset
+      have H_neq : Γ' ≤ (check b =ᴮ check (y.Func i_y))ᶜ :=
+        le_trans le_top (check_not_eq Hb_neq)
+      have H_b_pair_mem : Γ' ≤ pair (check z) (check b) ∈ᴮ check f := by
+        exact le_trans le_top (by rw [← check_pset_pair_eq]; exact check_mem Hb_mem)
+      have H_eq : Γ' ≤ check b =ᴮ check (y.Func i_y) :=
+        eq_of_is_func_of_eq (is_func_of_is_func' HΓ'_func') bv_refl H_b_pair_mem HΓ'_le_pair
+      exact false_of_bot_lt_and_le_bot HΓ'_pos
+        (le_trans (le_inf H_eq H_neq) (le_of_eq inf_compl_eq_bot))
+    · -- pSet_pair z (y.Func i_y) ∉ f: contradiction with HΓ'_le_pair
+      rw [← check_pset_pair_eq] at HΓ'_le_pair
+      exact false_of_bot_lt_and_le_bot HΓ'_pos (check_not_mem H_notmem_pset HΓ'_le_pair)
 
 -- src/bvm_extras.lean:1273
 lemma check_not_is_surj {x y f : PSet.{u}} (H : ¬ PSet.is_surj x y f) :
