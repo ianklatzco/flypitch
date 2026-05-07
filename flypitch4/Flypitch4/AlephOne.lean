@@ -550,18 +550,7 @@ lemma induced_rel_empty_of_eq_zero {η f : bSet 𝔹} {Γ : 𝔹}
   have H_ex : Γ ⊓ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ ≤
       ⨆ pr, pr ∈ᴮ induced_epsilon_rel η omega f :=
     nonempty_iff_exists_mem.mp inf_le_right
-  apply le_trans H_ex; apply iSup_le; intro pr
-  have H_func_top : pr ∈ᴮ induced_epsilon_rel η omega f ≤ is_function η omega f :=
-    le_trans le_top (le_top.trans H_func)
-  obtain ⟨a, b, _, _, _, Hab⟩ := eq_pair_of_mem_induced_epsilon_rel (Γ := _) le_rfl
-  have Ha_img := induced_epsilon_rel_sub_image_left H_func_top Hab
-  rw [mem_image_iff] at Ha_img
-  apply le_trans Ha_img.2; apply iSup_le; intro z
-  exact le_trans inf_le_left (le_trans le_top (le_top.trans
-    (bot_of_mem_empty (Γ := z ∈ᴮ η)
-      (le_trans (le_inf (le_trans le_top (le_top.trans H_eq_zero)) le_rfl)
-        (le_trans (inf_comm ▸ le_inf inf_le_left inf_le_right) (le_trans subst_congr_mem_right
-          (le_trans (le_inf zero_eq_empty le_rfl) subst_congr_mem_right))))))).le)
+  sorry -- TODO: port from src/aleph_one.lean:662
 
 -- src/aleph_one.lean:679
 lemma nonempty_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
