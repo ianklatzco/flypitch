@@ -1860,7 +1860,39 @@ lemma ex_witness_of_mem_extend_surj_inj {x y z f g : bSet 𝔹} {Γ : 𝔹}
     (H_is_func'_f : Γ ≤ is_func' x z f)
     (H : Γ ≤ pair w₁ w₂ ∈ᴮ extend_surj_inj y H_surj H_inj) :
     Γ ≤ ⨆ w, (w ∈ᴮ x ⊓ (pair w w₁ ∈ᴮ g) ⊓ (pair w w₂ ∈ᴮ f)) := by
-  sorry -- TODO: port from src/bvm_extras.lean:1410
+  unfold extend_surj_inj at H
+  rw [mem_subset.mk_iff] at H
+  apply H.trans
+  apply iSup_le; intro pr; obtain ⟨i, j⟩ := pr
+  simp only [prod_func, prod_bval]
+  -- Goal: A ⊓ (B ⊓ C) ≤ ⨆ w, w ∈ x ⊓ pair w w₁ ∈ g ⊓ pair w w₂ ∈ f
+  -- A = pair w₁ w₂ =ᴮ pair (y.func i) (z.func j), B = inner iSup, C = bvals
+  -- w₁ =ᴮ y.func i, w₂ =ᴮ z.func j
+  have hw1 : pair w₁ w₂ =ᴮ pair (y.func i) (z.func j) ⊓
+      ((⨆ w, w ∈ᴮ x ⊓ pair w (z.func j) ∈ᴮ f ⊓ pair w (y.func i) ∈ᴮ g) ⊓ (y.bval i ⊓ z.bval j))
+      ≤ w₁ =ᴮ y.func i := inf_le_left.trans eq_of_eq_pair_left
+  have hw2 : pair w₁ w₂ =ᴮ pair (y.func i) (z.func j) ⊓
+      ((⨆ w, w ∈ᴮ x ⊓ pair w (z.func j) ∈ᴮ f ⊓ pair w (y.func i) ∈ᴮ g) ⊓ (y.bval i ⊓ z.bval j))
+      ≤ w₂ =ᴮ z.func j := inf_le_left.trans eq_of_eq_pair_right
+  have hsupr : pair w₁ w₂ =ᴮ pair (y.func i) (z.func j) ⊓
+      ((⨆ w, w ∈ᴮ x ⊓ pair w (z.func j) ∈ᴮ f ⊓ pair w (y.func i) ∈ᴮ g) ⊓ (y.bval i ⊓ z.bval j))
+      ≤ ⨆ w, w ∈ᴮ x ⊓ pair w (z.func j) ∈ᴮ f ⊓ pair w (y.func i) ∈ᴮ g :=
+    inf_le_right.trans inf_le_left
+  apply (le_inf hsupr le_rfl).trans
+  apply (iSup_inf_eq _ _).le.trans
+  apply iSup_le; intro w
+  apply le_iSup_of_le w
+  -- D = ((w ∈ x) ⊓ pair w (z.func j) ∈ f) ⊓ pair w (y.func i) ∈ g
+  -- Need: D ⊓ ctx ≤ w ∈ x ⊓ pair w w₁ ∈ g ⊓ pair w w₂ ∈ f
+  refine le_inf (le_inf ?_ ?_) ?_
+  · -- w ∈ x
+    exact inf_le_left.trans (inf_le_left.trans inf_le_left)
+  · -- pair w w₁ ∈ g: w₁ =ᴮ y.func i, pair w (y.func i) ∈ g = inf_le_right on D
+    exact bv_rw' (H := inf_le_right.trans hw1) (h_congr := B_ext_pair_mem_right)
+      (H_new := inf_le_left.trans inf_le_right)
+  · -- pair w w₂ ∈ f: w₂ =ᴮ z.func j, pair w (z.func j) ∈ f = inf_le_left.trans inf_le_right on D
+    exact bv_rw' (H := inf_le_right.trans hw2) (h_congr := B_ext_pair_mem_right)
+      (H_new := inf_le_left.trans (inf_le_left.trans inf_le_right))
 
 -- src/bvm_extras.lean:1422
 lemma mem_extend_surj_inj_iff {x y z f g : bSet 𝔹} {Γ : 𝔹}
