@@ -60,7 +60,16 @@ lemma eq_mem_singleton {x y : bSet 𝔹} {Γ : 𝔹} (h : Γ ≤ y ∈ᴮ ({x} :
 
 -- src/bvm_extras.lean:48
 lemma eq_zero_of_mem_one {x : bSet 𝔹} {Γ : 𝔹} (H_mem : Γ ≤ x ∈ᴮ (1 : bSet 𝔹)) : Γ ≤ x =ᴮ 0 := by
-  sorry -- TODO: one_eq_singleton_zero pending in Bvm.lean (src/bvm_extras.lean:48)
+  -- 1 = of_nat 1 = check (PSet.ofNat 1) = check (insert ∅ ∅) = insert1 ∅ ∅ = {0}
+  -- (PSet.ofNat 1 = insert (PSet.ofNat 0) (PSet.ofNat 0) = insert ∅ ∅ since ofNat 0 = ∅)
+  have h_one_eq : (1 : bSet 𝔹) = ({(0 : bSet 𝔹)} : bSet 𝔹) := by
+    show of_nat 1 = bSet.insert1 (of_nat 0) ∅
+    show check (PSet.ofNat 1) = bSet.insert1 (check (PSet.ofNat 0)) ∅
+    simp only [show PSet.ofNat 1 = PSet.insert (PSet.ofNat 0) (PSet.ofNat 0) from rfl]
+    rw [check_insert]
+    simp only [show PSet.ofNat 0 = (∅ : PSet) from rfl, check_empty_eq_empty]
+  rw [h_one_eq] at H_mem
+  exact eq_mem_singleton H_mem
 
 -- src/bvm_extras.lean:56
 lemma mem_singleton_of_eq {x y : bSet 𝔹} {c : 𝔹} (h : c ≤ x =ᴮ y) : c ≤ y ∈ᴮ ({x} : bSet 𝔹) := by
@@ -874,11 +883,33 @@ lemma check_pset_pair {x y : PSet.{u}} {Γ} :
     simp [check_empty_eq_empty]
   rw [h]; exact bv_refl
 
+-- Auxiliary: propositional equality check (pSet_pair a b) = pair (check a) (check b)
+private lemma check_pset_pair_eq {x y : PSet.{u}} :
+    (check (PSet.pSet_pair x y) : bSet 𝔹) = pair (check x) (check y) := by
+  show check (PSet.insert (PSet.insert x ∅) (PSet.insert (PSet.insert x (PSet.insert y ∅)) ∅)) =
+    bSet.insert1 (bSet.insert1 (check x) ∅)
+      (bSet.insert1 (bSet.insert1 (check x) (bSet.insert1 (check y) ∅)) ∅)
+  rw [check_insert, check_insert, check_insert, check_insert]
+  simp [check_empty_eq_empty]
+
 -- src/bvm_extras.lean:514
 -- (In Lean 4 port, PSet.prod is PSet.pSet_prod from PSetOrdinal.lean)
 lemma check_pset_prod {x y : PSet.{u}} {Γ : 𝔹} :
     Γ ≤ check (PSet.pSet_prod x y) =ᴮ prod (check x) (check y) := by
-  sorry -- TODO: port from src/bvm_extras.lean:514 (typeclass elaboration issue)
+  cases x with | mk xα xA =>
+  cases y with | mk yα yA =>
+  -- After cases: check (pSet_prod ...) = bSet.mk (xα × yα) (fun ij => check (pSet_pair (xA ij.1) (yA ij.2))) (fun _ => ⊤)
+  -- prod (check ...) (check ...) = bSet.mk (xα × yα) (fun ij => pair (check (xA ij.1)) (check (yA ij.2))) (fun ij => ⊤ ⊓ ⊤)
+  -- They are equal since check (pSet_pair a b) = pair (check a) (check b) and ⊤ ⊓ ⊤ = ⊤
+  have h : (check (PSet.pSet_prod (PSet.mk xα xA) (PSet.mk yα yA)) : bSet 𝔹) =
+      prod (check (PSet.mk xα xA)) (check (PSet.mk yα yA)) := by
+    simp only [PSet.pSet_prod, check, prod]
+    congr 1
+    · funext ij
+      exact check_pset_pair_eq
+    · funext ij
+      simp [top_inf_eq]
+  rw [h]; exact bv_refl
 
 -- src/bvm_extras.lean:535
 /-- f is =ᴮ-extensional if for every w₁ w₂ v₁ v₂, if pair (w₁ v₁) and pair (w₂ v₂) ∈ f and
