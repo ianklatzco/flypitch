@@ -850,6 +850,11 @@ class NontrivialCompleteBooleanAlgebra (α : Type*) extends CompleteBooleanAlgeb
     [H : NontrivialCompleteBooleanAlgebra α] : ¬(⊤ = (⊥ : α)) :=
   fun h => nontrivial_bot_neq_top h.symm
 
+/-- Every NontrivialCompleteBooleanAlgebra is Nontrivial (witnesses: ⊥ ≠ ⊤). -/
+instance (priority := 100) NontrivialCompleteBooleanAlgebra.toNontrivial {α : Type*}
+    [H : NontrivialCompleteBooleanAlgebra α] : Nontrivial α :=
+  ⟨⊥, ⊤, ne_of_lt H.bot_lt_top⟩
+
 def antichain {β : Type*} [Lattice β] [OrderBot β] (s : Set β) :=
   ∀ x ∈ s, ∀ y ∈ s, x ≠ y → x ⊓ y = (⊥ : β)
 
