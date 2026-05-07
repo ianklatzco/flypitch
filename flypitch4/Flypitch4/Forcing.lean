@@ -507,7 +507,37 @@ lemma cardinal_inequality_of_regular (κ₁ κ₂ : Cardinal)
 -- src/forcing.lean:489-504
 lemma aleph0_lt_aleph1_bSet : (⊤ : 𝔹) ≤
     (larger_than omega (check (PSet.card_ex (Cardinal.aleph 1))))ᶜ := by
-  sorry -- TODO: port from src/forcing.lean:489
+  -- omega = check PSet.omega, so we use the same pattern as cardinal_inequality_of_regular
+  -- but with η₁ = PSet.omega
+  apply le_neg_of_inf_eq_bot
+  rw [inf_comm, eq_bot_iff]
+  by_contra H_nonzero
+  rw [← bot_lt_iff_not_le_bot] at H_nonzero
+  rcases AE_of_check_larger_than_check H_nonzero (le_trans inf_le_right (le_refl _))
+    (PSet.exists_mem_of_regular PSet.is_regular_aleph_one) with ⟨f, Hf⟩
+  obtain ⟨g, g_spec⟩ := Classical.axiomOfChoice Hf
+  suffices h : ¬ CCC 𝔹 from absurd 𝔹_CCC h
+  -- η₁ = PSet.omega (type = ULift ℕ, #type = aleph0)
+  -- η₂ = PSet.card_ex (aleph 1) (type = (card_ex aleph1).Type, #type = aleph1)
+  have H_omega_card : #(PSet.omega.Type) = Cardinal.aleph0 := PSet.mk_omega_eq_mk_omega
+  have H_aleph1_card : #((PSet.card_ex (Cardinal.aleph 1)).Type) = Cardinal.aleph 1 :=
+    @PSet.mk_type_mk_eq'' (Cardinal.aleph 1) (Cardinal.aleph0_le_aleph 1)
+  have H_inf₁ : Cardinal.aleph0 ≤ #(PSet.omega.Type) := H_omega_card.symm ▸ le_refl _
+  have H_lt₁ : #(PSet.omega.Type) < #((PSet.card_ex (Cardinal.aleph 1)).Type) := by
+    rw [H_omega_card, H_aleph1_card]; exact Cardinal.aleph0_lt_aleph_one
+  have H_inj₂₁ : ∀ i j, i ≠ j →
+      ¬ PSet.Equiv ((PSet.card_ex (Cardinal.aleph 1)).Func i)
+                   ((PSet.card_ex (Cardinal.aleph 1)).Func j) :=
+    fun i j h => PSet.ordinalMk_inj _ _ _ h
+  have H_ex : ∃ ξ : PSet.omega.Type, Cardinal.aleph0 < #↥(g⁻¹' {ξ}) :=
+    uncountable_fiber_of_regular' (Cardinal.aleph 0) (Cardinal.aleph 1)
+      (Cardinal.aleph0_le_aleph 0)
+      (by rw [Cardinal.aleph_lt_aleph]; exact zero_lt_one)
+      PSet.is_regular_aleph_one.cof_ord
+      PSet.omega.Type (H_omega_card.trans Cardinal.aleph_zero.symm)
+      (PSet.card_ex (Cardinal.aleph 1)).Type H_aleph1_card g
+  exact not_CCC_of_uncountable_fiber PSet.omega (PSet.card_ex (Cardinal.aleph 1))
+    H_inf₁ H_lt₁ H_inj₂₁ f g g_spec H_ex
 
 -- src/forcing.lean:507-509
 lemma aleph1_lt_aleph2_bSet : (⊤ : 𝔹) ≤
