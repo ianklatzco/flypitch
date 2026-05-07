@@ -85,16 +85,41 @@ lemma check_forall (x : PSet.{u}) (ϕ : bSet 𝔹 → 𝔹) {b : 𝔹} :
 lemma aleph_one_check_is_aleph_one_of_omega_lt {Γ : 𝔹}
     (H : Γ ≤ (larger_than bSet.omega (check pSet_aleph1) : 𝔹)ᶜ) :
     Γ ≤ (check pSet_aleph1 : bSet 𝔹) =ᴮ (aleph_one (𝔹 := 𝔹)) := by
-  -- TODO: port from src/forcing_CH.lean:55
-  sorry
+  -- Port from src/forcing_CH.lean:55-62
+  refine subset_ext aleph_one_check_sub_aleph_one ?_
+  have hspec := @aleph_one_satisfies_spec 𝔹 _ Γ
+  unfold aleph_one_Ord_spec at hspec
+  have hspec_rr : Γ ≤ ⨅ y, Ord y ⟹ ((injects_into y bSet.omega)ᶜ ⟹ a1 ⊆ᴮ y) :=
+    le_trans hspec (le_trans inf_le_right inf_le_right)
+  have happ : Γ ≤ Ord (check pSet_aleph1) ⟹ ((injects_into (check pSet_aleph1) bSet.omega)ᶜ ⟹
+      a1 ⊆ᴮ check pSet_aleph1) :=
+    le_trans hspec_rr (iInf_le _ _)
+  have hOrd : Γ ≤ Ord (check pSet_aleph1) := Ord_card_ex (Cardinal.aleph 1)
+  have hnotinj : Γ ≤ (injects_into (check pSet_aleph1) bSet.omega)ᶜ := by
+    rw [← imp_bot, ← deduction]
+    apply bv_absurd (larger_than bSet.omega (check pSet_aleph1))
+    · apply larger_than_of_surjects_onto
+      exact surjects_onto_of_injects_into' inf_le_right aleph_one_check_exists_mem
+    · exact le_trans inf_le_left H
+  have step1 : Γ ≤ (injects_into (check pSet_aleph1) bSet.omega)ᶜ ⟹ a1 ⊆ᴮ check pSet_aleph1 :=
+    le_trans (le_inf happ hOrd) bv_imp_elim
+  exact le_trans (le_inf step1 hnotinj) bv_imp_elim
 
 -- src/forcing_CH.lean:64-77
 theorem CH_true_aux
     (H_aleph_one : ∀ {Γ : 𝔹}, Γ ≤ le_of_omega_lt (check pSet_aleph1 : bSet 𝔹))
     (H_not_lt    : ∀ {Γ : 𝔹}, Γ ≤ ((check pSet_aleph1 : bSet 𝔹) ≺ 𝒫 bSet.omega)ᶜ)
     : ∀ {Γ : 𝔹}, Γ ≤ CH := by
+  -- Port from src/forcing_CH.lean:64-77
   intro Γ
-  -- TODO: port from src/forcing_CH.lean:64
+  unfold CH
+  rw [← imp_bot, ← deduction]
+  apply le_trans (le_inf inf_le_right le_rfl)
+  rw [iSup_inf_eq']
+  apply iSup_le; intro x
+  simp only [inf_iSup_eq']
+  apply iSup_le; intro y
+  -- Context = (((A⊓B)⊓C)⊓D)⊓E where A=(ω≺x)ᶜ, B=(x≺y)ᶜ, C=y≼𝒫ω, D=Ord x, E=Γ
   sorry
 
 -- src/forcing_CH.lean:79-81
@@ -171,7 +196,7 @@ lemma function_reflect_of_omega_closed
                     Γ'' ∈ D)
     : ∃ (f : PSet.{u}) (Γ' : 𝔹), ⊥ < Γ' ∧ Γ' ≤ Γ ∧
       (Γ' ≤ check f =ᴮ g) ∧ PSet.is_func PSet.omega y f := by
-  -- TODO: port from src/forcing_CH.lean:334
+  -- TODO: port from src/forcing_CH.lean:334 (complex recursive construction)
   sorry
 
 end function_reflect
@@ -267,7 +292,7 @@ noncomputable def π_af :
 -- src/forcing_CH.lean:458-460
 lemma aleph_one_type_uncountable :
     Cardinal.aleph 0 < # (pSet_aleph1 : PSet.{u}).Type := by
-  simp [PSet.mk_type_mk_eq''', PSet.omega_lt_aleph_one]
+  simp [PSet.mk_type_mk_eq''']
 
 -- src/forcing_CH.lean:464-485
 lemma π_af_wide :
@@ -289,16 +314,40 @@ lemma π_af_anti :
     ∀ (i : (check pSet_aleph1 : bSet 𝔹_collapse).type)
       (j₁ j₂ : (check (PSet.powerset PSet.omega) : bSet 𝔹_collapse).type),
     j₁ ≠ j₂ → π_af i j₁ ⊓ π_af i j₂ ≤ ⊥ := by
-  -- TODO: port from src/forcing_CH.lean:503
-  sorry
+  -- Port of src/forcing_CH.lean:503: {g | g η = S₁} ∩ {g | g η = S₂} = ∅ when S₁ ≠ S₂
+  intro i j₁ j₂ hne
+  -- π_af i j₁ ⊓ π_af i j₂ ≤ ⊥ in 𝔹_collapse = CollapseAlgebra X Y = RegularOpens (X → Y)
+  -- It suffices to show the underlying sets are disjoint
+  -- (π_af i j₁).val ∩ (π_af i j₂).val = ∅
+  rw [le_bot_iff]
+  -- Goal: π_af i j₁ ⊓ π_af i j₂ = ⊥
+  apply Subtype.ext
+  -- Goal: (π_af i j₁ ⊓ π_af i j₂).val = (⊥ : 𝔹_collapse).val
+  -- (π_af i j₁ ⊓ π_af i j₂).val = π_af i j₁ ∩ π_af i j₂ = {g | g η = S₁} ∩ {g | g η = S₂} = ∅
+  simp only [RegularOpens.inf_val, RegularOpens.bot_val, π_af]
+  apply Set.eq_empty_of_subset_empty
+  intro g ⟨h₁, h₂⟩
+  simp only [Set.mem_setOf_eq] at h₁ h₂
+  have heq : check_cast j₁ = check_cast j₂ := h₁.symm.trans h₂
+  apply hne
+  simp only [check_cast, cast_inj] at heq
+  exact heq
 
 -- src/forcing_CH.lean:507-523
 lemma check_index_inj_of_pSet_index_inj {x : PSet.{u}}
     (H_inj : ∀ i₁ i₂ : x.Type, PSet.Equiv (x.Func i₁) (x.Func i₂) → i₁ = i₂) :
     ∀ i₁ i₂ : (check x : bSet 𝔹_collapse).type,
     ⊥ < (check x : bSet 𝔹_collapse).func i₁ =ᴮ (check x : bSet 𝔹_collapse).func i₂ → i₁ = i₂ := by
-  -- TODO: port from src/forcing_CH.lean:507
-  sorry
+  -- Port of src/forcing_CH.lean:507-523
+  intro i₁ i₂ H
+  by_contra hne
+  have hne' : check_cast i₁ ≠ check_cast i₂ := by
+    intro h; apply hne; simp only [check_cast, cast_inj] at h; exact h
+  have hnotequiv : ¬ PSet.Equiv (x.Func (check_cast i₁)) (x.Func (check_cast i₂)) :=
+    fun h => hne' (H_inj (check_cast i₁) (check_cast i₂) h)
+  have heq_bot : (check x : bSet 𝔹_collapse).func i₁ =ᴮ (check x : bSet 𝔹_collapse).func i₂ = ⊥ := by
+    simp only [check_func]; exact check_bv_eq_bot_of_not_equiv hnotequiv
+  rw [heq_bot] at H; exact absurd H (lt_irrefl ⊥)
 
 -- src/forcing_CH.lean:525-527
 lemma aleph_one_inj :
@@ -391,40 +440,20 @@ lemma continuum_le_continuum_check {Γ : 𝔹_collapse} :
 
 -- src/forcing_CH.lean:632-637
 -- ≺ = (larger_than _ _)ᶜ
--- The statement: Γ ≤ -(ℵ₁̌ ≺ 𝒫(ω)) means Γ ≤ ((larger_than ℵ₁ (𝒫ω))ᶜ)ᶜ = Γ ≤ larger_than ℵ₁ (𝒫ω)
--- Wait - ≺ = (larger_than x y)ᶜ, so -(ℵ₁ ≺ 𝒫ω) = -((larger_than ℵ₁ 𝒫ω)ᶜ) = (larger_than ℵ₁ 𝒫ω)ᶜᶜ
--- In boolean algebra, aᶜᶜ = a, so -(ℵ₁ ≺ 𝒫ω) = larger_than ℵ₁ 𝒫ω
--- But the goal is Γ ≤ (ℵ₁ ≺ 𝒫ω)ᶜ = (larger_than ℵ₁ 𝒫ω)ᶜᶜ = larger_than ℵ₁ 𝒫ω? No.
--- Let me re-read: H_not_lt says Γ ≤ ((check ℵ₁ : bSet 𝔹) ≺ 𝒫 bSet.omega)ᶜ
--- ≺ = λ x y, (larger_than x y)ᶜ
--- So (check ℵ₁ ≺ 𝒫ω)ᶜ = ((larger_than ℵ₁ 𝒫ω)ᶜ)ᶜ = larger_than ℵ₁ 𝒫ω (since aᶜᶜ = a)
--- So H_not_lt is: Γ ≤ larger_than (check ℵ₁) 𝒫ω
--- That seems backwards from what we want (¬ ℵ₁ < 𝒫ω means ℵ₁ ≥ 𝒫ω)
-
--- In the original Lean 3 code: H_not_lt says Γ ≤ - ((ℵ₁)̌ ≺ 𝒫(ω))
--- where ≺ is λ x y, -(larger_than x y)
--- so (ℵ₁ ≺ 𝒫ω) = -(larger_than ℵ₁ 𝒫ω)
--- -(ℵ₁ ≺ 𝒫ω) = --(larger_than ℵ₁ 𝒫ω) = larger_than ℵ₁ 𝒫ω (in a boolean algebra)
-
--- So the Lean 3 H_not_lt says: Γ ≤ larger_than (ℵ₁) (𝒫ω)
--- But wait, that means ℵ₁ surjects onto 𝒫ω, which is what we have from aleph1_larger_than_continuum!
--- But the lemma name suggests this is "ℵ₁ does NOT strictly precede 𝒫ω"
--- This makes sense: ℵ₁ ≥ 𝒫ω (or more precisely, ℵ₁ surjects onto 𝒫ω) means ¬(ℵ₁ < 𝒫ω)
-
--- In Lean 4 with our ≺ = (larger_than _ _)ᶜ:
--- (check ℵ₁ ≺ 𝒫ω) = (larger_than check_ℵ₁ (𝒫ω))ᶜ
--- (check ℵ₁ ≺ 𝒫ω)ᶜ = (larger_than check_ℵ₁ (𝒫ω))ᶜᶜ = larger_than check_ℵ₁ (𝒫ω)
--- So the lemma says: Γ ≤ larger_than (check ℵ₁) (𝒫ω)
--- which is exactly aleph1_larger_than_continuum!
-
+-- The statement: (check ℵ₁ ≺ 𝒫ω)ᶜ = larger_than (check ℵ₁) (𝒫ω)
+-- Proof: by contradiction from aleph1_larger_than_continuum and continuum_le_continuum_check
 lemma aleph_one_not_lt_powerset_omega :
     ∀ {Γ : 𝔹_collapse},
     Γ ≤ ((check pSet_aleph1 : bSet 𝔹_collapse) ≺ 𝒫 bSet.omega)ᶜ := by
-  -- ≺ = (larger_than _ _)ᶜ, so (x ≺ y)ᶜ = (larger_than x y)ᶜᶜ = larger_than x y
-  -- i.e., ℵ₁ surjects onto 𝒫ω, which is aleph1_larger_than_continuum
   intro Γ
-  -- TODO: port from src/forcing_CH.lean:632 (unfold ≺ and use aleph1_larger_than_continuum)
-  sorry
+  simp only [compl_compl]
+  -- Goal: Γ ≤ larger_than (check ℵ₁) (bv_powerset ω)
+  rw [← compl_compl (larger_than (check pSet_aleph1) (bv_powerset bSet.omega)),
+      ← imp_bot, ← deduction]
+  -- Goal: Γ ⊓ (larger_than (check ℵ₁) (bv_powerset ω))ᶜ ≤ ⊥
+  apply bv_absurd (larger_than (check pSet_aleph1) (check (PSet.powerset PSet.omega)))
+  · exact le_trans inf_le_left aleph1_larger_than_continuum
+  · exact le_trans inf_le_right (bSet_lt_of_lt_of_le le_rfl continuum_le_continuum_check)
 
 -- ============================================================
 -- The main theorems: CH_true and CH₂_true (src lines 639-644)
