@@ -4101,10 +4101,10 @@ lemma mem_powerset_injects_F_iff {Γ : 𝔹} {χ : x.type → 𝔹} {z : bSet �
       exact pair_congr inf_le_right (bv_symm zero_eq_some_none')
 
 -- src/bvm_extras.lean:2249
-lemma powerset_injects_F_ext : ∀ (i j : (bv_powerset x).type) {Γ : 𝔹},
-    Γ ≤ (bv_powerset x).func i =ᴮ (bv_powerset x).func j →
-    Γ ≤ (functions x 𝟚).func (powerset_injects_F x i) =ᴮ
-        (functions x 𝟚).func (powerset_injects_F x j) := by
+lemma powerset_injects_F_ext : ∀ (χ₁ χ₂ : (bv_powerset x).type) {Γ : 𝔹},
+    Γ ≤ (bv_powerset x).func χ₁ =ᴮ (bv_powerset x).func χ₂ →
+    Γ ≤ (functions x 𝟚).func (powerset_injects_F x χ₁) =ᴮ
+        (functions x 𝟚).func (powerset_injects_F x χ₂) := by
   sorry -- TODO: port from src/bvm_extras.lean:2249
 
 -- src/bvm_extras.lean:2301
