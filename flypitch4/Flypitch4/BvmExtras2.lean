@@ -267,8 +267,51 @@ lemma compl_empty_of_subset {x y : bSet 𝔹} {Γ : 𝔹} (H_sub : Γ ≤ x ⊆�
 -- src/bvm_extras2.lean:149
 lemma nonempty_compl_of_ne {x y : bSet 𝔹} {Γ : 𝔹} (H_ne : Γ ≤ (x =ᴮ y)ᶜ) :
     Γ ≤ ((compl x y =ᴮ ∅)ᶜ) ⊔ ((compl y x =ᴮ ∅)ᶜ) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:149
-
+  -- x ≠ y means (x ⊆ y ⊓ y ⊆ x)ᶜ = (x ⊆ y)ᶜ ⊔ (y ⊆ x)ᶜ
+  rw [eq_iff_subset_subset, compl_inf] at H_ne
+  -- Helper: compl a b = ∅ and z ∈ a and z ∉ b → ⊥ (contradiction)
+  -- Actually: show each disjunct using bv_or_elim_left
+  -- For (x ⊆ y)ᶜ case: derive (compl x y = ∅)ᶜ
+  -- For (y ⊆ x)ᶜ case: derive (compl y x = ∅)ᶜ
+  -- Use: if (compl x y = ∅) then x ⊆ y [the contrapositive of compl_empty_of_subset]
+  -- Prove: compl_full_empty : Γ ≤ compl x y =ᴮ ∅ → Γ ≤ x ⊆ y
+  -- Proof: for z ∈ x, if z ∉ y then z ∈ compl x y = ∅, contradiction
+  -- So the two branches are:
+  -- Branch 1: (x ⊆ y)ᶜ ⊓ Γ: if compl x y = ∅ → x ⊆ y, but (x ⊆ y)ᶜ = contradiction
+  -- Branch 2: symmetric
+  have compl_empty_imp_sub : ∀ (a b : bSet 𝔹) (Γ' : 𝔹),
+      Γ' ≤ compl a b =ᴮ ∅ → Γ' ≤ a ⊆ᴮ b := by
+    intro a b Γ' H
+    rw [subset_unfold']
+    apply le_iInf; intro z; rw [← deduction]
+    -- z ∈ a → z ∈ b; prove: ctx' ⊓ (z ∈ b)ᶜ = ⊥
+    set ctx' := Γ' ⊓ z ∈ᴮ a
+    rw [← disjoint_compl_right_iff, disjoint_iff]
+    apply le_antisymm _ bot_le
+    have h1 : ctx' ⊓ (z ∈ᴮ b)ᶜ ≤ z ∈ᴮ compl a b :=
+      mem_compl_iff.mpr ⟨inf_le_left.trans inf_le_right, inf_le_right⟩
+    have h2 : ctx' ⊓ (z ∈ᴮ b)ᶜ ≤ compl a b =ᴮ ∅ := inf_le_left.trans (inf_le_left.trans H)
+    exact bv_exfalso (bot_of_mem_empty (bv_rw'' h2 h1 B_ext_mem_right))
+  -- Now case split on H_ne : (x ⊆ y)ᶜ ⊔ (y ⊆ x)ᶜ
+  have h_left : (x ⊆ᴮ y)ᶜ ⊓ Γ ≤ (compl x y =ᴮ ∅)ᶜ ⊔ (compl y x =ᴮ ∅)ᶜ := by
+    apply bv_or_left
+    -- need: (x ⊆ y)ᶜ ⊓ Γ ≤ (compl x y = ∅)ᶜ
+    conv_rhs => rw [← imp_bot]
+    rw [← deduction]
+    -- goal: (x ⊆ y)ᶜ ⊓ Γ ⊓ compl x y =ᴮ ∅ ≤ ⊥
+    have hce : (x ⊆ᴮ y)ᶜ ⊓ Γ ⊓ compl x y =ᴮ ∅ ≤ compl x y =ᴮ ∅ := inf_le_right
+    have hsub := compl_empty_imp_sub x y _ hce
+    have hn : (x ⊆ᴮ y)ᶜ ⊓ Γ ⊓ compl x y =ᴮ ∅ ≤ (x ⊆ᴮ y)ᶜ := inf_le_left.trans inf_le_left
+    exact bv_absurd (x ⊆ᴮ y) hsub hn
+  have h_right : (y ⊆ᴮ x)ᶜ ⊓ Γ ≤ (compl x y =ᴮ ∅)ᶜ ⊔ (compl y x =ᴮ ∅)ᶜ := by
+    apply bv_or_right
+    conv_rhs => rw [← imp_bot]
+    rw [← deduction]
+    have hce : (y ⊆ᴮ x)ᶜ ⊓ Γ ⊓ compl y x =ᴮ ∅ ≤ compl y x =ᴮ ∅ := inf_le_right
+    have hsub := compl_empty_imp_sub y x _ hce
+    have hn : (y ⊆ᴮ x)ᶜ ⊓ Γ ⊓ compl y x =ᴮ ∅ ≤ (y ⊆ᴮ x)ᶜ := inf_le_left.trans inf_le_left
+    exact bv_absurd (y ⊆ᴮ x) hsub hn
+  exact le_trans (le_inf H_ne le_rfl) (bv_or_elim_left h_left h_right)
 -- src/bvm_extras2.lean:160
 lemma eq_iff_not_mem_of_Ord {x y z : bSet 𝔹} {Γ : 𝔹} (H_mem₁ : Γ ≤ x ∈ᴮ z) (H_mem₂ : Γ ≤ y ∈ᴮ z)
     (H_ord : Γ ≤ Ord z) : Γ ≤ x =ᴮ y ↔ (Γ ≤ (x ∈ᴮ y)ᶜ ∧ Γ ≤ (y ∈ᴮ x)ᶜ) := by
