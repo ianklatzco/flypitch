@@ -4100,12 +4100,82 @@ lemma mem_powerset_injects_F_iff {Γ : 𝔹} {χ : x.type → 𝔹} {z : bSet �
     · -- pair z 0 =ᴮ pair (x.func i) (𝟚.func (some none))
       exact pair_congr inf_le_right (bv_symm zero_eq_some_none')
 
+-- Helper: under context Γ, if H_ba : χ_b ⊆ χ_a, then compl_a ⊆ compl_b (pointwise under Γ)
+private lemma subset_mk_compl_of_subset {x : bSet 𝔹} {χ_a χ_b : x.type → 𝔹} {Γ : 𝔹}
+    (H_ba : Γ ≤ set_of_indicator χ_b ⊆ᴮ set_of_indicator χ_a) :
+    Γ ≤ subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ_a)ᶜ) ⊆ᴮ
+        subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ_b)ᶜ) := by
+  rw [subset_unfold]
+  apply le_iInf; intro k'; rw [← deduction]
+  -- Goal: Γ ⊓ (compl_a(k') ⊓ x.bval k') ≤ x.func k' ∈ subset.mk compl_b
+  -- = Γ ⊓ ((x.func k' ∈ χ_a)ᶜ ⊓ x.bval k') ≤ ⨆ k'', x.func k' =ᴮ x.func k'' ⊓ ((x.func k'' ∈ χ_b)ᶜ ⊓ x.bval k'')
+  rw [mem_subset.mk_iff]
+  apply le_iSup_of_le k'
+  apply le_inf (le_trans inf_le_right (le_trans inf_le_left bv_refl))
+  apply le_inf
+  · -- (x.func k' ∈ χ_a)ᶜ ≤ (x.func k' ∈ χ_b)ᶜ under context Γ ⊓ ((x.func k' ∈ χ_a)ᶜ ⊓ x.bval k')
+    -- Context includes Γ, so H_ba applies.
+    -- Use: A ≤ Bᶜ ↔ A ⊓ B ≤ ⊥ (via bv_absurd or le_compl_iff)
+    rw [← imp_bot, ← deduction]
+    -- Goal: Γ ⊓ ((x.func k' ∈ χ_a)ᶜ ⊓ x.bval k') ⊓ (x.func k' ∈ χ_b) ≤ ⊥
+    apply bv_absurd (x.func k' ∈ᴮ set_of_indicator χ_a)
+    · -- Γ ⊓ ((x.func k' ∈ χ_a)ᶜ ⊓ x.bval k') ⊓ x.func k' ∈ χ_b ≤ x.func k' ∈ χ_a
+      -- via H_ba : Γ ≤ χ_b ⊆ χ_a
+      exact mem_of_mem_subset (le_trans (le_trans inf_le_left inf_le_left) H_ba) inf_le_right
+    · -- Γ ⊓ ((x.func k' ∈ χ_a)ᶜ ⊓ x.bval k') ⊓ (x.func k' ∈ χ_b) ≤ (x.func k' ∈ χ_a)ᶜ
+      exact inf_le_left.trans (inf_le_right.trans inf_le_left)
+  · exact inf_le_right.trans inf_le_right
+
 -- src/bvm_extras.lean:2249
 lemma powerset_injects_F_ext : ∀ (χ₁ χ₂ : (bv_powerset x).type) {Γ : 𝔹},
     Γ ≤ (bv_powerset x).func χ₁ =ᴮ (bv_powerset x).func χ₂ →
     Γ ≤ (functions x 𝟚).func (powerset_injects_F x χ₁) =ᴮ
         (functions x 𝟚).func (powerset_injects_F x χ₂) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2249
+  intro χ₁ χ₂ Γ H
+  have H₁ : Γ ≤ set_of_indicator χ₁ ⊆ᴮ set_of_indicator χ₂ :=
+    le_trans H (le_trans (le_of_eq eq_iff_subset_subset) inf_le_left)
+  have H₂ : Γ ≤ set_of_indicator χ₂ ⊆ᴮ set_of_indicator χ₁ :=
+    le_trans H (le_trans (le_of_eq eq_iff_subset_subset) inf_le_right)
+  -- Prove both subset directions using a helper
+  suffices helper : ∀ (χ_a χ_b : (bv_powerset x).type),
+      Γ ≤ set_of_indicator χ_a ⊆ᴮ set_of_indicator χ_b →
+      Γ ≤ set_of_indicator χ_b ⊆ᴮ set_of_indicator χ_a →
+      Γ ≤ set_of_indicator (powerset_injects_F x χ_a) ⊆ᴮ
+          set_of_indicator (powerset_injects_F x χ_b) by
+    rw [eq_iff_subset_subset]
+    exact le_inf (helper χ₁ χ₂ H₁ H₂) (helper χ₂ χ₁ H₂ H₁)
+  intro χ_a χ_b H_ab H_ba
+  -- Need: subset.mk F(χ_a) ⊆ subset.mk F(χ_b)
+  -- For each index (k, l), F(χ_a)(k,l) ≤ F(χ_b)(k,l) under context Γ
+  -- F(χ)(k,l) = (x.func k ∈ χ ⊓ 𝟚.func l =ᴮ 0) ⊔ (x.func k ∈ compl_χ ⊓ 𝟚.func l =ᴮ 1)
+  -- Left branch: x.func k ∈ χ_a → x.func k ∈ χ_b via H_ab
+  -- Right branch: x.func k ∈ compl_χ_a → x.func k ∈ compl_χ_b via H_ba (via subset_mk_compl_of_subset)
+  have h_compl_sub : Γ ≤ subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ_a)ᶜ) ⊆ᴮ
+      subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ_b)ᶜ) :=
+    subset_mk_compl_of_subset H_ba
+  rw [subset_unfold]
+  apply le_iInf; intro ⟨k, l⟩; rw [← deduction]
+  apply le_iSup_of_le (k, l)
+  apply le_inf _ bv_refl
+  show Γ ⊓ ((x.func k ∈ᴮ set_of_indicator χ_a ⊓ ((𝟚 : bSet 𝔹).func l =ᴮ 0)) ⊔
+    (x.func k ∈ᴮ subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ_a)ᶜ) ⊓
+      ((𝟚 : bSet 𝔹).func l =ᴮ 1))) ≤
+    (x.func k ∈ᴮ set_of_indicator χ_b ⊓ ((𝟚 : bSet 𝔹).func l =ᴮ 0)) ⊔
+    (x.func k ∈ᴮ subset.mk (fun i => (x.func i ∈ᴮ set_of_indicator χ_b)ᶜ) ⊓
+      ((𝟚 : bSet 𝔹).func l =ᴮ 1))
+  rw [inf_sup_left]
+  apply bv_or_elim
+  · -- Left: Γ ⊓ (x.func k ∈ χ_a ⊓ 𝟚.func l =ᴮ 0) ≤ (x.func k ∈ χ_b ⊓ ...) ⊔ ...
+    apply le_sup_left.trans'
+    apply le_inf
+    · exact mem_of_mem_subset (le_trans inf_le_left H_ab) (inf_le_right.trans inf_le_left)
+    · exact inf_le_right.trans inf_le_right
+  · -- Right: Γ ⊓ (x.func k ∈ compl_a ⊓ 𝟚.func l =ᴮ 1) ≤ ... ⊔ (x.func k ∈ compl_b ⊓ ...)
+    apply le_sup_right.trans'
+    apply le_inf
+    · -- x.func k ∈ compl_a → x.func k ∈ compl_b using h_compl_sub
+      exact mem_of_mem_subset (le_trans inf_le_left h_compl_sub) (inf_le_right.trans inf_le_left)
+    · exact inf_le_right.trans inf_le_right
 
 -- src/bvm_extras.lean:2301
 lemma powerset_injects_F_subset_prod {χ : x.type → 𝔹} {Γ : 𝔹}
