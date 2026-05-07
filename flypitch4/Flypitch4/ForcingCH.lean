@@ -112,15 +112,51 @@ theorem CH_true_aux
     : ∀ {Γ : 𝔹}, Γ ≤ CH := by
   -- Port from src/forcing_CH.lean:64-77
   intro Γ
+  -- Goal: Γ ≤ CH
+  -- CH = (⨆ x, Ord x ⊓ ⨆ y, (larger_than ω x)ᶜ ⊓ (larger_than x y)ᶜ ⊓ injects_into y (𝒫ω))ᶜ
+  -- Proof: show the inner iSup ≤ ⊥, i.e., for any x, y: absurd from H_aleph_one and H_not_lt
   unfold CH
   rw [← imp_bot, ← deduction]
-  apply le_trans (le_inf inf_le_right le_rfl)
-  rw [iSup_inf_eq']
+  -- Goal after deduction: Γ ⊓ (⨆ x, Ord x ⊓ ⨆ y, ...) ≤ ⊥
+  rw [inf_iSup_eq']
   apply iSup_le; intro x
-  simp only [inf_iSup_eq']
+  simp_rw [inf_iSup_eq']
   apply iSup_le; intro y
-  -- Context = (((A⊓B)⊓C)⊓D)⊓E where A=(ω≺x)ᶜ, B=(x≺y)ᶜ, C=y≼𝒫ω, D=Ord x, E=Γ
-  sorry
+  -- Context: Γ ⊓ (Ord x ⊓ ((larger_than ω x)ᶜ ⊓ (larger_than x y)ᶜ ⊓ injects_into y (𝒫ω))) ≤ ⊥
+  set ctx := Γ ⊓ (Ord x ⊓ ((larger_than bSet.omega x)ᶜ ⊓ (larger_than x y)ᶜ ⊓
+               injects_into y (bv_powerset bSet.omega)))
+  have hOrd : ctx ≤ Ord x :=
+    inf_le_right.trans inf_le_left
+  have hLtX : ctx ≤ (larger_than bSet.omega x)ᶜ :=
+    inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))
+  have hLtY : ctx ≤ (larger_than x y)ᶜ :=
+    inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))
+  have hInj : ctx ≤ injects_into y (bv_powerset bSet.omega) :=
+    inf_le_right.trans (inf_le_right.trans inf_le_right)
+  -- From H_aleph_one: check ℵ₁ ≼ x
+  -- le_of_omega_lt = ⨅ z, Ord z ⟹ ((larger_than ω z)ᶜ ⟹ injects_into (check ℵ₁) z)
+  have hInj_a1_x : ctx ≤ injects_into (check pSet_aleph1) x :=
+    -- H_aleph_one : ctx ≤ ⨅ z, Ord z ⟹ ((larger_than ω z)ᶜ ⟹ injects_into (check ℵ₁) z)
+    -- Instantiate at z = x, then apply modus ponens twice
+    le_trans (le_inf
+      (le_trans (le_inf
+        (H_aleph_one.trans (iInf_le _ x))
+        hOrd)
+        bv_imp_elim)
+      hLtX)
+      bv_imp_elim
+  -- check ℵ₁ ≼ x and (larger_than x y)ᶜ → (larger_than (check ℵ₁) y)ᶜ
+  have hLt_a1_y : ctx ≤ (larger_than (check pSet_aleph1) y)ᶜ :=
+    bSet_lt_of_le_of_lt hInj_a1_x hLtY
+  -- (larger_than (check ℵ₁) y)ᶜ and y ≼ 𝒫ω → (larger_than (check ℵ₁) (𝒫ω))ᶜ
+  have hLt_a1_cont : ctx ≤ (larger_than (check pSet_aleph1) (bv_powerset bSet.omega))ᶜ :=
+    bSet_lt_of_lt_of_le hLt_a1_y hInj
+  -- H_not_lt gives larger_than (check ℵ₁) (𝒫ω)
+  have hPos : ctx ≤ larger_than (check pSet_aleph1) (bv_powerset bSet.omega) := by
+    have h : ctx ≤ ((check pSet_aleph1 : bSet 𝔹) ≺ 𝒫 bSet.omega)ᶜ := H_not_lt
+    simp only [compl_compl] at h
+    exact h
+  exact bv_absurd _ hPos hLt_a1_cont
 
 -- src/forcing_CH.lean:79-81
 def rel_of_array (x y : bSet 𝔹) (af : x.type → y.type → 𝔹) : bSet 𝔹 :=
@@ -140,16 +176,36 @@ lemma mem_left_of_mem_rel_of_array {x y w₁ w₂ : bSet 𝔹} {af : x.type → 
     {Γ} (H_mem_left : Γ ≤ pair w₁ w₂ ∈ᴮ rel_of_array x y af)
     (H_bval₁ : ∀ i, x.bval i = ⊤)
     : Γ ≤ w₁ ∈ᴮ x := by
-  -- TODO: port from src/forcing_CH.lean:104
-  sorry
+  -- rel_of_array x y af = set_of_indicator (fun pr => af pr.1 pr.2) on prod x y
+  -- pair w₁ w₂ ∈ rel_of_array x y af = ⨆ pr, af pr.1 pr.2 ⊓ pair w₁ w₂ =ᴮ pair (x.func pr.1) (y.func pr.2)
+  unfold rel_of_array at H_mem_left
+  rw [mem_unfold] at H_mem_left
+  simp only [set_of_indicator_bval, set_of_indicator_func, prod_func] at H_mem_left
+  -- H_mem_left : Γ ≤ ⨆ pr, af pr.1 pr.2 ⊓ pair w₁ w₂ =ᴮ pair (x.func pr.1) (y.func pr.2)
+  -- Goal: Γ ≤ w₁ ∈ x = ⨆ i, x.bval i ⊓ w₁ =ᴮ x.func i
+  rw [mem_unfold]
+  apply H_mem_left.trans
+  apply iSup_le; intro ⟨i, j⟩
+  apply le_iSup_of_le i
+  refine le_inf ?_ ?_
+  · rw [H_bval₁]; exact le_top
+  · exact inf_le_right.trans eq_of_eq_pair_left
 
 -- src/forcing_CH.lean:115-124
 lemma mem_right_of_mem_rel_of_array {x y w₁ w₂ : bSet 𝔹} {af : x.type → y.type → 𝔹}
     {Γ} (H_mem_right : Γ ≤ pair w₁ w₂ ∈ᴮ rel_of_array x y af)
     (H_bval₂ : ∀ i, y.bval i = ⊤)
     : Γ ≤ w₂ ∈ᴮ y := by
-  -- TODO: port from src/forcing_CH.lean:115
-  sorry
+  unfold rel_of_array at H_mem_right
+  rw [mem_unfold] at H_mem_right
+  simp only [set_of_indicator_bval, set_of_indicator_func, prod_func] at H_mem_right
+  rw [mem_unfold]
+  apply H_mem_right.trans
+  apply iSup_le; intro ⟨i, j⟩
+  apply le_iSup_of_le j
+  refine le_inf ?_ ?_
+  · rw [H_bval₂]; exact le_top
+  · exact inf_le_right.trans eq_of_eq_pair_right
 
 -- src/forcing_CH.lean:128-169
 lemma rel_of_array_extensional (x y : bSet 𝔹) (af : x.type → y.type → 𝔹)
