@@ -480,14 +480,43 @@ lemma reflect_term_const_neg [has_decidable_range ϕ] {c : L'.constants}
 
 @[simp] lemma reflect_term_on_term [has_decidable_range ϕ] (hϕ : is_injective ϕ) (t : term L)
     (m : ℕ) : ϕ.reflect_term (ϕ.on_term t) m = t ↑' 1 # m := by
-  -- TODO: port from src/language_extension.lean:395-402
-  sorry
+  refine @term.rec L (fun t => ϕ.reflect_term (ϕ.on_term t) m = t ↑' 1 # m)
+      (fun k => ?_) (fun f ts ih_ts => ?_) t
+  · -- var k: reflect_term (&k) m = &k ↑' 1 # m
+    simp [reflect_term_var, lift_term_at]
+  · -- func f applied to ts: reflect_term (on_term (apps (func f) ts)) m = (apps (func f) ts) ↑' 1 # m
+    have hf : ϕ.on_function f ∈ Set.range (ϕ.on_function) := Set.mem_range_self f
+    simp only [on_term_apps, on_term,
+               reflect_term_apps_pos hf, lift_term_at_apps]
+    congr 1
+    · -- preterm.func (Classical.choose hf) = preterm.func f (modulo lift which is identity on func)
+      simp only [lift_term_at]
+      exact congrArg preterm.func (hϕ.on_function (Classical.choose_spec hf))
+    · -- DVec.map (fun t => reflect_term t m) (DVec.map on_term ts) = DVec.map (· ↑' 1 # m) ts
+      rw [DVec.map_map]
+      apply DVec.map_congr_pmem
+      intro t hmem
+      exact ih_ts t hmem
 
 lemma reflect_term_lift_at [has_decidable_range ϕ] (hϕ : is_injective ϕ) {n m m' : ℕ}
     (h : m ≤ m') (t : term L') :
     ϕ.reflect_term (t ↑' n # m) (m' + n) = ϕ.reflect_term t m' ↑' n # m := by
-  -- TODO: port from src/language_extension.lean:404-411
-  sorry
+  refine @term.rec L' (fun t => ϕ.reflect_term (t ↑' n # m) (m' + n) = ϕ.reflect_term t m' ↑' n # m)
+      (fun k => ?_) (fun f ts ih_ts => ?_) t
+  · -- var k: ((&k) ↑' n # m) reflected at (m'+n) = reflected (&k) at m' lifted n at m
+    simp only [reflect_term_var, lift_term_at]
+    split_ifs <;> simp_all [lift_term_at] <;> omega
+  · -- func f applied to ts: by_cases on f ∈ range
+    by_cases hf : f ∈ Set.range ϕ.on_function
+    · simp only [lift_term_at_apps, reflect_term_apps_pos hf, lift_term_at, DVec.map_map,
+                 Function.comp]
+      congr 1
+      apply DVec.map_congr_pmem
+      intro t hmem; exact ih_ts t hmem
+    · show ϕ.reflect_term ((apps (preterm.func f) ts) ↑' n # m) (m' + n) =
+          ϕ.reflect_term (apps (preterm.func f) ts) m' ↑' n # m
+      simp only [lift_term_at_apps, lift_term_at, reflect_term_apps_neg hf, reflect_term_var, h,
+                 ite_true]
 
 lemma reflect_term_lift [has_decidable_range ϕ] (hϕ : is_injective ϕ) {n m : ℕ}
     (t : term L') :
@@ -530,14 +559,12 @@ lemma reflect_formula_apps_rel_pos [has_decidable_range ϕ] {l} {R : L'.relation
     (hR : R ∈ Set.range (ϕ.on_relation (n := l))) (ts : DVec (term L') l) (m : ℕ) :
     ϕ.reflect_formula m (apps_rel (preformula.rel R) ts) =
     apps_rel (preformula.rel (Classical.choose hR)) (ts.map (fun t => ϕ.reflect_term t m)) := by
-  -- TODO: port from src/language_extension.lean:454-459
-  sorry
+  simp only [reflect_formula, reflect_formula_aux', formula.rec_apps_rel, dif_pos hR]
 
 lemma reflect_formula_apps_rel_neg [has_decidable_range ϕ] {l} {R : L'.relations l}
     (hR : R ∉ Set.range (ϕ.on_relation (n := l))) (ts : DVec (term L') l) (m : ℕ) :
     ϕ.reflect_formula m (apps_rel (preformula.rel R) ts) = ⊥' := by
-  -- TODO: port from src/language_extension.lean:460-463
-  sorry
+  simp only [reflect_formula, reflect_formula_aux', formula.rec_apps_rel, dif_neg hR]
 
 @[simp] lemma reflect_formula_equal [has_decidable_range ϕ] (t₁ t₂ : term L') (m : ℕ) :
     ϕ.reflect_formula m (t₁ ≃ t₂) = ϕ.reflect_term t₁ m ≃ ϕ.reflect_term t₂ m := by
@@ -556,8 +583,26 @@ lemma reflect_formula_apps_rel_neg [has_decidable_range ϕ] {l} {R : L'.relation
 
 @[simp] lemma reflect_formula_on_formula [has_decidable_range ϕ] (hϕ : is_injective ϕ) (m : ℕ)
     (f : formula L) : ϕ.reflect_formula m (ϕ.on_formula f) = f ↑f' 1 # m := by
-  -- TODO: port from src/language_extension.lean:472-482
-  sorry
+  refine @formula.rec L (fun f => ∀ m, ϕ.reflect_formula m (ϕ.on_formula f) = f ↑f' 1 # m)
+      ?_ ?_ ?_ ?_ ?_ f m
+  · intro m; rfl
+  · intro t₁ t₂ m
+    simp only [on_formula, reflect_formula_equal, lift_formula_at, reflect_term_on_term hϕ]
+  · intro l R ts m
+    have hR : ϕ.on_relation R ∈ Set.range ϕ.on_relation := Set.mem_range_self _
+    simp only [on_formula_apps_rel, on_formula,
+               reflect_formula_apps_rel_pos hR, lift_formula_at_apps_rel]
+    congr 1
+    · simp only [lift_formula_at]
+      exact congrArg preformula.rel (hϕ.on_relation (Classical.choose_spec hR))
+    · rw [DVec.map_map]
+      apply DVec.map_congr_pmem
+      intro t _
+      exact reflect_term_on_term hϕ t m
+  · intro f₁ f₂ ih₁ ih₂ m
+    simp only [on_formula, reflect_formula_imp, lift_formula_at, ih₁ m, ih₂ m]
+  · intro f ih m
+    simp only [on_formula, reflect_formula_all, lift_formula_at, ih (m + 1)]
 
 lemma reflect_formula_lift_at [has_decidable_range ϕ] (hϕ : is_injective ϕ) {n m m' : ℕ}
     (h : m ≤ m') (f : formula L') :
