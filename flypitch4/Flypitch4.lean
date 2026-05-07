@@ -10,3 +10,4 @@ import Flypitch4.Compactness
 import Flypitch4.RegularOpenAlgebra
 import Flypitch4.Bvm
 import Flypitch4.BvmExtras
+import Flypitch4.BvmExtras2
