@@ -1095,19 +1095,20 @@ lemma find_counterexample_of_henkin {L : Language.{u}} {T : SentTheory L}
   -- hwit : T.fst ⊢' (bd_ex (bd_not f)).fst ⟹ (bd_not f)[c/0].fst
   -- We need T.fst ⊢' (bd_not (subst0_bounded_formula f (bd_const (C (bd_not f))))).fst
   -- Strategy: use ex_not_of_not_all to get ∃'(∼f), then apply hwit
-  have hnotall : T ⊢ₛ' bd_not (bd_all f) := notI_of_is_complete hcomp hf
-  simp only [SentTheory.sprovable, SentTheory.fst, bd_not, bounded_preformula.fst,
-             wit_property, bd_imp, bd_ex, bd_all, subst0_bounded_formula_fst] at *
-  -- After simp, hnotall : T.fst ⊢' ∀'f.fst ⟹ ⊥'
-  -- hwit : T.fst ⊢' (∀'(f.fst ⟹ ⊥') ⟹ ⊥') ⟹ something
-  -- We need: T.fst ⊢' ∀'(f.fst ⟹ ⊥') ⟹ ⊥'
-  -- ex_not_of_not_all : Γ ⊢ ∼(∀' f) → Γ ⊢ ∃'(∼f)
-  -- hnotall (after simp): T.fst ⊢' ∀'f.fst ⟹ ⊥' which is ∼(∀'f.fst)
-  -- So ⟨ex_not_of_not_all hnotall.some⟩ : T.fst ⊢' ∃'(∼f.fst)
-  -- ∃'(∼f.fst) = ∼(∀'∼∼f.fst) but we need ∼(∀'(f.fst ⟹ ⊥')) = ∼(∀'∼f.fst)
-  -- Actually ∼f = f ⟹ ⊥' and ∼∼f = ∼f ⟹ ⊥' so ∃'∼f = ∼(∀'∼∼f) = (∀'(f⟹⊥')⟹⊥')⟹⊥' ... hmm
-  -- Let me just use sorry here for now
-  sorry
+  -- Get ∼(∀'f) as a prf and apply ex_not_of_not_all:
+  have hnotall_prf : T.fst ⊢ ∼(∀' f.fst) := (notI_of_is_complete hcomp hf).some
+  -- ex_not_of_not_all gives ∃'(∼f.fst) = (bd_ex (bd_not f)).fst
+  have hex : T.fst ⊢' (bd_ex (bd_not f)).fst :=
+    ⟨ex_not_of_not_all hnotall_prf⟩
+  -- Apply hwit: T.fst ⊢' (bd_ex (bd_not f)).fst ⟹ (bd_not (subst0_bf f c)).fst
+  -- Result: T.fst ⊢' (bd_not (subst0_bf f c)).fst = (subst0_bf f c).fst ⟹ ⊥'
+  -- which equals T.fst ⊢ₛ' bd_not (subst0_bf f (bd_const (C (bd_not f))))
+  simp only [SentTheory.sprovable, SentTheory.fst]
+  simp only [wit_property, bounded_preformula.fst, bd_imp, bd_not] at hwit
+  -- hwit : T.fst ⊢' (bd_ex (bd_not f)).fst ⟹ (subst0_bounded_formula (bd_not f) c).fst
+  -- (subst0_bounded_formula (bd_not f) c).fst = (bd_not (subst0_bounded_formula f c)).fst
+  -- Goal: T.fst ⊢' (bd_not (subst0_bounded_formula f (bd_const (C (bd_not f))))).fst
+  exact impE' _ hwit hex
 
 /-! ## Term model construction (src/fol.lean:2500-2559) -/
 
@@ -1134,35 +1135,65 @@ noncomputable def term_model_fun' {L : Language.{u}} (T : SentTheory L)
     {l} (t : closed_preterm L l) (ts : DVec (closed_term L) l) : term_model' T :=
   @Quotient.mk'' _ (term_setoid T) (bd_apps t ts)
 
+/-- Helper: term_model_fun' is compatible with term_rel on each argument -/
+private lemma term_model_fun'_congr {L : Language.{u}} {T : SentTheory L}
+    {l} (t : closed_preterm L l) :
+    ∀ {xs xs' : DVec (closed_term L) l},
+    @DVec.DVecRel _ (term_setoid T) _ xs xs' →
+    term_model_fun' T t xs = term_model_fun' T t xs' := by
+  intro xs xs' hxs
+  induction hxs with
+  | rnil => rfl
+  | rcons hx hxs ih =>
+    -- hx : term_rel T x x', hxs : xs ≈ xs'
+    -- ih : term_model_fun' T (bd_app t x) xs = term_model_fun' T (bd_app t x) xs' (for the head-fixed tail)
+    -- This is the key: go via term_model_fun' T t (cons x xs') first
+    -- step 1: use ih to change xs to xs' (keeping x fixed)
+    -- step 2: use hx to change x to x' (keeping xs' fixed)
+    -- But ih is the claim for the subtree of hxs, with t' = bd_app t x
+    -- Actually ih says: term_model_fun' T (bd_app t x) xs = term_model_fun' T (bd_app t x) xs'... no that's wrong
+    -- ih should be: term_model_fun'_congr (bd_app t x) hxs
+    -- Let's be explicit:
+    show term_model_fun' T t (DVec.cons _ _) = term_model_fun' T t (DVec.cons _ _)
+    simp only [term_model_fun', bd_apps]
+    apply Quotient.sound
+    show term_rel T _ _
+    simp only [term_rel, SentTheory.sprovable, SentTheory.fst]
+    -- Need: T.fst ⊢' bd_apps t (cons x xs) ≃ bd_apps t (cons x' xs')
+    -- = bd_apps (bd_app t x) xs ≃ bd_apps (bd_app t x') xs'
+    -- TODO: this requires induction on xs and xs' relating each step
+    sorry
+
 /-- The function interpretation in the term model, using quotient_lift -/
 noncomputable def term_model_fun {L : Language.{u}} (T : SentTheory L)
     {l} (t : closed_preterm L l) (ts : DVec (term_model' T) l) : term_model' T :=
-  DVec.quotient_lift (term_model_fun' T t)
-    (fun {xs xs'} hxs => by
-      induction hxs with
-      | rnil => rfl
-      | rcons hx hxs ih =>
-        -- need to shift the term under the quotient
-        -- for now, sorry this compatibility step
-        sorry)
-    ts
+  @DVec.quotient_lift _ _ (term_setoid T) _ (term_model_fun' T t)
+    (term_model_fun'_congr t) ts
 
 /-- The relation interpretation helper -/
 noncomputable def term_model_rel' {L : Language.{u}} (T : SentTheory L)
     {l} (f : presentence L l) (ts : DVec (closed_term L) l) : Prop :=
   T ⊢ₛ' bd_apps_rel f ts
 
+/-- Helper: term_model_rel' is compatible with term_rel on each argument -/
+private lemma term_model_rel'_congr {L : Language.{u}} {T : SentTheory L}
+    {l} (f : presentence L l) :
+    ∀ {xs xs' : DVec (closed_term L) l},
+    @DVec.DVecRel _ (term_setoid T) _ xs xs' →
+    term_model_rel' T f xs = term_model_rel' T f xs' := by
+  intro xs xs' hxs
+  induction hxs with
+  | rnil => rfl
+  | rcons hx hxs ih =>
+    simp only [term_model_rel', bd_apps_rel]
+    -- similar to term_model_fun'_congr, need congr for bd_apprel
+    sorry
+
 /-- The relation interpretation in the term model -/
 noncomputable def term_model_rel {L : Language.{u}} (T : SentTheory L)
     {l} (f : presentence L l) (ts : DVec (term_model' T) l) : Prop :=
-  DVec.quotient_lift (term_model_rel' T f)
-    (fun {xs xs'} hxs => by
-      induction hxs with
-      | rnil => rfl
-      | rcons hx hxs ih =>
-        -- need to handle congr step
-        sorry)
-    ts
+  @DVec.quotient_lift _ _ (term_setoid T) _ (term_model_rel' T f)
+    (term_model_rel'_congr f) ts
 
 /-! ## Term model and main completeness theorem -/
 
