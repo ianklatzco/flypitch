@@ -191,7 +191,44 @@ lemma τ_le_product_topology (a : α) :
 
 /-- `generateFrom (opensOver a)` is coarser than `τ a` (they are actually equal). -/
 lemma τ_le_opensOver (a : α) : generateFrom (opensOver a) ≤ τ a := by
-  sorry -- TODO: port from src/cantor_space.lean:178
+  rw [TopologicalSpace.le_def]
+  intro s hs
+  rw [@isOpen_induced_iff] at hs
+  obtain ⟨U, hU_open, hU_eq⟩ := hs
+  subst hU_eq
+  have ha_true : (fun S : Set α => a ∈ S) ⁻¹' {True} = principalOpen a := by
+    ext S; simp [principalOpen]
+  have ha_false : (fun S : Set α => a ∈ S) ⁻¹' {False} = coPrincipalOpen a := by
+    ext S; simp [coPrincipalOpen]
+  have hU : U = ∅ ∨ U = {True} ∨ U = {False} ∨ U = Set.univ := by
+    rcases Classical.em (True ∈ U) with hT | hT <;> rcases Classical.em (False ∈ U) with hF | hF
+    · right; right; right
+      ext p; simp only [Set.mem_univ, iff_true]
+      rcases Classical.em p with hp | hp
+      · rwa [eq_true hp]
+      · rwa [eq_false hp]
+    · right; left
+      ext p; simp only [Set.mem_singleton_iff]
+      rcases Classical.em p with hp | hp
+      · rw [eq_true hp]; exact ⟨fun _ => rfl, fun _ => hT⟩
+      · rw [eq_false hp]; exact ⟨fun h => absurd h hF, fun h => absurd h (by simp)⟩
+    · right; right; left
+      ext p; simp only [Set.mem_singleton_iff]
+      rcases Classical.em p with hp | hp
+      · rw [eq_true hp]; exact ⟨fun h => absurd h hT, fun h => absurd h (by simp)⟩
+      · rw [eq_false hp]; exact ⟨fun _ => rfl, fun _ => hF⟩
+    · left
+      ext p; simp only [Set.mem_empty_iff_false, iff_false]
+      rcases Classical.em p with hp | hp
+      · rwa [eq_true hp]
+      · rwa [eq_false hp]
+  rcases hU with rfl | rfl | rfl | rfl
+  · have : (fun S : Set α => a ∈ S) ⁻¹' (∅ : Set Prop) = ∅ := Set.preimage_empty
+    rw [this]; exact @isOpen_empty _ (generateFrom _)
+  · rw [ha_true]; exact isOpen_generateFrom_of_mem (by simp [opensOver])
+  · rw [ha_false]; exact isOpen_generateFrom_of_mem (by simp [opensOver])
+  · have : (fun S : Set α => a ∈ S) ⁻¹' (Set.univ : Set Prop) = Set.univ := Set.preimage_univ
+    rw [this]; exact @isOpen_univ _ (generateFrom _)
 
 @[simp] lemma isOpen_generated_from_basic {β : Type*} [TopologicalSpace β]
     {s : Set (Set β)} {x : Set β} (hx : x ∈ s) : (generateFrom s).IsOpen x :=
@@ -282,7 +319,13 @@ lemma isClopen_coPrincipalOpenFinset [DecidableEq α] (F : Finset α) :
 
 lemma product_topology_generate_from :
     (product_topology : TopologicalSpace (Set α)) = generateFrom (⋃ a : α, opensOver a) := by
-  sorry -- TODO: port from src/cantor_space.lean:274
+  have hτ : ∀ a : α, τ a = generateFrom (opensOver a) := fun a =>
+    le_antisymm (opensOver_le_τ a) (τ_le_opensOver a)
+  show Pi.topologicalSpace = generateFrom (⋃ a : α, opensOver a)
+  have hpi : Pi.topologicalSpace = ⨅ a : α, τ a := rfl
+  have hτeq : ⨅ a : α, τ a = ⨅ a : α, generateFrom (opensOver a) :=
+    congrArg iInf (funext hτ)
+  rw [hpi, hτeq, generateFrom_iUnion]
 
 /-- The standard basis for the product topology on `Set α`. -/
 def standardBasis : Set (Set (Set α)) :=
@@ -334,23 +377,102 @@ lemma intersection_standardBasis_nonempty' [DecidableEq α] {p_ins p_out : Finse
   intro y hy_out hy_ins
   exact Finset.disjoint_right.mp H (Finset.mem_coe.mp hy_out) (Finset.mem_coe.mp hy_ins)
 
-lemma intersection_standardBasis_nonempty {T : Set (Set α)} {p_ins p_out : Finset α}
-    {H_eq : T = p_ins.inf principalOpen ∩ p_out.inf coPrincipalOpen}
-    {H : Disjoint p_ins p_out} :
-    ¬⋂₀ (↑(p_ins.image principalOpen ∪ p_out.image coPrincipalOpen) :
-      Set (Set (Set α))) = ∅ := by
-  sorry -- TODO: port from src/cantor_space.lean:318
-
 lemma standard_basis_reindex {T : Set (Set α)} {p_ins p_out : Finset α}
     {H_eq : T = p_ins.inf principalOpen ∩ p_out.inf coPrincipalOpen}
     {H : Disjoint p_ins p_out} :
     ⋂₀ (↑(p_ins.image principalOpen ∪ p_out.image coPrincipalOpen) :
       Set (Set (Set α))) = T := by
-  sorry -- TODO: port from src/cantor_space.lean:329
+  classical
+  subst H_eq
+  rw [← principalOpenFinset_eq_inter, ← coPrincipalOpenFinset_eq_inter]
+  ext x
+  simp only [Finset.coe_union, Finset.coe_image, Set.mem_sInter, Set.mem_union,
+    Set.mem_image, Finset.mem_coe, Set.mem_inter_iff,
+    principalOpenFinset, coPrincipalOpenFinset, Set.mem_setOf_eq]
+  constructor
+  · intro h
+    refine ⟨fun a ha => ?_, fun a ha => ?_⟩
+    · apply h; left; exact ⟨a, ha, rfl⟩
+    · apply h; right; exact ⟨a, ha, rfl⟩
+  · intro ⟨h1, h2⟩ s hs
+    rcases hs with ⟨a, ha, rfl⟩ | ⟨a, ha, rfl⟩
+    · exact h1 ha
+    · exact h2 ha
+
+lemma intersection_standardBasis_nonempty {T : Set (Set α)} {p_ins p_out : Finset α}
+    {H_eq : T = p_ins.inf principalOpen ∩ p_out.inf coPrincipalOpen}
+    {H : Disjoint p_ins p_out} :
+    ¬⋂₀ (↑(p_ins.image principalOpen ∪ p_out.image coPrincipalOpen) :
+      Set (Set (Set α))) = ∅ := by
+  classical
+  rw [standard_basis_reindex (H_eq := H_eq) (H := H)]
+  subst H_eq
+  obtain ⟨X, hX⟩ := intersection_standardBasis_nonempty' H
+  exact Set.nonempty_iff_ne_empty.mp ⟨X, hX⟩
 
 lemma is_topological_basis_standardBasis :
     @IsTopologicalBasis (Set α) _ standardBasis := by
-  sorry -- TODO: port from src/cantor_space.lean:346
+  refine ⟨?_, ?_, ?_⟩
+  · -- exists_subset_inter
+    intro t₁ ht₁ t₂ ht₂ x hx
+    simp only [standardBasis, Set.mem_union, Set.mem_setOf_eq, Set.mem_singleton_iff] at ht₁ ht₂
+    rcases ht₁ with ⟨p_ins₁, p_out₁, H_eq₁, H_disj₁⟩ | rfl
+    · rcases ht₂ with ⟨p_ins₂, p_out₂, H_eq₂, H_disj₂⟩ | rfl
+      · classical
+        subst H_eq₁; subst H_eq₂
+        obtain ⟨⟨hx_ins₁, hx_out₁⟩, hx_ins₂, hx_out₂⟩ := hx
+        refine ⟨(p_ins₁ ∪ p_ins₂).inf principalOpen ∩ (p_out₁ ∪ p_out₂).inf coPrincipalOpen,
+               ?_, ?_, ?_⟩
+        · simp only [standardBasis, Set.mem_union, Set.mem_setOf_eq, Set.mem_singleton_iff]
+          left
+          refine ⟨p_ins₁ ∪ p_ins₂, p_out₁ ∪ p_out₂, rfl, ?_⟩
+          rw [Finset.disjoint_left]
+          intro a ha_ins ha_out
+          simp only [Finset.mem_union] at ha_ins ha_out
+          rcases ha_ins with ha_ins₁ | ha_ins₂ <;> rcases ha_out with ha_out₁ | ha_out₂
+          · exact Finset.disjoint_left.mp H_disj₁ ha_ins₁ ha_out₁
+          · exact ins₁_out₂_disjoint ⟨hx_ins₁, hx_out₁⟩ ⟨hx_ins₂, hx_out₂⟩ H_disj₁ H_disj₂ ha_ins₁ ha_out₂
+          · exact ins₁_out₂_disjoint ⟨hx_ins₂, hx_out₂⟩ ⟨hx_ins₁, hx_out₁⟩ H_disj₂ H_disj₁ ha_ins₂ ha_out₁
+          · exact Finset.disjoint_left.mp H_disj₂ ha_ins₂ ha_out₂
+        · simp only [Finset.inf_union, Set.mem_inter_iff]
+          exact ⟨⟨hx_ins₁, hx_ins₂⟩, hx_out₁, hx_out₂⟩
+        · intro y hy
+          simp only [Finset.inf_union, Set.mem_inter_iff] at hy
+          obtain ⟨⟨hy_ins₁, hy_ins₂⟩, hy_out₁, hy_out₂⟩ := hy
+          exact ⟨⟨hy_ins₁, hy_out₁⟩, hy_ins₂, hy_out₂⟩
+      · exact absurd hx.2 (by simp)
+    · exact absurd hx.1 (by simp)
+  · -- sUnion_eq
+    ext x
+    simp only [Set.mem_sUnion, Set.mem_univ, iff_true]
+    exact ⟨Set.univ, univ_mem_standardBasis, Set.mem_univ _⟩
+  · -- eq_generateFrom
+    apply le_antisymm
+    · rw [le_generateFrom_iff_subset_isOpen]
+      intro T hT
+      simp only [standardBasis, Set.mem_union, Set.mem_setOf_eq, Set.mem_singleton_iff] at hT
+      rcases hT with ⟨p_ins, p_out, H_eq, H_disj⟩ | rfl
+      · subst H_eq
+        classical
+        simp only [Set.mem_setOf_eq]
+        apply IsOpen.inter
+        · rw [← principalOpenFinset_eq_inter]
+          exact (isClopen_principalOpenFinset p_ins).2
+        · rw [← coPrincipalOpenFinset_eq_inter]
+          exact (isClopen_coPrincipalOpenFinset p_out).2
+      · simp only [Set.mem_setOf_eq]; exact isOpen_empty
+    · rw [product_topology_generate_from]
+      apply generateFrom_anti
+      intro X hX
+      simp only [Set.mem_iUnion] at hX
+      obtain ⟨a, ha⟩ := hX
+      simp only [opensOver, Set.mem_insert_iff, Set.mem_singleton_iff] at ha
+      simp only [standardBasis, Set.mem_union, Set.mem_setOf_eq, Set.mem_singleton_iff]
+      rcases ha with rfl | rfl | rfl | rfl
+      · left; exact ⟨{a}, ∅, by simp [Finset.inf_singleton], by simp⟩
+      · left; exact ⟨∅, {a}, by simp [Finset.inf_singleton], by simp⟩
+      · left; exact ⟨∅, ∅, by simp, by simp⟩
+      · right; rfl
 
 open Cardinal
 
@@ -360,7 +482,11 @@ lemma countable_chain_condition_set {α : Type u} :
   intro s hs
   apply countable_chain_condition_of_countable
   apply le_of_lt
-  -- |∀ x : s, Set α| = |∀ x : s, α → Prop| which for finite s is ≤ 2^|s| < ω
-  sorry -- TODO: port from src/cantor_space.lean:434
+  haveI : Fintype ↑s := hs.fintype
+  rw [Cardinal.mk_arrow]
+  apply Cardinal.power_lt_aleph0
+  · rw [show (#Prop : Cardinal) = #Bool from Cardinal.mk_congr equiv_Prop_bool]
+    simp
+  · exact Cardinal.mk_lt_aleph0
 
 end CantorSpace
