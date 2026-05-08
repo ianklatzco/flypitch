@@ -1056,7 +1056,205 @@ lemma is_consistent_extend {T : SentTheory L} (hT : T.is_consistent) (hϕ : ϕ.i
     (hg' : ∀ x, g x ∉ Set.range (ϕ.on_function (n := 0))) :
     (ϕ.Theory_induced T ∪
       (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
-        Set.univ).is_consistent := by sorry -- TODO: cleanup-agent attempt failed before quota cap, see git history
+        Set.univ).is_consistent := by
+  haveI : DecidableEq (bounded_formula L 1) := fun x y => Classical.propDecidable _
+  haveI : DecidableEq (sentence L') := fun x y => Classical.propDecidable _
+  -- Auxiliary lemma: consistency for any finite subset of witnesses.
+  have lem : ∀ (s₀ : Finset (bounded_formula L 1)),
+      (ϕ.Theory_induced T ∪
+        (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
+          (↑s₀ : Set (bounded_formula L 1))).is_consistent := by
+    intro s₀
+    induction s₀ using Finset.induction with
+    | empty =>
+        simp only [Finset.coe_empty, Set.image_empty, Set.union_empty]
+        exact is_consistent_Theory_induced hϕ hT
+    | insert ψ s hψ ih =>
+        intro hs
+        apply ih
+        -- Goal: (ϕ.Theory_induced T ∪ image '' ↑s).fst ⊢' ⊥'
+        -- Note: (image '' ↑(insert ψ s)) = insert (subst0... ψ) (image '' ↑s)
+        rw [Finset.coe_insert, Set.image_insert_eq] at hs
+        -- hs : (T_ind ∪ insert (witness ψ) (image '' ↑s)).fst ⊢' ⊥'
+        -- Convert: insert ... (...) ∪ T_ind = insert (witness ψ) (T_ind ∪ image '' ↑s)
+        have hs1 : (insert
+            (subst0_bounded_formula (ϕ.on_bounded_formula (h ψ)) (bd_const (g ψ)))
+            (ϕ.Theory_induced T ∪
+              (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f)))
+                '' (↑s : Set (bounded_formula L 1)))).fst ⊢' ⊥' := by
+          have heq : (ϕ.Theory_induced T ∪ insert
+              (subst0_bounded_formula (ϕ.on_bounded_formula (h ψ)) (bd_const (g ψ)))
+              ((fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f)))
+                '' (↑s : Set (bounded_formula L 1)))) =
+              (insert
+                (subst0_bounded_formula (ϕ.on_bounded_formula (h ψ)) (bd_const (g ψ)))
+                (ϕ.Theory_induced T ∪
+                  (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f)))
+                    '' (↑s : Set (bounded_formula L 1)))) := by
+            ext x
+            simp only [Set.mem_union, Set.mem_insert_iff]
+            tauto
+          rw [heq] at hs; exact hs
+        -- Step 1: convert hs1 to a proof of ¬(witness ψ) from T_ind ∪ image '' ↑s
+        -- (impI/¬-introduction at sentence level)
+        let Γ := ϕ.Theory_induced T ∪
+              (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f)))
+                '' (↑s : Set (bounded_formula L 1))
+        let ψ' : sentence L' := subst0_bounded_formula (ϕ.on_bounded_formula (h ψ)) (bd_const (g ψ))
+        change Γ.fst ⊢' ⊥'
+        -- hs1 : (insert ψ' Γ).fst ⊢' ⊥'
+        -- Get: Γ ⊢ ψ' ⟹ ⊥, ie Γ ⊢ ¬ψ'
+        have hneg : Γ.fst ⊢' (∼ψ'.fst) := by
+          show Γ.fst ⊢' (ψ'.fst ⟹ ⊥')
+          apply impI'
+          show insert ψ'.fst Γ.fst ⊢' (⊥' : formula L')
+          have himg : insert ψ'.fst Γ.fst = (insert ψ' Γ).fst := by
+            simp only [SentTheory.fst, Set.image_insert_eq]
+          rw [himg]; exact hs1
+        -- Now: ¬ψ' is the formula (¬ϕ.on_bounded_formula (h ψ))[bd_const (g ψ)/0] essentially
+        -- Specifically: ψ'.fst = subst_formula (ϕ.on_bounded_formula (h ψ)).fst (bd_const (g ψ)).fst 0
+        -- We want to apply sgeneralize_constant on (g ψ) and the formula
+        -- (∼ϕ.on_bounded_formula (h ψ)) [bd_const (g ψ)/0]
+        let nhψ : bounded_formula L' 1 := bd_not (ϕ.on_bounded_formula (h ψ))
+        -- Re-cast hneg as a proof of subst0_bounded_formula nhψ (bd_const (g ψ))
+        have hneg' : Γ ⊢ₛ' subst0_bounded_formula nhψ (bd_const (g ψ)) := by
+          show Γ.fst ⊢' (subst0_bounded_formula nhψ (bd_const (g ψ))).fst
+          have hfst : (subst0_bounded_formula nhψ (bd_const (g ψ))).fst = ∼ψ'.fst := by
+            rw [subst0_bounded_formula_fst]
+            show subst_formula nhψ.fst (bd_const (g ψ)).fst 0 = _
+            change subst_formula ((ϕ.on_bounded_formula (h ψ)).fst ⟹ ⊥') (bd_const (g ψ)).fst 0
+              = ∼ψ'.fst
+            change (subst_formula (ϕ.on_bounded_formula (h ψ)).fst (bd_const (g ψ)).fst 0) ⟹ ⊥' =
+              ∼ψ'.fst
+            change _ = ψ'.fst ⟹ ⊥'
+            rw [show ψ'.fst = subst_formula (ϕ.on_bounded_formula (h ψ)).fst (bd_const (g ψ)).fst 0
+              from subst0_bounded_formula_fst _ _]
+          rw [hfst]; exact hneg
+        -- Now sgeneralize_constant requires:
+        -- - g ψ ∉ symbols of T  (here T = Γ — yes, since g ψ doesn't appear in image of ϕ
+        --   nor in image of substitutions involving other g f for f ≠ ψ)
+        -- - g ψ ∉ symbols of nhψ
+        -- The symbol that we generalize:
+        let c : Language.symbols L' := Sum.inl ⟨0, g ψ⟩
+        -- Show c ∉ ⋃₀ (symbols_in_formula '' Γ.fst)
+        have hΓ_no_c : c ∉ ⋃₀ (symbols_in_formula '' Γ.fst) := by
+          rintro ⟨X, hX, hcX⟩
+          rcases hX with ⟨f', hf', rfl⟩
+          -- f' ∈ Γ.fst means f' = (some sentence in Γ).fst
+          rcases hf' with ⟨σ, hσ, rfl⟩
+          rcases hσ with hσ_T | hσ_img
+          · -- σ ∈ Theory_induced T = ϕ.on_sentence '' T
+            rcases hσ_T with ⟨τ, _hτ, rfl⟩
+            -- σ.fst = (ϕ.on_sentence τ).fst = ϕ.on_formula τ.fst
+            simp only [on_sentence_fst] at hcX
+            exact ϕ.not_mem_function_in_formula_on_formula (hg' ψ) τ.fst hcX
+          · -- σ in image
+            rcases hσ_img with ⟨φ, hφ, rfl⟩
+            -- σ = subst0_bounded_formula (ϕ.on_bounded_formula (h φ)) (bd_const (g φ))
+            simp only [subst0_bounded_formula_fst] at hcX
+            -- symbols_in_formula (subst_formula ...) ⊆ ... ∪ ...
+            have hsubset := symbols_in_formula_subst
+              (ϕ.on_bounded_formula (h φ)).fst (@bd_const L' 0 (g φ)).fst 0
+            have hcX' := hsubset hcX
+            simp only [bd_const, bounded_preterm.fst, symbols_in_term,
+              Set.mem_union] at hcX'
+            rcases hcX' with hL | hR
+            · -- c ∈ symbols_in_formula (ϕ.on_bounded_formula (h φ)).fst
+              -- Recall c = Sum.inl ⟨0, g ψ⟩; use hg' ψ
+              rw [on_bounded_formula_fst] at hL
+              exact ϕ.not_mem_function_in_formula_on_formula (hg' ψ) _ hL
+            · -- c = Sum.inl ⟨0, g φ⟩, which means g ψ = g φ, hence ψ = φ
+              have : (⟨0, g ψ⟩ : Σ l, L'.functions l) = ⟨0, g φ⟩ := Sum.inl.inj hR
+              have hgeq : g ψ = g φ := eq_of_heq (Sigma.mk.inj this).2
+              have hpsi : ψ = φ := hg hgeq
+              subst hpsi
+              exact hψ hφ
+        have hnhψ_no_c : c ∉ symbols_in_formula nhψ.fst := by
+          simp only [nhψ, bd_not, bounded_preformula.fst, on_bounded_formula_fst,
+            symbols_in_formula, Set.mem_union, Set.mem_empty_iff_false, or_false]
+          exact ϕ.not_mem_function_in_formula_on_formula (hg' ψ) (h ψ).fst
+        -- Apply sgeneralize_constant via Nonempty.map
+        have hgen : Γ ⊢ₛ' bd_all nhψ := hneg'.map
+          (fun pf => sgeneralize_constant (g ψ) hΓ_no_c hnhψ_no_c pf)
+        -- Now bd_all nhψ = bd_all (bd_not (ϕ.on_bounded_formula (h ψ))) = bd_not (bd_ex ...)
+        -- which contradicts bd_ex (h ψ) being provable from T (lifted to ϕ.Theory_induced T ⊆ Γ)
+        -- Get ϕ-image of hT' ψ
+        have hT'_img : (ϕ.Theory_induced T) ⊢ₛ' ϕ.on_sentence (bd_ex (h ψ)) := by
+          exact hT' ψ |>.map (fun pf => ϕ.on_sprf pf)
+        -- ϕ.on_sentence (bd_ex (h ψ)) = bd_ex (ϕ.on_bounded_formula (h ψ))
+        have hex_eq : ϕ.on_sentence (bd_ex (h ψ)) = bd_ex (ϕ.on_bounded_formula (h ψ)) := by
+          apply bounded_preformula.eq
+          simp only [on_sentence_fst, on_bounded_formula_fst, on_formula, bd_ex, bd_not,
+            bounded_preformula.fst]
+        rw [hex_eq] at hT'_img
+        -- Lift to Γ
+        have hex : Γ ⊢ₛ' bd_ex (ϕ.on_bounded_formula (h ψ)) := by
+          have hsub : ϕ.Theory_induced T ⊆ Γ := Set.subset_union_left
+          exact hT'_img.map (fun pf => weakening (Set.image_mono hsub) pf)
+        -- bd_ex φ = bd_not (bd_all (bd_not φ)), so:
+        -- bd_ex (ϕ.on_bounded_formula (h ψ)) = bd_not (bd_all nhψ)
+        have hex_def : bd_ex (ϕ.on_bounded_formula (h ψ)) = bd_not (bd_all nhψ) := rfl
+        rw [hex_def] at hex
+        -- hex : Γ ⊢ₛ' ¬(bd_all nhψ); hgen : Γ ⊢ₛ' bd_all nhψ
+        -- Combine: Γ ⊢ₛ' ⊥
+        show Γ.fst ⊢' (⊥' : formula L')
+        have hex_fst : (bd_not (bd_all nhψ)).fst = (bd_all nhψ).fst ⟹ ⊥' := rfl
+        change Γ.fst ⊢' (bd_not (bd_all nhψ)).fst at hex
+        rw [hex_fst] at hex
+        exact impE' _ hex hgen
+  -- Main goal: derive consistency from `lem`.
+  intro H
+  -- H : (T_ind ∪ image '' univ).fst ⊢' ⊥'.  Recast as sprovable:
+  have H' : (ϕ.Theory_induced T ∪
+      (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
+        Set.univ) ⊢ₛ' (bd_falsum : sentence L') := H
+  rcases theory_proof_compactness H' with ⟨T₀, h₀, hT₀⟩
+  -- Decompose T₀ ⊆ T_ind ∪ image
+  have hT₀' : (↑T₀ : Set (sentence L')) ⊆
+      ϕ.Theory_induced T ∪
+        (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
+          Set.univ := hT₀
+  obtain ⟨t₀, s₀, hunion, ht₀, hs₀⟩ := Finset.subset_union_elim hT₀'
+  have hs₀' : (↑s₀ : Set (sentence L')) ⊆
+      (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
+        Set.univ := hs₀.trans (Set.diff_subset)
+  -- Pull back s₀ through the image map
+  rw [show ((fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
+        Set.univ : Set (sentence L')) = (fun f =>
+          subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) '' Set.univ
+        from rfl] at hs₀'
+  rw [Finset.subset_set_image_iff] at hs₀'
+  obtain ⟨s₀', _hs₀'_sub, hs₀'_img⟩ := hs₀'
+  -- Apply lem at s₀'
+  apply lem s₀'
+  -- Need: (ϕ.Theory_induced T ∪ image '' ↑s₀').fst ⊢' ⊥'
+  -- We have h₀ : (↑T₀).fst ⊢' ⊥'
+  apply h₀.map
+  intro pf
+  apply weakening _ pf
+  -- Show ↑T₀.fst ⊆ (T_ind ∪ image '' ↑s₀').fst
+  -- We have hunion : t₀ ∪ s₀ = T₀, ht₀ : ↑t₀ ⊆ T_ind, hs₀'_img : s₀'.image (...) = s₀
+  intro x hx
+  rw [SentTheory.fst] at hx ⊢
+  rcases hx with ⟨σ, hσ, rfl⟩
+  have : σ ∈ (↑t₀ : Set (sentence L')) ∨ σ ∈ (↑s₀ : Set (sentence L')) := by
+    have : σ ∈ (↑(t₀ ∪ s₀) : Set (sentence L')) := by
+      rw [hunion]; exact hσ
+    simpa [Finset.coe_union, Set.mem_union] using this
+  rcases this with hl | hr
+  · refine ⟨σ, Or.inl (ht₀ hl), rfl⟩
+  · -- σ ∈ s₀; pull back via hs₀'_img
+    have hσ_in : σ ∈ (↑(s₀'.image (fun f =>
+        subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))))
+        : Set (sentence L')) := by
+      rw [Finset.coe_image]
+      have : σ ∈ (↑s₀ : Set (sentence L')) := hr
+      rw [← hs₀'_img] at this
+      simpa [Finset.coe_image] using this
+    rw [Finset.coe_image] at hσ_in
+    rcases hσ_in with ⟨φ, hφ, hφ_eq⟩
+    refine ⟨σ, Or.inr ?_, rfl⟩
+    exact ⟨φ, hφ, hφ_eq⟩
 
 end Lhom
 
