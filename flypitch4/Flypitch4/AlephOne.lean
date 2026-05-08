@@ -1215,8 +1215,68 @@ lemma a1'_AE {Γ : 𝔹} : Γ ≤ ⨅ z, z ∈ᴮ a1' ⟹
   · -- Need: ctx ≤ ϕ' w (the outer ⨆ at w = func χ)
     exact inf_le_left.trans (inf_le_right.trans inf_le_right)
 
+-- src/aleph_one.lean:597: the predicate: a1_ψ v x holds when x is an ordinal injecting into ω
+-- with induced epsilon relation on ω equal to v, and v ≠ ∅
+private def a1_ψ {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹] (v x : bSet 𝔹) : 𝔹 :=
+  Ord x ⊓ (⨆ f, is_injective_function x omega f ⊓
+    image (mem_rel x) (prod omega omega) (prod_map_self x omega f) =ᴮ v) ⊓ (v =ᴮ ∅)ᶜ
+
+private lemma B_ext_a1_ψ {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+    {v : bSet 𝔹} : B_ext (a1_ψ v) := by
+  unfold a1_ψ
+  refine B_ext_inf (h₁ := B_ext_inf (h₁ := B_ext_Ord) (h₂ := ?_)) (h₂ := B_ext_const)
+  -- B_ext (fun x => ⨆ f, is_injective_function x omega f ⊓
+  --                  image (mem_rel x) (prod omega omega) (prod_map_self x omega f) =ᴮ v)
+  -- For each fixed f (iSup variable), show B_ext in x
+  apply B_ext_iSup; intro f
+  apply B_ext_inf B_ext_is_injective_function_left
+  -- B_ext (fun x => image (mem_rel x) (prod omega omega) (prod_map_self x omega f) =ᴮ v)
+  -- = B_ext_term with ϕ = (fun w => w =ᴮ v) and t = (fun x => image(mem_rel x)(prod ω ω)(pm(x,ω,f)))
+  apply B_ext_term (ϕ := fun w => w =ᴮ v) (t := fun x => image (mem_rel x) (prod omega omega) (prod_map_self x omega f)) B_ext_bv_eq_left
+  -- B_congr (fun x => image (mem_rel x) (prod omega omega) (prod_map_self x omega f))
+  intro x₁ x₂ Γ Hxy
+  -- Step 1: image(mem_rel x₁)(prod ω ω)(pm(x₁)) =ᴮ image(mem_rel x₂)(prod ω ω)(pm(x₁))
+  have h1 : Γ ≤ image (mem_rel x₁) (prod omega omega) (prod_map_self x₁ omega f) =ᴮ
+      image (mem_rel x₂) (prod omega omega) (prod_map_self x₁ omega f) :=
+    B_congr_image_left (B_congr_mem_rel Hxy)
+  -- Step 2: image(mem_rel x₂)(prod ω ω)(pm(x₁)) =ᴮ image(mem_rel x₂)(prod ω ω)(pm(x₂))
+  have h2 : Γ ≤ image (mem_rel x₂) (prod omega omega) (prod_map_self x₁ omega f) =ᴮ
+      image (mem_rel x₂) (prod omega omega) (prod_map_self x₂ omega f) :=
+    B_congr_image_right (B_congr_prod_map_self_left Hxy)
+  exact le_trans (le_inf h1 h2) bv_eq_trans
+
 -- src/aleph_one.lean:620
-noncomputable def a1_func (χ : (a1' (𝔹 := 𝔹)).type) : bSet 𝔹 := ∅
+-- a1_func χ: the ordinal x such that a1_ψ (a1'.func χ) x holds
+noncomputable def a1_func (χ : (a1' (𝔹 := 𝔹)).type) : bSet 𝔹 :=
+  (AE_convert' (a1_ψ (𝔹 := 𝔹)) (fun v => B_ext_a1_ψ) a1' ((a1' (𝔹 := 𝔹)).func χ)).choose
+
+-- Convert a1'_AE to the form needed by AE_convert'
+private lemma a1'_AE_psi {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹] {Γ : 𝔹} :
+    Γ ≤ ⨅ z, z ∈ᴮ (a1' (𝔹 := 𝔹)) ⟹ ⨆ w, a1_ψ z w := by
+  apply le_iInf; intro z; rw [← deduction]
+  -- Get ⨆ η, Ord η ⊓ ⨆ f, ...(η)... ⊓ (z=∅)ᶜ from a1'_AE
+  have H : Γ ⊓ z ∈ᴮ (a1' (𝔹 := 𝔹)) ≤ ⨆ η, Ord η ⊓ ⨆ f, is_injective_function η omega f ⊓
+      image (mem_rel η) (prod omega omega) (prod_map_self η omega f) =ᴮ z ⊓ (z =ᴮ ∅)ᶜ :=
+    le_trans (le_inf (a1'_AE.trans (iInf_le _ z)) inf_le_right) bv_imp_elim
+  apply le_trans H; apply iSup_le; intro η; apply le_iSup_of_le η
+  -- Convert: Ord η ⊓ (⨆ f, A f ⊓ C) ≤ a1_ψ z η = Ord η ⊓ (⨆ f, A f) ⊓ C
+  -- where C = (z =ᴮ ∅)ᶜ (doesn't depend on f)
+  unfold a1_ψ
+  -- LHS: Ord η ⊓ (⨆ f, (inj_fun η ω f ⊓ img =ᴮ z) ⊓ (z=∅)ᶜ)
+  -- RHS: Ord η ⊓ (⨆ f, inj_fun ω f ⊓ img =ᴮ z) ⊓ (z=∅)ᶜ
+  refine le_inf (le_inf inf_le_left (le_trans inf_le_right ?_)) (le_trans inf_le_right ?_)
+  · -- ⨆ f, (A f ⊓ C) ≤ ⨆ f, A f
+    exact iSup_le (fun f => le_iSup_of_le f inf_le_left)
+  · -- ⨆ f, (A f ⊓ C) ≤ C
+    exact iSup_le (fun f => inf_le_right)
+
+-- Spec for a1_func
+lemma a1_func_spec {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
+    {χ : (a1' (𝔹 := 𝔹)).type} {Γ : 𝔹}
+    (H_mem : Γ ≤ (a1' (𝔹 := 𝔹)).func χ ∈ᴮ (a1' (𝔹 := 𝔹))) :
+    Γ ≤ a1_ψ ((a1' (𝔹 := 𝔹)).func χ) (a1_func χ) :=
+  (AE_convert' (a1_ψ (𝔹 := 𝔹)) (fun v => B_ext_a1_ψ) a1' ((a1' (𝔹 := 𝔹)).func χ)).choose_spec
+    a1'_AE_psi H_mem
 
 -- src/aleph_one.lean:630
 noncomputable def a1_aux : bSet 𝔹 := ⟨(a1' (𝔹 := 𝔹)).type, a1_func, (a1' (𝔹 := 𝔹)).bval⟩
@@ -1224,12 +1284,18 @@ noncomputable def a1_aux : bSet 𝔹 := ⟨(a1' (𝔹 := 𝔹)).type, a1_func, (
 -- src/aleph_one.lean:632
 lemma Ord_of_mem_a1_aux {Γ : 𝔹} {η : bSet 𝔹} (H_mem : Γ ≤ η ∈ᴮ a1_aux) : Γ ≤ Ord η := by
   rw [mem_unfold] at H_mem; apply le_trans H_mem; apply iSup_le; intro χ
-  have hOrd : (⊤ : 𝔹) ≤ Ord (∅ : bSet 𝔹) :=
-    le_trans (le_inf zero_eq_empty Ord_zero) (B_ext_Ord _ _)
-  -- a1_aux.func χ = ∅ definitionally (a1_func χ = ∅)
-  -- goal: a1'.bval χ ⊓ η =ᴮ ∅ ≤ Ord η
-  -- ∅ =ᴮ η ⊓ Ord ∅ ≤ Ord η, and a1'.bval χ ⊓ η =ᴮ ∅ ≤ ∅ =ᴮ η ⊓ Ord ∅
-  exact le_trans (le_inf (bv_symm inf_le_right) (le_trans le_top hOrd)) (B_ext_Ord _ _)
+  -- a1_aux.func χ = a1_func χ (the ordinal extracted by classical choice)
+  -- a1'.bval χ ≤ (a1'.func χ) ∈ a1' → a1_ψ (a1'.func χ) (a1_func χ)
+  -- a1_ψ includes Ord (a1_func χ), so we get Ord (a1_func χ)
+  -- We need: a1'.bval χ ⊓ η =ᴮ a1_func χ ≤ Ord η
+  -- From a1_func_spec (using H_mem' : a1'.func χ ∈ a1' from mem_mk''):
+  have H_mem' : (a1' (𝔹 := 𝔹)).bval χ ≤ (a1' (𝔹 := 𝔹)).func χ ∈ᴮ a1' := mem_mk' a1' χ
+  have H_spec : (a1' (𝔹 := 𝔹)).bval χ ≤ a1_ψ ((a1' (𝔹 := 𝔹)).func χ) (a1_func χ) :=
+    a1_func_spec H_mem'
+  have H_ord : (a1' (𝔹 := 𝔹)).bval χ ≤ Ord (a1_func χ) :=
+    H_spec.trans (inf_le_left.trans inf_le_left)
+  -- η =ᴮ a1_func χ and Ord (a1_func χ) → Ord η
+  exact le_trans (le_inf (bv_symm inf_le_right) (le_trans inf_le_left H_ord)) (B_ext_Ord _ _)
 
 -- src/aleph_one.lean:641
 noncomputable def a1 : bSet 𝔹 := insert 0 (insert 1 a1_aux)
@@ -1415,19 +1481,38 @@ lemma a1_transitive {Γ : 𝔹} : Γ ≤ is_transitive a1 := by
         apply le_trans _ (le_sup_left.trans le_sup_left)
         apply eq_zero_of_mem_one
         exact mem_congr bv_refl inf_le_left (inf_le_right.trans inf_le_right)
-    · -- Case z ∈ a1_aux: a1_func = ∅ so z = ∅ → w ∈ ∅ → contradiction
-      apply bv_exfalso
-      -- a1_aux.func = a1_func = ∅ by definition; so z ∈ a1_aux = ⨆ χ, bval χ ⊓ z = ∅
-      have Hz_iSup : z ∈ᴮ (a1_aux : bSet 𝔹) ≤
-          ⨆ χ : (a1' (𝔹 := 𝔹)).type, (a1' (𝔹 := 𝔹)).bval χ ⊓ z =ᴮ ∅ := by
-        simp only [a1_aux, mem_unfold]
-        exact le_rfl
-      have Hz_empty : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ z =ᴮ ∅ :=
-        le_trans (le_inf (inf_le_left.trans Hz_iSup) le_rfl)
-          (bv_cases_left (fun χ => inf_le_left.trans inf_le_right))
-      apply bv_absurd (w ∈ᴮ (∅ : bSet 𝔹))
-      · exact mem_congr bv_refl Hz_empty (inf_le_right.trans inf_le_right)
-      · exact (empty_iff_forall_not_mem.mp bv_refl).trans (iInf_le _ w)
+    · -- Case z ∈ a1_aux: z is an ordinal injecting into omega
+      -- Show w ∈ a1 using mem_a1_iff: w injects into omega too (via z's injection)
+      -- Step 1: z injects into omega (from mem_a1_iff forward on z ∈ a1)
+      have Hz_a1 : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ z ∈ᴮ a1 :=
+        inf_le_right.trans (inf_le_left.trans inf_le_right)
+      have Hz_ord : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ Ord z :=
+        Ord_of_mem_a1 Hz_a1
+      have Hz_inj : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤
+          ⨆ f, is_injective_function z omega f :=
+        (mem_a1_iff Hz_ord).mp Hz_a1
+      -- Step 2: w ⊆ z (from w ∈ z and Ord z is transitive)
+      have Hw_z : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ w ∈ᴮ z :=
+        inf_le_right.trans inf_le_right
+      have Hw_sub : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ w ⊆ᴮ z :=
+        subset_of_mem_transitive (Hz_ord.trans inf_le_right) Hw_z
+      -- Step 3: w injects into omega (via injects_into_of_subset + injects_into_trans)
+      have Hw_ord : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ Ord w :=
+        Ord_of_mem_Ord Hw_z Hz_ord
+      have Hw_inj_into_z : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ injects_into w z :=
+        injects_into_of_subset Hw_sub
+      have Hz_inj_into_omega : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤
+          injects_into z omega :=
+        injects_into_of_injection_into Hz_inj
+      have Hw_inj_into_omega : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤
+          injects_into w omega :=
+        injects_into_trans Hw_inj_into_z Hz_inj_into_omega
+      -- Convert injects_into to ⨆ f, is_injective_function w omega f
+      have Hw_inj : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤
+          ⨆ f, is_injective_function w omega f :=
+        injection_into_of_injects_into Hw_inj_into_omega
+      -- Step 4: w ∈ a1 by mem_a1_iff backward
+      exact (mem_a1_iff Hw_ord).mpr Hw_inj
 
 -- src/aleph_one.lean:818
 lemma a1_ewo {Γ : 𝔹} : Γ ≤ ewo a1 := by
