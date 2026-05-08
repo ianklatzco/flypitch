@@ -1041,7 +1041,123 @@ lemma eq_of_eq_induced_epsilon_rel
     (H_exists_two : Γ ≤ exists_two η)
     (H_exists_two' : Γ ≤ exists_two ρ) :
     Γ ≤ η =ᴮ ρ := by
-  sorry -- TODO: port from src/aleph_one.lean:515
+  -- Suffices: construct an eps_iso η ρ h, then apply eq_of_Ord_eps_iso
+  suffices H_eps : Γ ≤ ⨆ h, eps_iso η ρ h from eq_of_Ord_eps_iso Hη_ord Hρ_ord H_eps
+  -- Step 1: Build the components
+  -- f_factor : η → image(η,ω,f), inj
+  have Hf_factor := factor_image_is_injective_function Hη_inj
+  -- g_inverse : image(ρ,ω,g) → ρ, inj
+  have Hg_inv := @injective_function_inverse_is_injective_function _ _ _ _ _ _ Hρ_inj
+  -- image(η) = image(ρ) from H_eq and exists_two conditions
+  have H_img_eq : Γ ≤ image η omega f =ᴮ image ρ omega g :=
+    image_eq_of_eq_induced_epsilon_rel Hη_inj Hρ_inj H_eq H_exists_two H_exists_two'
+  -- g_inverse_rw : is_injective_function (image η ω f) ρ g⁻¹
+  -- (rewrite image(ρ) to image(η) in g_inverse's domain type)
+  have Hg_inv_rw : Γ ≤ is_injective_function (image η omega f) ρ
+      (injective_function_inverse Hρ_inj) :=
+    bv_rw' (H := H_img_eq) (h_congr := B_ext_is_injective_function_left)
+      (H_new := Hg_inv)
+  -- Step 2: Let h = comp(f_factor, g_inverse_rw)
+  apply le_iSup_of_le (injective_function_comp Hf_factor Hg_inv_rw)
+  -- Step 3: Show eps_iso η ρ h = is_function ⊓ strong_eps_hom ⊓ is_surj
+  refine le_inf (le_inf ?_ ?_) ?_
+  · -- is_function η ρ h
+    exact injective_function_comp_is_function
+  · -- strong_eps_hom η ρ h
+    rw [strong_eps_hom_iff]
+    intro Γ' H_le z₁ Hz₁_η z₂ Hz₂_η w₁ Hw₁_ρ w₂ Hw₂_ρ Hpr₁ Hpr₂
+    -- Hpr₁ : pair z₁ w₁ ∈ h = comp(f_factor, g_inv_rw)
+    -- Hpr₂ : pair z₂ w₂ ∈ h
+    -- Unfold comp membership to get intermediate elements v₁, v₂ ∈ image(η)
+    have Hf_func := is_func'_of_is_injective_function (H_le.trans Hf_factor)
+    have Hg_func := is_func'_of_is_injective_function (H_le.trans Hg_inv_rw)
+    have H_mem₁ := (mem_is_func'_comp_iff Hf_func Hg_func).mp Hpr₁
+    have H_mem₂ := (mem_is_func'_comp_iff Hf_func Hg_func).mp Hpr₂
+    -- H_mem₁ : z₁ ∈ η ∧ w₁ ∈ ρ ∧ ⨆ v₁, v₁ ∈ image(η) ⊓ (pair z₁ v₁ ∈ f ⊓ pair v₁ w₁ ∈ g⁻¹)
+    obtain ⟨_, _, H_v₁_ex⟩ := H_mem₁
+    obtain ⟨_, _, H_v₂_ex⟩ := H_mem₂
+    obtain ⟨v₁, Hv₁⟩ := exists_convert H_v₁_ex
+      (B_ext_inf B_ext_mem_left (B_ext_inf B_ext_pair_mem_right B_ext_pair_mem_left))
+    obtain ⟨v₂, Hv₂⟩ := exists_convert H_v₂_ex
+      (B_ext_inf B_ext_mem_left (B_ext_inf B_ext_pair_mem_right B_ext_pair_mem_left))
+    -- v₁, v₂ ∈ image(η) ⊓ (pair z₁ v₁ ∈ f ⊓ pair v₁ w₁ ∈ g⁻¹)
+    have Hv₁_img : Γ' ≤ v₁ ∈ᴮ image η omega f := Hv₁.trans inf_le_left
+    have Hv₁_f : Γ' ≤ pair z₁ v₁ ∈ᴮ f := Hv₁.trans (inf_le_right.trans inf_le_left)
+    have Hv₁_ginv : Γ' ≤ pair v₁ w₁ ∈ᴮ injective_function_inverse Hρ_inj :=
+      Hv₁.trans (inf_le_right.trans inf_le_right)
+    have Hv₂_img : Γ' ≤ v₂ ∈ᴮ image η omega f := Hv₂.trans inf_le_left
+    have Hv₂_f : Γ' ≤ pair z₂ v₂ ∈ᴮ f := Hv₂.trans (inf_le_right.trans inf_le_left)
+    have Hv₂_ginv : Γ' ≤ pair v₂ w₂ ∈ᴮ injective_function_inverse Hρ_inj :=
+      Hv₂.trans (inf_le_right.trans inf_le_right)
+    -- pair v₁ w₁ ∈ g⁻¹ → pair w₁ v₁ ∈ g (by mem_inj_inverse_iff)
+    have Hg_func₀ := is_func'_of_is_injective_function (H_le.trans Hρ_inj)
+    have Hg_inj₀ := is_inj_of_is_injective_function (H_le.trans Hρ_inj)
+    have Hw₁_v₁ := (mem_inj_inverse_iff Hg_func₀ Hg_inj₀).mp Hv₁_ginv
+    have Hw₂_v₂ := (mem_inj_inverse_iff Hg_func₀ Hg_inj₀).mp Hv₂_ginv
+    -- Hw₁_v₁ : w₁ ∈ ρ ∧ v₁ ∈ omega ∧ pair w₁ v₁ ∈ g
+    -- Hw₂_v₂ : w₂ ∈ ρ ∧ v₂ ∈ omega ∧ pair w₂ v₂ ∈ g
+    have Hpair_w₁v₁_g := Hw₁_v₁.2.2
+    have Hpair_w₂v₂_g := Hw₂_v₂.2.2
+    -- v₁, v₂ ∈ image(η) = image(ρ) (via H_img_eq)
+    -- Actually, key: show v₁ ∈ v₂ ↔ z₁ ∈ z₂ ↔ w₁ ∈ w₂
+    -- z₁ ∈ z₂ → v₁ ∈ v₂: from induced_epsilon_rel η omega f
+    -- v₁ ∈ v₂ → w₁ ∈ w₂: from induced_epsilon_rel ρ omega g (via H_eq)
+    constructor
+    · -- Forward: z₁ ∈ z₂ → w₁ ∈ w₂
+      intro Hz₁z₂
+      -- pair v₁ v₂ ∈ induced_epsilon_rel η ω f (since z₁∈η, z₂∈η, pair z₁v₁∈f, pair z₂v₂∈f, z₁∈z₂)
+      have Hv₁_omega : Γ' ≤ v₁ ∈ᴮ omega :=
+        mem_of_mem_subset (H_le.trans image_subset) Hv₁_img
+      have Hv₂_omega : Γ' ≤ v₂ ∈ᴮ omega :=
+        mem_of_mem_subset (H_le.trans image_subset) Hv₂_img
+      have Hpair_v₁v₂_ind_η : Γ' ≤ pair v₁ v₂ ∈ᴮ induced_epsilon_rel η omega f := by
+        rw [mem_induced_epsilon_rel_iff (H_le.trans (bv_and_left Hη_inj))]
+        exact ⟨Hv₁_omega, Hv₂_omega,
+               le_iSup_of_le z₁ (le_inf Hz₁_η (le_iSup_of_le z₂
+                 (le_inf Hz₂_η (le_inf (le_inf Hv₁_f Hv₂_f) Hz₁z₂))))⟩
+      -- pair v₁ v₂ ∈ induced_epsilon_rel ρ ω g (via H_eq)
+      have Hpair_v₁v₂_ind_ρ : Γ' ≤ pair v₁ v₂ ∈ᴮ induced_epsilon_rel ρ omega g :=
+        bv_rw' (H := H_le.trans (bv_symm H_eq)) (h_congr := B_ext_mem_right)
+          (H_new := Hpair_v₁v₂_ind_η)
+      -- From pair v₁ v₂ ∈ ind_ρ with pair w₁ v₁ ∈ g and pair w₂ v₂ ∈ g: w₁ ∈ w₂
+      exact mem_of_mem_induced_epsilon_rel (H_le.trans Hρ_inj) Hpair_w₁v₁_g Hpair_w₂v₂_g
+        Hpair_v₁v₂_ind_ρ
+    · -- Backward: w₁ ∈ w₂ → z₁ ∈ z₂
+      intro Hw₁w₂
+      -- pair v₁ v₂ ∈ induced_epsilon_rel ρ ω g (since w₁∈ρ, w₂∈ρ, pair w₁v₁∈g, pair w₂v₂∈g, w₁∈w₂)
+      have Hv₁_omega : Γ' ≤ v₁ ∈ᴮ omega := Hw₁_v₁.2.1
+      have Hv₂_omega : Γ' ≤ v₂ ∈ᴮ omega := Hw₂_v₂.2.1
+      have Hpair_v₁v₂_ind_ρ : Γ' ≤ pair v₁ v₂ ∈ᴮ induced_epsilon_rel ρ omega g := by
+        rw [mem_induced_epsilon_rel_iff (H_le.trans (bv_and_left Hρ_inj))]
+        exact ⟨Hv₁_omega, Hv₂_omega,
+               le_iSup_of_le w₁ (le_inf Hw₁_ρ (le_iSup_of_le w₂
+                 (le_inf Hw₂_ρ (le_inf (le_inf Hpair_w₁v₁_g Hpair_w₂v₂_g) Hw₁w₂))))⟩
+      -- pair v₁ v₂ ∈ induced_epsilon_rel η ω f (via H_eq symm)
+      have Hpair_v₁v₂_ind_η : Γ' ≤ pair v₁ v₂ ∈ᴮ induced_epsilon_rel η omega f :=
+        bv_rw' (H := H_le.trans H_eq) (h_congr := B_ext_mem_right)
+          (H_new := Hpair_v₁v₂_ind_ρ)
+      -- From pair v₁ v₂ ∈ ind_η with pair z₁ v₁ ∈ f and pair z₂ v₂ ∈ f: z₁ ∈ z₂
+      exact mem_of_mem_induced_epsilon_rel (H_le.trans Hη_inj) Hv₁_f Hv₂_f
+        Hpair_v₁v₂_ind_η
+  · -- is_surj η ρ h
+    -- h = comp(f_factor, g_inv_rw)
+    -- f_factor is surjective onto image(η) (surj_image)
+    -- g_inv_rw is surjective onto ρ (injective_function_inverse_is_injective_function's surjectivity)
+    apply is_func'_comp_surj
+      (is_func'_of_is_injective_function Hf_factor)
+      (is_func'_of_is_injective_function Hg_inv_rw)
+    · -- f_factor is surjective η → image(η)
+      exact surj_image (is_func'_of_is_injective_function Hη_inj)
+    · -- g_inv_rw is surjective image(η) → ρ
+      -- inj_inverse_is_surj gives: is_surj (image ρ omega g) ρ (inj_inverse)
+      -- After rewriting image(ρ) = image(η) via H_img_eq:
+      apply bv_rw' (H := H_img_eq)
+        (ϕ := fun z => is_surj z ρ (injective_function_inverse Hρ_inj))
+        (h_congr := B_ext_iInf (h := fun _ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+          B_ext_iSup (h := fun w => B_ext_inf (h₁ := B_ext_mem_right) (h₂ := B_ext_const)))))
+      exact inj_inverse_is_surj
+        (is_func'_of_is_injective_function Hρ_inj)
+        (is_inj_of_is_injective_function Hρ_inj)
 
 end well_ordering
 
