@@ -868,13 +868,75 @@ noncomputable def wit_infty {L : Language.{u}} {T : SentTheory L} {hT : T.is_con
 
 /-! ## henkinization has enough constants (src/henkin.lean:785-831) -/
 
+-- Helper: on_bounded_formula commutes with subst0_bounded_formula
+private lemma on_bounded_formula_subst0 {L L' : Language.{u}} (ϕ : L →ᴸ L')
+    {n l} (f : bounded_preformula L (n + 1) l) (s : bounded_term L n) :
+    ϕ.on_bounded_formula (subst0_bounded_formula f s) =
+    subst0_bounded_formula (ϕ.on_bounded_formula f) (ϕ.on_bounded_term s) := by
+  apply bounded_preformula.eq
+  simp only [subst0_bounded_formula_fst, Lhom.on_bounded_formula_fst,
+             Lhom.on_bounded_term_fst, Lhom.on_formula_subst]
+
 @[simp] lemma henkinization_is_henkin {L : Language.{u}} {T : SentTheory L}
     (hT : T.is_consistent) : has_enough_constants (henkinization hT) := by
   apply has_enough_constants.intro
   intro f
   have big_sigma := wit_infty (hT := hT) f
-  obtain ⟨c, _⟩ := big_sigma
-  exact ⟨c, by sorry⟩ -- TODO: port from src/henkin.lean:790-830
+  obtain ⟨c, ⟨f', Hf'⟩, ⟨i, f''⟩, Heq, Hc⟩ := big_sigma
+  -- The witnessing sentence at stage i+1
+  let wp_step : sentence ((@henkin_language_chain L).obj (i + 1)) :=
+    wit_property (henkin_language_inclusion.on_bounded_formula f'') (wit' f'')
+  -- wp_step ∈ henkin_theory_chain T (i+1) = henkin_theory_step (henkin_theory_chain T i)
+  have hwp_step : wp_step ∈ henkin_theory_chain T (i + 1) := by
+    simp only [henkin_theory_chain, henkin_theory_step, Set.mem_image, Set.mem_univ]
+    right
+    exact ⟨f'', Set.mem_univ _, rfl⟩
+  -- (hcm (i+1)).on_bounded_formula wp_step ∈ ι (i+1)
+  have hwp_iota : (henkin_language_canonical_map (i + 1)).on_bounded_formula wp_step ∈
+      @ι L T (i + 1) := in_iota_of_in_step i wp_step hwp_step
+  -- Key: (hcm i).on_bounded_formula f'' = f
+  -- This uses bounded_formula'_comparison ⟦⟨i, f''⟩⟧ = (cocone_of_bounded_formula'_L_infty).map i f''
+  -- = (hcm i).on_bounded_formula f''
+  have hf_eq : (henkin_language_canonical_map i).on_bounded_formula f'' = f := by
+    have : (henkin_language_canonical_map i).on_bounded_formula f'' =
+        bounded_formula'_comparison (canonical_map i f'') := by
+      simp only [bounded_formula'_comparison, bounded_formula_comparison,
+                 universal_map_property, cocone_of_bounded_formula_L_infty]
+    simp only [canonical_map] at this
+    rw [this, show (Quotient.mk _ ⟨i, f''⟩ : colimit _) = f' from Heq, Hf']
+  -- Key: (hcm (i+1)).on_bf (inclusion.on_bf f'') = f
+  -- via cocone_of_bounded_formula'_L_infty.h_compat at i ≤ i+1:
+  -- (hcm i).on_bf = (hcm (i+1)).on_bf ∘ incl.on_bf
+  have hinc_eq : (henkin_language_canonical_map (i + 1)).on_bounded_formula
+      (henkin_language_inclusion.on_bounded_formula f'') = f := by
+    -- Use cocone_of_bounded_formula'_L_infty.h_compat to get the key equality
+    have hcompat := (@cocone_of_bounded_formula'_L_infty L).h_compat (Nat.le_succ i)
+    -- hcompat : (hcm i).on_bf = (hcm (i+1)).on_bf ∘ (chain_maps i (i+1)).on_bf
+    have hc_bf := congr_fun hcompat f''
+    simp only [Function.comp, henkin_bounded_formula_chain', henkin_bounded_formula_chain,
+               cocone_of_bounded_formula'_L_infty, cocone_of_bounded_formula_L_infty] at hc_bf
+    -- hc_bf : (hcm i).on_bf f'' = (hcm (i+1)).on_bf ((chain_maps i (i+1)).on_bf f'')
+    rw [← henkin_language_inclusion_chain_map] at hc_bf
+    -- hc_bf : (hcm i).on_bf f'' = (hcm (i+1)).on_bf (incl.on_bf f'')
+    rw [← hc_bf, hf_eq]
+  -- Key: (hcm (i+1)).on_bounded_formula wp_step = wit_property f c
+  have heq : (henkin_language_canonical_map (i + 1)).on_bounded_formula wp_step =
+      wit_property f c := by
+    simp only [wp_step, wit_property, Lhom.on_bounded_formula]
+    congr 1
+    · -- bd_ex (incl.on_bf f'') maps to bd_ex f
+      simp only [bd_ex, bd_not, Lhom.on_bounded_formula]
+      exact congrArg (fun g => bd_imp (bd_all (bd_imp g bd_falsum)) bd_falsum) hinc_eq
+    · -- subst0 (incl.on_bf f'') (bd_const (wit' f'')) maps to subst0 f (bd_const c)
+      rw [on_bounded_formula_subst0, hinc_eq]
+      congr 1
+      simp only [bd_const, Lhom.on_bounded_term]
+      exact congrArg bounded_preterm.bd_func Hc.symm
+  -- wit_property f c ∈ henkinization hT = ⋃ n, ι T n
+  have hmem : wit_property f c ∈ henkinization hT := by
+    simp only [henkinization, T_infty, Set.mem_iUnion]
+    exact ⟨i + 1, heq ▸ hwp_iota⟩
+  exact ⟨c, saxm' hmem⟩
 
 /-! ## Directed union infrastructure (src/henkin.lean:833-874) -/
 
