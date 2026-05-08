@@ -1342,8 +1342,66 @@ lemma a1_spec {Γ : 𝔹} : Γ ≤ aleph_one_Ord_spec a1 := by
   sorry -- TODO: port from src/aleph_one.lean:834
 
 -- src/aleph_one.lean:862
+set_option maxHeartbeats 800000 in
 lemma a1_le_of_omega_lt {Γ : 𝔹} : Γ ≤ le_of_omega_lt a1 := by
-  sorry -- TODO: port from src/aleph_one.lean:862
+  unfold le_of_omega_lt
+  apply le_iInf; intro z; rw [← deduction, ← deduction]
+  -- ctx := Γ ⊓ Ord z ⊓ (larger_than omega z)ᶜ
+  -- Goal: ctx ≤ injects_into a1 z
+  have H_Ord_z : Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ ≤ Ord z :=
+    inf_le_left.trans inf_le_right
+  have H_no_larger : Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ ≤ (larger_than bSet.omega z)ᶜ :=
+    inf_le_right
+  -- Helper: larger_than omega ∅ is trivially true
+  have H_lt_empty : (⊤ : 𝔹) ≤ larger_than bSet.omega (∅ : bSet 𝔹) := by
+    apply le_iSup_of_le (∅ : bSet 𝔹); apply le_iSup_of_le (∅ : bSet 𝔹)
+    exact le_inf (le_inf empty_subset is_func'_empty) is_surj_empty
+  -- Step 1: ¬(injects_into z omega)
+  have H_no_inj : Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ ≤ (injects_into z bSet.omega)ᶜ := by
+    apply (le_compl_iff_disjoint_right.mpr (disjoint_iff_inf_le.mpr _))
+    -- Goal: ctx ⊓ injects_into z omega ≤ ⊥
+    apply bv_absurd (larger_than bSet.omega z)
+    · -- Case split on z = ∅
+      apply le_trans (b := (z =ᴮ ∅ ⊔ (z =ᴮ ∅)ᶜ) ⊓
+          (Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ ⊓ injects_into z bSet.omega))
+      · simp [sup_compl_eq_top]
+      · apply bv_or_elim_left
+        · -- Case z = ∅: larger_than omega ∅ by trivial empty function
+          exact bv_rw' (H := inf_le_left) (h_congr := B_ext_larger_than_right)
+            (H_new := le_top.trans H_lt_empty)
+        · -- Case z ≠ ∅: surjects_onto_of_injects_into' gives larger_than
+          apply larger_than_of_surjects_onto
+          apply surjects_onto_of_injects_into'
+          · exact inf_le_right.trans inf_le_right
+          · exact nonempty_iff_exists_mem.mp inf_le_left
+    · exact inf_le_left.trans H_no_larger
+  -- Step 2: z ∉ a1 (via mem_a1_iff)
+  have H_not_mem_a1 : Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ ≤ (z ∈ᴮ a1)ᶜ := by
+    apply (le_compl_iff_disjoint_right.mpr (disjoint_iff_inf_le.mpr _))
+    -- Goal: ctx ⊓ z ∈ a1 ≤ ⊥
+    apply bv_absurd (injects_into z bSet.omega)
+    · exact injects_into_of_injection_into ((mem_a1_iff (inf_le_left.trans H_Ord_z)).mp inf_le_right)
+    · exact inf_le_left.trans H_no_inj
+  -- Step 3: by trichotomy a1_Ord vs Ord z, derive a1 ⊆ z
+  have H_sub : Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ ≤ a1 ⊆ᴮ z := by
+    rw [Ord.le_iff_lt_or_eq a1_Ord H_Ord_z]
+    -- Goal: ctx ≤ a1 ∈ z ⊔ a1 = z
+    have H_tri := Ord.trichotomy a1_Ord H_Ord_z
+    -- tri: ctx ≤ a1 = z ⊔ a1 ∈ z ⊔ z ∈ a1  (left-assoc: (a1=z ⊔ a1∈z) ⊔ z∈a1)
+    apply le_trans (b := (a1 =ᴮ z ⊔ a1 ∈ᴮ z ⊔ z ∈ᴮ a1) ⊓
+        (Γ ⊓ Ord z ⊓ (larger_than bSet.omega z)ᶜ))
+    · exact le_inf H_tri le_rfl
+    · apply bv_or_elim_left
+      · -- Case (a1=z ⊔ a1∈z) ⊓ ctx: split into subcases
+        apply bv_or_elim_left
+        · -- a1=z: → a1∈z ⊔ a1=z (right branch)
+          exact le_trans inf_le_left le_sup_right
+        · -- a1∈z: → a1∈z ⊔ a1=z (left branch)
+          exact le_trans inf_le_left le_sup_left
+      · -- Case z∈a1 ⊓ ctx: contradicts H_not_mem_a1
+        apply bv_exfalso
+        exact bv_absurd _ inf_le_left (inf_le_right.trans H_not_mem_a1)
+  exact injects_into_of_subset H_sub
 
 end a1
 
