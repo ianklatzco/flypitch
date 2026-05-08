@@ -732,7 +732,21 @@ def CH_f : sentence L_ZFC :=
       (subst0_bounded_formula at_most_f (Powerset omega'))))
 
 lemma CH_f_is_CH : ⟦CH_f⟧[V β] = CH₂ := by
-  sorry -- TODO: needs boolean_realize of subst_bounded_formula -- complex
+  -- L3 proof: simp [-substmax_bounded_formula, CH_f, CH₂, neg_supr, sup_assoc, h1, h2, lattice.imp]
+  -- where h1, h2 reduce substmax/subst0 by refl.
+  have h1 : ∀ x : V β, boolean_realize_bounded_formula (DVec.cons x DVec.nil)
+      (substmax_bounded_formula at_most_f ω') DVec.nil =
+      boolean_realize_bounded_formula
+        (DVec.cons x (DVec.cons (bSet.omega : V β) DVec.nil)) at_most_f DVec.nil := by
+    intro x; rfl
+  have h2 : ∀ x : V β, boolean_realize_bounded_formula (DVec.cons x DVec.nil)
+      (subst0_bounded_formula at_most_f (Powerset omega')) DVec.nil =
+      boolean_realize_bounded_formula
+        (DVec.cons (bv_powerset (bSet.omega : V β)) (DVec.cons x DVec.nil)) at_most_f DVec.nil := by
+    intro x; rfl
+  simp only [CH_f, boolean_realize_sentence_all, boolean_realize_bounded_formula,
+             boolean_realize_bounded_formula_or, Ord_f_is_Ord, h1, h2, realize_at_most_f,
+             V_forall, imp, CH₂, compl_iSup, compl_inf, compl_compl, sup_assoc]
 
 lemma CH_f_sound {Γ : β} : (Γ ⊩[V β] CH_f) ↔ Γ ≤ CH₂ := by
   change _ ≤ _ ↔ _ ≤ _
