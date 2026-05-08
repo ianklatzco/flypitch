@@ -1064,7 +1064,7 @@ lemma eq_of_Ord_eps_iso_aux {x y : bSet 𝔹} {Γ : 𝔹} (Hx_ord : Γ ≤ Ord x
     exact bot_of_mem_mem' x w inf_le_left (inf_le_right.trans Hw_x)
   · -- x = w and w ∈ x → w ∈ w → contradiction
     apply bot_of_mem_self'
-    exact bv_rw'' inf_le_left (inf_le_right.trans Hw_x) B_ext_mem_right
+    exact bv_rw'' (ϕ := fun v => w ∈ᴮ v) inf_le_left (inf_le_right.trans Hw_x) B_ext_mem_right
 
 -- src/bvm_extras2.lean:526
 lemma eq_of_Ord_eps_iso {x y : bSet 𝔹} {Γ : 𝔹} (Hx_ord : Γ ≤ Ord x) (Hy_ord : Γ ≤ Ord y)
