@@ -1135,6 +1135,29 @@ noncomputable def term_model_fun' {L : Language.{u}} (T : SentTheory L)
     {l} (t : closed_preterm L l) (ts : DVec (closed_term L) l) : term_model' T :=
   @Quotient.mk'' _ (term_setoid T) (bd_apps t ts)
 
+/-- Core congr: given equal_preterms and DVecRel, bd_apps preserves term_rel -/
+private lemma bd_apps_congr_equal_preterms {L : Language.{u}} {T : SentTheory L}
+    {l} {t t' : closed_preterm L l}
+    (Ht : equal_preterms T.fst t.fst t'.fst) :
+    ∀ {xs xs' : DVec (closed_term L) l},
+    @DVec.DVecRel _ (term_setoid T) _ xs xs' →
+    term_rel T (bd_apps t xs) (bd_apps t' xs') := by
+  intro xs xs' hxs
+  induction hxs with
+  | rnil =>
+    simp only [term_rel, SentTheory.sprovable, SentTheory.fst, bd_apps]
+    exact ⟨Ht DVec.nil⟩
+  | rcons hx hxs ih =>
+    -- hx : term_rel T x x' = T ⊢ₛ' bd_equal x x'
+    -- hxs : DVecRel xs xs'
+    -- ih is: equal_preterms T.fst (bd_app t x).fst (bd_app t' x').fst → ...
+    -- No, ih is the claim for bd_app t x, bd_app t' x', hxs
+    simp only [term_rel, SentTheory.sprovable, SentTheory.fst, bd_apps] at *
+    -- Need: T.fst ⊢' bd_apps (bd_app t x) xs ≃ bd_apps (bd_app t' x') xs'
+    -- But ih gives us: for (bd_app t x) and (bd_app t' x') vs xs and xs'
+    -- Ht' : equal_preterms T.fst (bd_app t x).fst (bd_app t' x').fst follows from Ht and hx
+    exact ih (equal_preterms_app Ht hx.some)
+
 /-- Helper: term_model_fun' is compatible with term_rel on each argument -/
 private lemma term_model_fun'_congr {L : Language.{u}} {T : SentTheory L}
     {l} (t : closed_preterm L l) :
@@ -1142,27 +1165,10 @@ private lemma term_model_fun'_congr {L : Language.{u}} {T : SentTheory L}
     @DVec.DVecRel _ (term_setoid T) _ xs xs' →
     term_model_fun' T t xs = term_model_fun' T t xs' := by
   intro xs xs' hxs
-  induction hxs with
-  | rnil => rfl
-  | rcons hx hxs ih =>
-    -- hx : term_rel T x x', hxs : xs ≈ xs'
-    -- ih : term_model_fun' T (bd_app t x) xs = term_model_fun' T (bd_app t x) xs' (for the head-fixed tail)
-    -- This is the key: go via term_model_fun' T t (cons x xs') first
-    -- step 1: use ih to change xs to xs' (keeping x fixed)
-    -- step 2: use hx to change x to x' (keeping xs' fixed)
-    -- But ih is the claim for the subtree of hxs, with t' = bd_app t x
-    -- Actually ih says: term_model_fun' T (bd_app t x) xs = term_model_fun' T (bd_app t x) xs'... no that's wrong
-    -- ih should be: term_model_fun'_congr (bd_app t x) hxs
-    -- Let's be explicit:
-    show term_model_fun' T t (DVec.cons _ _) = term_model_fun' T t (DVec.cons _ _)
-    simp only [term_model_fun', bd_apps]
-    apply Quotient.sound
-    show term_rel T _ _
-    simp only [term_rel, SentTheory.sprovable, SentTheory.fst]
-    -- Need: T.fst ⊢' bd_apps t (cons x xs) ≃ bd_apps t (cons x' xs')
-    -- = bd_apps (bd_app t x) xs ≃ bd_apps (bd_app t x') xs'
-    -- TODO: this requires induction on xs and xs' relating each step
-    sorry
+  simp only [term_model_fun']
+  apply Quotient.sound
+  show term_rel T _ _
+  exact bd_apps_congr_equal_preterms (equal_preterms_refl T.fst t.fst) hxs
 
 /-- The function interpretation in the term model, using quotient_lift -/
 noncomputable def term_model_fun {L : Language.{u}} (T : SentTheory L)
@@ -1175,6 +1181,22 @@ noncomputable def term_model_rel' {L : Language.{u}} (T : SentTheory L)
     {l} (f : presentence L l) (ts : DVec (closed_term L) l) : Prop :=
   T ⊢ₛ' bd_apps_rel f ts
 
+/-- Core congr: given equiv_preformulae and DVecRel, bd_apps_rel preserves provability -/
+private lemma bd_apps_rel_congr_equiv {L : Language.{u}} {T : SentTheory L}
+    {l} {f f' : presentence L l}
+    (Hf : equiv_preformulae T.fst f.fst f'.fst) :
+    ∀ {xs xs' : DVec (closed_term L) l},
+    @DVec.DVecRel _ (term_setoid T) _ xs xs' →
+    (T ⊢ₛ' bd_apps_rel f xs) = (T ⊢ₛ' bd_apps_rel f' xs') := by
+  intro xs xs' hxs
+  induction hxs with
+  | rnil =>
+    simp only [bd_apps_rel, SentTheory.sprovable, SentTheory.fst]
+    exact propext (iff_of_biimp ⟨Hf DVec.nil⟩)
+  | rcons hx hxs ih =>
+    simp only [bd_apps_rel]
+    exact ih (equiv_preformulae_apprel Hf hx.some)
+
 /-- Helper: term_model_rel' is compatible with term_rel on each argument -/
 private lemma term_model_rel'_congr {L : Language.{u}} {T : SentTheory L}
     {l} (f : presentence L l) :
@@ -1182,12 +1204,8 @@ private lemma term_model_rel'_congr {L : Language.{u}} {T : SentTheory L}
     @DVec.DVecRel _ (term_setoid T) _ xs xs' →
     term_model_rel' T f xs = term_model_rel' T f xs' := by
   intro xs xs' hxs
-  induction hxs with
-  | rnil => rfl
-  | rcons hx hxs ih =>
-    simp only [term_model_rel', bd_apps_rel]
-    -- similar to term_model_fun'_congr, need congr for bd_apprel
-    sorry
+  simp only [term_model_rel']
+  exact bd_apps_rel_congr_equiv (equiv_preformulae_refl T.fst f.fst) hxs
 
 /-- The relation interpretation in the term model -/
 noncomputable def term_model_rel {L : Language.{u}} (T : SentTheory L)
