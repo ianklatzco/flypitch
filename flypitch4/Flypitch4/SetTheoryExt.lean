@@ -94,6 +94,57 @@ lemma countable_chain_condition_of_countable (h : #α ≤ ℵ₀) : countable_ch
   haveI : SeparableSpace α := inferInstance
   exact countable_chain_condition_of_separable_space
 
+/-- CCC is preserved when we can witness it on a topological basis. -/
+lemma countable_chain_condition_of_topological_basis (B : Set (Set α))
+    (hB : IsTopologicalBasis B)
+    (h : ∀ s : Set (Set α), s ⊆ B → s.PairwiseDisjoint id → s.Countable) :
+    countable_chain_condition α := by
+  apply countable_chain_condition_of_nonempty
+  intro s s_nonempty s_open hs
+  -- For each x ∈ s, choose a non-empty basis element b ⊆ x.
+  have hpick : ∀ x : s, ∃ b : Set α, b ∈ B ∧ b ≠ ∅ ∧ b ⊆ x.1 := by
+    rintro ⟨x, hx⟩
+    have hxne : x.Nonempty := Set.nonempty_iff_ne_empty.mpr (s_nonempty hx)
+    obtain ⟨y, hy⟩ := hxne
+    obtain ⟨b, hbB, hyb, hbx⟩ := hB.isOpen_iff.mp (s_open hx) y hy
+    refine ⟨b, hbB, ?_, hbx⟩
+    intro hbe; rw [hbe] at hyb; exact hyb
+  choose f hfB hfne hfsub using hpick
+  -- s' = range of f.
+  let s' : Set (Set α) := Set.range f
+  have hs'B : s' ⊆ B := by rintro _ ⟨x, rfl⟩; exact hfB x
+  have hs'pd : s'.PairwiseDisjoint id := by
+    rintro _ ⟨x, rfl⟩ _ ⟨y, rfl⟩ hne
+    have hxy' : x ≠ y := by
+      rintro rfl; exact hne rfl
+    have h1 : (x : Set α) ≠ y := fun h => hxy' (Subtype.ext h)
+    exact (hs x.2 y.2 h1).mono (hfsub x) (hfsub y)
+  have hs'count : s'.Countable := h s' hs'B hs'pd
+  -- Now f : s → s' is injective: f x non-empty subset of both x.1 and y.1
+  -- forces x.1 = y.1 (else they would be disjoint).
+  have hf_inj : Function.Injective f := by
+    intro x y hxy
+    by_contra hne
+    have hxy' : (x : Set α) ≠ y := fun h => hne (Subtype.ext h)
+    have hd : Disjoint (x : Set α) (y : Set α) := hs x.2 y.2 hxy'
+    have : (f x).Nonempty := Set.nonempty_iff_ne_empty.mpr (hfne x)
+    obtain ⟨z, hz⟩ := this
+    have hzx : z ∈ (x : Set α) := hfsub x hz
+    have hzy : z ∈ (y : Set α) := hfsub y (hxy ▸ hz)
+    have : ¬ Disjoint (x : Set α) (y : Set α) := by
+      rw [Set.not_disjoint_iff]; exact ⟨z, hzx, hzy⟩
+    exact this hd
+  -- Therefore s.Countable, since f : s → s' is injective.
+  have hs_count : s.Countable := by
+    have hsub : Countable (Set.range f) := hs'count.to_subtype
+    have : Countable s := by
+      have hf' : Function.Injective (fun x : s => (⟨f x, Set.mem_range_self x⟩ : Set.range f)) := by
+        intro x y hxy
+        exact hf_inj (Subtype.ext_iff.mp hxy)
+      exact hf'.countable
+    exact Set.countable_coe_iff.mp this
+  exact hs_count
+
 end CCC
 
 /-! ## CCC for product topologies (sorry-deferred — fill in when porting `cantor_space.lean`) -/
