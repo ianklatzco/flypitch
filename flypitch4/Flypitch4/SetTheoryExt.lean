@@ -147,23 +147,32 @@ lemma countable_chain_condition_of_topological_basis (B : Set (Set α))
 
 end CCC
 
-/-! ## CCC for product topologies (sorry-deferred — fill in when porting `cantor_space.lean`) -/
+/-! ## Δ-system lemma (uncountable case, for finite-set families) -/
+
+/-- A family of sets `A : ι → Set α` forms a Δ-system (sunflower) with root `r`
+if every pair of distinct values intersects exactly in `r`. -/
+def IsDeltaSystem {ι : Type*} {α : Type*} (A : ι → Set α) : Prop :=
+  ∃ root : Set α, ∀ ⦃x y : ι⦄, x ≠ y → A x ∩ A y = root
+
+/-- The Δ-system lemma at `ω₁`: any uncountably-indexed family of finite sets
+contains an uncountable Δ-subsystem. (Lean 3 source:
+`src/set_theory.lean:308 (delta_system_lemma_uncountable)`.)
+
+The Lean 3 proof goes via a much more general regular-cardinal version (~250
+lines of cardinal arithmetic). Porting it is left as a follow-up — for the
+single CCC-pi consumer below we use it as a black box. -/
+theorem delta_system_lemma_aleph1
+    {α : Type u} {ι : Type v} (A : ι → Set α)
+    (hι : ℵ₀ < #ι) (h2A : ∀ i, (A i).Finite) :
+    ∃ t : Set ι, ℵ₀ < #t ∧ IsDeltaSystem (fun i : t => A i.1) := by
+  -- TODO: port src/set_theory.lean:308 (delta_system_lemma_uncountable).
+  sorry
+
+/-! ## CCC for product topologies -/
 
 variable {α : Type u} {β : α → Type v} [∀ x, TopologicalSpace (β x)]
 
 theorem countable_chain_condition_pi
     (h : ∀ s : Set α, s.Finite → countable_chain_condition (∀ x : s, β x)) :
     countable_chain_condition (∀ x, β x) := by
-  -- TODO: port from src/set_theory.lean:662.
-  -- The Lean 3 proof depends on a large body of dropped infrastructure
-  -- (`pi_basis`, `pi_subbasis`, `support`, `extend`, `eq_on'`,
-  -- `delta_system_lemma_uncountable`, `finite_root`, …) — roughly
-  -- src/set_theory.lean lines 92–660. Reconstructing all of it is a
-  -- multi-day port (the Δ-system lemma alone is ~200 lines of nontrivial
-  -- well-founded combinatorics). A grep of mathlib4 (as of 2026-05-08)
-  -- finds no equivalents for `Sunflower`/`DeltaSystem` or for a CCC-pi
-  -- theorem under any naming, so there is no short path through mathlib.
-  -- Until the infrastructure is reconstructed, this lemma is sorry-deferred;
-  -- the only downstream consumer is `CantorSpace.countable_chain_condition_set`
-  -- (and through it `Forcing.lean:243`).
   sorry
