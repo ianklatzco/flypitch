@@ -373,9 +373,26 @@ lemma B_ext_right_realize_bounded_formula {n : ℕ} (ϕ : bounded_formula L_ZFC 
     · exact iInf_le _ (⟨1, by omega⟩ : Fin (n + 2))
   rw [hkey]
   exact boolean_realize_bounded_formula_congr (inferInstance : Nonempty (V β)) _ _ ϕ DVec.nil
+private lemma realize_lift2_at2 {n} (ϕ : bounded_formula L_ZFC (n + 2))
+    (v : DVec (V β) n) (x y z₁ z₂ : V β) :
+    boolean_realize_bounded_formula
+      (DVec.cons x (DVec.cons y (DVec.cons z₁ (DVec.cons z₂ v)))) (ϕ ↑ᶠᵇ' 2 # 2) DVec.nil =
+    boolean_realize_bounded_formula (DVec.cons x (DVec.cons y v)) ϕ DVec.nil := by
+  rw [bounded_preformula.eq (lift2_helper ϕ (k := 0) 2)]
+  rw [boolean_realize_formula_insert_lift2 (DVec.cons z₂ v) x y z₁ (ϕ ↑ᶠᵇ' 1 # 2)]
+  exact boolean_realize_formula_insert_lift2 v x y z₂ ϕ
+
+private lemma realize_lift3_at2 {n} (ϕ : bounded_formula L_ZFC (n + 2))
+    (v : DVec (V β) n) (x y z₁ z₂ z₃ : V β) :
+    boolean_realize_bounded_formula
+      (DVec.cons x (DVec.cons y (DVec.cons z₁ (DVec.cons z₂ (DVec.cons z₃ v))))) (ϕ ↑ᶠᵇ' 3 # 2) DVec.nil =
+    boolean_realize_bounded_formula (DVec.cons x (DVec.cons y v)) ϕ DVec.nil := by
+  rw [bounded_preformula.eq (lift2_helper ϕ (k := 1) 2)]
+  rw [boolean_realize_formula_insert_lift2 (DVec.cons z₂ (DVec.cons z₃ v)) x y z₁ (ϕ ↑ᶠᵇ' 2 # 2)]
+  exact realize_lift2_at2 ϕ v x y z₂ z₃
+
 lemma bSet_models_collection {n} (ϕ : bounded_formula L_ZFC (n + 2)) :
-    ⊤ ⊩[V β] axiom_of_collection ϕ := by
-  sorry -- TODO: port from src/zfc.lean:249-265
+    ⊤ ⊩[V β] axiom_of_collection ϕ := by sorry -- TODO: cleanup-agent attempt failed before quota cap
 -- axiom of union: ∀ u x, x ∈ ⋃u ↔ ∃ y ∈ u, x ∈ y
 def axiom_of_union : sentence L_ZFC :=
   bd_all (bd_all
