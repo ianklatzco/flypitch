@@ -603,7 +603,7 @@ noncomputable def wit_infty {L : Language.{u}} {T : SentTheory L} {hT : T.is_con
     (hT : T.is_consistent) : has_enough_constants (henkinization hT) := by
   apply has_enough_constants.intro
   intro f
-  have big_sigma := wit_infty f
+  have big_sigma := wit_infty (hT := hT) f
   obtain ⟨c, _⟩ := big_sigma
   exact ⟨c, by sorry⟩ -- TODO: port from src/henkin.lean:790-830
 
@@ -620,7 +620,37 @@ def henkin_theory_schain {L : Language.{u}} (T : SentTheory L) (hT : T.is_consis
 
 lemma iota_union_rw {L : Language.{u}} (T : SentTheory L) (hT : T.is_consistent) :
     @ι L T 0 ∪ ⋃₀ (Subtype.val '' henkin_theory_schain T hT) = henkinization hT := by
-  sorry -- TODO: port from src/henkin.lean:849-858
+  -- henkinization hT = T_infty T = ⋃ n, ι n
+  -- LHS = ι 0 ∪ (⋃ { ι k | k : ℕ })  = ⋃ n, ι n
+  apply Set.eq_of_subset_of_subset
+  · -- LHS ⊆ henkinization
+    apply Set.union_subset
+    · exact Set.subset_iUnion (@ι L T) 0
+    · intro ψ hψ
+      obtain ⟨S, hS, hψS⟩ := hψ
+      obtain ⟨To, hTo, hSTo⟩ := hS
+      -- hTo : To ∈ henkin_theory_schain T hT
+      simp only [henkin_theory_schain, Set.mem_setOf_eq] at hTo
+      obtain ⟨k, hk⟩ := hTo
+      -- hk : ι k = To.val, hSTo : To.val = S
+      simp only [henkinization, T_infty, Set.mem_iUnion]
+      exact ⟨k, hk ▸ hSTo ▸ hψS⟩
+  · -- henkinization ⊆ LHS
+    intro ψ hψ
+    simp only [henkinization, T_infty, Set.mem_iUnion] at hψ
+    obtain ⟨k, hk⟩ := hψ
+    cases k with
+    | zero => exact Set.mem_union_left _ hk
+    | succ n =>
+      apply Set.mem_union_right
+      refine ⟨@ι L T (n + 1), ?_, hk⟩
+      -- Need: ι (n+1) ∈ Subtype.val '' henkin_theory_schain T hT
+      -- i.e., ∃ To ∈ henkin_theory_schain T hT, To.val = ι (n+1)
+      let To : Theory_over (@ι L T 0) (is_consistent_iota hT 0) :=
+        ⟨@ι L T (n + 1), iota_inclusion_of_le (Nat.zero_le _), is_consistent_iota hT _⟩
+      refine ⟨To, ?_, rfl⟩
+      simp only [henkin_theory_schain, Set.mem_setOf_eq]
+      exact ⟨n + 1, rfl⟩
 
 lemma chain_henkin_theory_chain {L : Language.{u}} (T : SentTheory L) (hT : T.is_consistent) :
     IsChain Theory_over_subset (henkin_theory_schain T hT) := by
