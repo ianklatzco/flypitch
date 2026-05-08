@@ -1133,11 +1133,10 @@ lemma aleph1_larger_than_continuum {Γ : 𝔹_collapse} :
 
 -- src/forcing_CH.lean:559-593
 -- src/forcing_CH.lean:559-593
--- NOTE: The proof structure is clear (by_contra + function_reflect + check_not_is_surj)
--- but blocked by a Lean 4 universe polymorphism issue: function_reflect_of_omega_closed
--- creates h : PSet.{u_1} (fresh universe variable) while H needs PSet.{u} (ForcingCH's u).
--- The two are definitionally equal but Lean's universe tracking prevents direct application.
--- Marked sorry pending a universe workaround.
+-- Proof structure: by_contra H, nonzero_wit'' + function_reflect_of_omega_closed → h : PSet.{u_1},
+-- H h gives contradiction via check_not_is_surj. BLOCKED by Lean 4 universe issue:
+-- h comes out as PSet.{u_1} (fresh universe metavariable) while H : ∀ f : PSet.{u}.
+-- These are definitionally equal but Lean's universe tracking prevents direct application.
 lemma surjection_reflect {Γ : 𝔹_collapse} (H_bot_lt : ⊥ < Γ)
     (H_surj : Γ ≤ surjects_onto (bSet.omega : bSet 𝔹_collapse)
                     (check pSet_aleph1 : bSet 𝔹_collapse))
