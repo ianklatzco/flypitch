@@ -1335,11 +1335,299 @@ noncomputable def term_model {L : Language.{u}} {T : SentTheory L}
     (t : closed_term L) : term_model' T :=
   @Quotient.mk'' _ (term_setoid T) t
 
+/-! ### Realization in the term model (src/fol.lean:2568-2627) -/
+
+/-- Realizing a closed preterm in the term model recovers `bd_apps`. -/
+private lemma realize_closed_preterm_term_model {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T) :
+    ∀ {l} (ts : DVec (closed_term L) l) (t : closed_preterm L l),
+    realize_bounded_term (DVec.nil : DVec (term_model hcomp henk) 0) t
+      (ts.map (term_mk T)) =
+    term_mk T (bd_apps t ts) := by
+  intro l ts t
+  induction t with
+  | bd_var k => exact absurd k.2 (Nat.not_lt_zero k.1)
+  | bd_func f =>
+    -- realize_bounded_term [] (bd_func f) (ts.map term_mk) = (term_model).fun_map f (ts.map term_mk)
+    --   = term_model_fun T (bd_func f) (ts.map term_mk)
+    --   = term_model_fun' T (bd_func f) ts (by quotient_beta) = ⟦bd_apps (bd_func f) ts⟧ = term_mk ...
+    show term_model_fun T (bd_func f) (ts.map (term_mk T)) = term_mk T (bd_apps (bd_func f) ts)
+    simp only [term_model_fun]
+    rw [show (ts.map (term_mk T)) = DVec.map Quotient.mk'' ts from rfl]
+    rw [DVec.quotient_beta]
+    rfl
+  | bd_app t₁ t₂ ih₁ ih₂ =>
+    -- bd_app t₁ t₂ has type closed_preterm L l, t₁ has level (l+1), t₂ has level 0
+    rw [realize_bounded_term_bd_app]
+    -- Goal: realize_bounded_term [] t₁ (rbt t₂ DVec.nil :: ts.map term_mk)
+    --     = term_mk T (bd_apps (bd_app t₁ t₂) ts)
+    have h2 : realize_bounded_term (DVec.nil : DVec (term_model hcomp henk) 0) t₂ DVec.nil
+              = term_mk T t₂ := by
+      have := ih₂ DVec.nil
+      simp only [DVec.map, bd_apps] at this
+      exact this
+    rw [h2]
+    -- Goal: realize_bounded_term [] t₁ (term_mk T t₂ :: ts.map term_mk)
+    --     = term_mk T (bd_apps (bd_app t₁ t₂) ts)
+    -- which equals  term_mk T (bd_apps t₁ (t₂ :: ts))
+    have h1 := ih₁ (DVec.cons t₂ ts)
+    simp only [DVec.map, bd_apps] at h1
+    exact h1
+
+/-- Realizing a closed term in the term model is the canonical quotient map. -/
+@[simp] private lemma realize_closed_term_term_model {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T) (t : closed_term L) :
+    realize_closed_term (term_model hcomp henk) t = term_mk T t := by
+  have := realize_closed_preterm_term_model hcomp henk (DVec.nil : DVec (closed_term L) 0) t
+  simp only [DVec.map, bd_apps] at this
+  exact this
+
+/-- Substitution commutes with realization for preterms. -/
+private lemma realize_subst_preterm {L : Language.{u}} {S : Structure L} {n l}
+    (t : bounded_preterm L (n+1) l) (xs : DVec S l) (s : closed_term L) (v : DVec S n) :
+    realize_bounded_term v (substmax_bounded_term t s) xs =
+    realize_bounded_term (v.concat (realize_closed_term S s)) t xs := by
+  induction t with
+  | bd_var k =>
+    cases xs
+    by_cases h : k.1 < n
+    · rw [substmax_var_lt k s h]
+      simp only [realize_bounded_term, DVec.nth]
+      rw [DVec.concat_nth v _ k.1 k.2 h]
+    · have h' : k.1 = n :=
+        Nat.le_antisymm (Nat.lt_succ_iff.mp k.2) (Nat.le_of_not_lt h)
+      rw [substmax_var_eq k s h']
+      simp only [realize_bounded_term]
+      rw [realize_bounded_term_irrel _ s (closed_preterm.cast0_fst (n := n) s)]
+      simp [DVec.concat_nth_last, h']
+  | bd_func f => rfl
+  | bd_app t₁ t₂ ih₁ ih₂ =>
+    simp only [substmax_bounded_term_bd_app, realize_bounded_term]
+    rw [ih₂ DVec.nil, ih₁]
+
+/-- Substitution commutes with realization for terms. -/
+private lemma realize_subst_term {L : Language.{u}} {S : Structure L} {n}
+    (v : DVec S n) (s : closed_term L) (t : bounded_term L (n+1)) :
+    realize_bounded_term v (substmax_bounded_term t s) DVec.nil =
+    realize_bounded_term (v.concat (realize_closed_term S s)) t DVec.nil :=
+  realize_subst_preterm t DVec.nil s v
+
+/-- Substitution commutes with realization for formulas. -/
+private lemma realize_subst_formula {L : Language.{u}} (S : Structure L) {n}
+    (f : bounded_formula L (n+1)) (t : closed_term L) (v : DVec S n) :
+    realize_bounded_formula v (substmax_bounded_formula f t) DVec.nil ↔
+    realize_bounded_formula (v.concat (realize_closed_term S t)) f DVec.nil := by
+  set y := realize_closed_term S t with hy_def
+  -- Choose a base extension for `v`:
+  let φ : ℕ → S := fun k => if h : k < n then v.nth k h else y
+  -- LHS via realize_bounded_formula_iff
+  rw [realize_bounded_formula_iff (v₁ := v) (v₂ := φ)
+        (fun k hk => by simp [φ, hk]) (substmax_bounded_formula f t) DVec.nil]
+  -- RHS via realize_bounded_formula_iff with extension subst_realize φ y n
+  rw [realize_bounded_formula_iff (v₁ := v.concat y) (v₂ := subst_realize φ y n)
+        (fun k hk => by
+          by_cases hkn : k < n
+          · rw [DVec.concat_nth v _ k hk hkn]
+            have hnek : k ≠ n := Nat.ne_of_lt hkn
+            have hnotlt : ¬ n < k := Nat.not_lt.mpr (Nat.le_of_lt hkn)
+            simp only [subst_realize, hkn, if_true, hnotlt, if_false, φ, hkn, dif_pos]
+          · have hkeq : k = n := Nat.le_antisymm (Nat.lt_succ_iff.mp hk) (Nat.le_of_not_lt hkn)
+            subst hkeq
+            simp [DVec.concat_nth_last]) f DVec.nil]
+  -- Formula side
+  simp only [substmax_bounded_formula_fst]
+  -- realize_formula_subst gives:
+  --   realize_formula (subst_realize φ (realize_term φ (lift_term t.fst n) []) n) f.fst []
+  --     ↔ realize_formula φ (subst_formula f.fst t.fst n) []
+  -- We need: realize_formula (subst_realize φ y n) f.fst [] ↔ realize_formula φ (subst_formula ...) []
+  have hreal_t : realize_term φ (lift_term t.fst n) DVec.nil = y := by
+    rw [hy_def]
+    rw [show realize_closed_term S t = realize_bounded_term (DVec.nil : DVec S 0) t DVec.nil from rfl]
+    -- realize_term φ (lift_term t.fst n) [] = realize_term φ t.fst []
+    --   (since closed terms ignore the valuation, lifting is irrelevant)
+    -- = realize_bounded_term [] t []
+    have hlift : realize_term φ (lift_term t.fst n) DVec.nil = realize_term φ t.fst DVec.nil := by
+      have hfst_eq : (lift_term t.fst n) = t.fst := lift_bounded_term_irrel t n (Nat.zero_le _)
+      rw [hfst_eq]
+    rw [hlift]
+    exact (realize_bounded_term_eq (v₁ := (DVec.nil : DVec S 0)) (v₂ := φ)
+      (fun k hk => absurd hk (Nat.not_lt_zero k)) t DVec.nil).symm
+  rw [← hreal_t]
+  exact (realize_formula_subst φ n f.fst t.fst DVec.nil).symm
+
+/-- Substitution at position 0 commutes with realization. -/
+private lemma realize_subst_formula0 {L : Language.{u}} (S : Structure L)
+    (f : bounded_formula L 1) (t : closed_term L) :
+    realize_sentence S (subst0_bounded_formula f t) ↔
+    realize_bounded_formula (DVec.cons (realize_closed_term S t) DVec.nil) f DVec.nil := by
+  rw [show subst0_bounded_formula f t = substmax_bounded_formula f t from
+      substmax_eq_subst0_formula f t]
+  -- realize_sentence S g = realize_bounded_formula DVec.nil g DVec.nil
+  -- and (DVec.nil).concat (realize_closed_term S t) = DVec.cons (...) DVec.nil
+  show realize_bounded_formula (DVec.nil : DVec S 0) (substmax_bounded_formula f t) DVec.nil ↔ _
+  rw [realize_subst_formula S f t DVec.nil]
+  -- (DVec.nil).concat y = DVec.cons y DVec.nil
+  rfl
+
+/-- Substituting in the term model: relate to realization at the quotient class. -/
+private lemma term_model_subst0 {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T)
+    (f : bounded_formula L 1) (t : closed_term L) :
+    realize_sentence (term_model hcomp henk) (subst0_bounded_formula f t) ↔
+    realize_bounded_formula
+      (DVec.cons (term_mk T t : (term_model hcomp henk).carrier)
+        (DVec.nil : DVec (term_model hcomp henk).carrier 0)) f DVec.nil := by
+  rw [realize_subst_formula0 (term_model hcomp henk) f t]
+  rw [realize_closed_term_term_model hcomp henk t]
+
+/-- The term model is nonempty. -/
+private lemma nonempty_term_model {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T) :
+    Nonempty (term_model hcomp henk).carrier := by
+  obtain ⟨C, _⟩ := henk
+  exact ⟨term_mk T (bd_const (C (bd_equal (bd_var ⟨0, by omega⟩) (bd_var ⟨0, by omega⟩))))⟩
+
+/-- Structural recursion on a `bounded_preformula L 0 l` for the term-model iff,
+    parameterized by an external IH on smaller quantifier-counts.
+
+    Implemented via direct structural pattern matching on `f` to avoid issues
+    with `induction` on a non-variable index `n = 0`. -/
+private noncomputable def term_model_ssatisfied_iff_struct
+    {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T)
+    (n : ℕ)
+    (n_ih : ∀ m, m < n → ∀ {l'} (f' : presentence L l') (ts' : DVec (closed_term L) l'),
+        count_quantifiers f'.fst < m →
+        ((T ⊢ₛ' bd_apps_rel f' ts') ↔
+         realize_sentence (term_model hcomp henk) (bd_apps_rel f' ts'))) :
+    ∀ {l} (f : bounded_preformula L 0 l) (ts : DVec (closed_term L) l),
+      count_quantifiers f.fst < n →
+      ((T ⊢ₛ' bd_apps_rel f ts) ↔
+       realize_sentence (term_model hcomp henk) (bd_apps_rel f ts))
+  | _, bd_falsum, ts, _ => by
+      cases ts
+      simp only [bd_apps_rel]
+      refine ⟨fun h => absurd h hcomp.1, fun h => ?_⟩
+      exfalso; exact h
+  | _, bd_equal t₁ t₂, ts, _ => by
+      cases ts
+      simp only [bd_apps_rel]
+      rw [show realize_sentence (term_model hcomp henk) (bd_equal t₁ t₂) ↔
+              realize_closed_term (term_model hcomp henk) t₁ =
+              realize_closed_term (term_model hcomp henk) t₂ from realize_sentence_equal t₁ t₂]
+      rw [realize_closed_term_term_model hcomp henk t₁,
+          realize_closed_term_term_model hcomp henk t₂]
+      refine ⟨fun h => Quotient.sound (show term_rel T t₁ t₂ from h), fun h => ?_⟩
+      exact (Quotient.exact h : term_rel T t₁ t₂)
+  | _, bd_rel R, ts, _ => by
+      rw [realize_bd_apps_rel R ts]
+      show _ ↔ (term_model hcomp henk).rel_map R
+                (ts.map (realize_closed_term (term_model hcomp henk)))
+      have h_eq : ts.map (realize_closed_term (term_model hcomp henk)) = ts.map (term_mk T) := by
+        apply DVec.map_congr
+        intro x
+        exact realize_closed_term_term_model hcomp henk x
+      rw [h_eq]
+      show _ ↔ term_model_rel T (bd_rel R) (ts.map (term_mk T))
+      simp only [term_model_rel]
+      rw [show (ts.map (term_mk T)) = DVec.map Quotient.mk'' ts from rfl]
+      rw [DVec.quotient_beta]
+      rfl
+  | _, bd_apprel f t, ts, hn => by
+      have heq : bd_apps_rel (bd_apprel f t) ts = bd_apps_rel f (DVec.cons t ts) := rfl
+      rw [heq]
+      have hn' : count_quantifiers f.fst < n := by
+        rw [count_quantifiers_succ]
+        simp only [bounded_preformula.fst, count_quantifiers] at hn
+        exact hn
+      exact term_model_ssatisfied_iff_struct hcomp henk n n_ih f (DVec.cons t ts) hn'
+  | _, bd_imp f₁ f₂, ts, hn => by
+      cases ts
+      simp only [bd_apps_rel]
+      have hn1 : count_quantifiers f₁.fst < n := by
+        simp only [bounded_preformula.fst, count_quantifiers] at hn
+        exact lt_of_le_of_lt (Nat.le_add_right _ _) hn
+      have hn2 : count_quantifiers f₂.fst < n := by
+        simp only [bounded_preformula.fst, count_quantifiers] at hn
+        exact lt_of_le_of_lt (Nat.le_add_left _ _) hn
+      have ih1 := term_model_ssatisfied_iff_struct hcomp henk n n_ih f₁ DVec.nil hn1
+      have ih2 := term_model_ssatisfied_iff_struct hcomp henk n n_ih f₂ DVec.nil hn2
+      simp only [bd_apps_rel] at ih1 ih2
+      rw [show realize_sentence (term_model hcomp henk) (bd_imp f₁ f₂) ↔
+              (realize_sentence (term_model hcomp henk) f₁ →
+               realize_sentence (term_model hcomp henk) f₂) from realize_sentence_imp]
+      refine ⟨fun hp h1 => ?_, fun hsem => ?_⟩
+      · apply ih2.mp
+        have hp1 : T ⊢ₛ' f₁ := ih1.mpr h1
+        exact hp.map2 (prf.impE _) hp1
+      · apply impI_of_is_complete hcomp
+        intro hf1
+        exact ih2.mpr (hsem (ih1.mp hf1))
+  | _, bd_all f, ts, hn => by
+      cases ts
+      simp only [bd_apps_rel]
+      rw [show realize_sentence (term_model hcomp henk) (bd_all f) ↔
+              ∀ x : (term_model hcomp henk).carrier,
+                realize_bounded_formula (DVec.cons x DVec.nil) f DVec.nil
+          from realize_sentence_all]
+      have hm : count_quantifiers f.fst + 1 < n := by
+        simp only [bounded_preformula.fst, count_quantifiers] at hn
+        omega
+      refine ⟨fun hp x => ?_, fun hsem => ?_⟩
+      · induction x using Quotient.ind with
+        | _ t =>
+        apply (term_model_subst0 hcomp henk f t).mp
+        have h := (n_ih (count_quantifiers f.fst + 1) hm
+                    (l' := 0) (subst0_bounded_formula f t) DVec.nil ?_).mp ?_
+        · simp only [bd_apps_rel] at h
+          exact h
+        · rw [subst0_bounded_formula_fst]
+          rw [count_quantifiers_subst]
+          exact Nat.lt_succ_self _
+        · simp only [bd_apps_rel]
+          refine hp.map (fun pall => ?_)
+          rw [subst0_bounded_formula_fst]
+          exact prf.allE₂ f.fst t.fst pall
+      · by_contra H
+        obtain ⟨t, ht⟩ := find_counterexample_of_henkin hcomp henk f H
+        have hsem_t := hsem (term_mk T t)
+        have hsubst : realize_sentence (term_model hcomp henk) (subst0_bounded_formula f t) :=
+          (term_model_subst0 hcomp henk f t).mpr hsem_t
+        have h := (n_ih (count_quantifiers f.fst + 1) hm
+                    (l' := 0) (subst0_bounded_formula f t) DVec.nil ?_).mpr ?_
+        · simp only [bd_apps_rel] at h
+          apply hcomp.1
+          exact ht.map2 (fun pn p => prf.impE _ pn p) h
+        · rw [subst0_bounded_formula_fst]
+          rw [count_quantifiers_subst]
+          exact Nat.lt_succ_self _
+        · simp only [bd_apps_rel]
+          exact hsubst
+
+/-- The key term-model satisfaction iff (src/fol.lean:2634-2670). -/
+private lemma term_model_ssatisfied_iff {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T) {n} :
+    ∀ {l} (f : presentence L l) (ts : DVec (closed_term L) l)
+      (_ : count_quantifiers f.fst < n),
+      ((T ⊢ₛ' bd_apps_rel f ts) ↔
+       realize_sentence (term_model hcomp henk) (bd_apps_rel f ts)) := by
+  induction n using Nat.strong_induction_on with
+  | _ n n_ih =>
+  intro l f ts hn
+  exact term_model_ssatisfied_iff_struct hcomp henk n n_ih f ts hn
+
 /-- The term model satisfies T (src/fol.lean:2672) -/
 lemma term_model_ssatisfied {L : Language.{u}} {T : SentTheory L}
     (hcomp : T.is_complete) (henk : has_enough_constants T) :
     all_realize_sentence (term_model hcomp henk) T := by
-  sorry -- TODO: port from src/fol.lean:2672-2673
+  intro f hf
+  have hprov : T ⊢ₛ' bd_apps_rel f (DVec.nil : DVec (closed_term L) 0) := by
+    simp only [bd_apps_rel]
+    exact ⟨prf.axm (Set.mem_image_of_mem _ hf)⟩
+  have h := (term_model_ssatisfied_iff hcomp henk (n := count_quantifiers f.fst + 1)
+              f DVec.nil (Nat.lt_succ_self _)).mp hprov
+  simp only [bd_apps_rel] at h
+  exact h
 
 /-- The reduct of the term model of the complete henkinization satisfies T -/
 @[simp] lemma reduct_of_complete_henkinization_models_T {L : Language.{u}} {T : SentTheory L}
