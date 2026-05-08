@@ -919,6 +919,7 @@ lemma induced_epsilon_rel_sub_image_right {η x f a b : bSet 𝔹} {Γ}
       (inf_le_left.trans inf_le_right)))))))⟩
 
 -- src/aleph_one.lean:471
+set_option maxHeartbeats 800000 in
 lemma image_eq_of_eq_induced_epsilon_rel_aux
     {η ρ f g : bSet 𝔹} {Γ}
     (Hη_inj : Γ ≤ is_injective_function η omega f)
@@ -926,7 +927,96 @@ lemma image_eq_of_eq_induced_epsilon_rel_aux
     (H_eq : Γ ≤ induced_epsilon_rel η omega f =ᴮ induced_epsilon_rel ρ omega g)
     (H_exists_two : Γ ≤ exists_two η) :
     Γ ≤ ⨅ (z : bSet 𝔹), z ∈ᴮ image η omega f ⟹ z ∈ᴮ image ρ omega g := by
-  sorry -- TODO: port from src/aleph_one.lean:471
+  apply le_iInf; intro z; rw [← deduction]
+  -- ctx: Γ ⊓ z ∈ image η omega f
+  -- Get z' ∈ η s.t. pair z' z ∈ f
+  have H_func : Γ ⊓ z ∈ᴮ image η omega f ≤ is_function η omega f :=
+    inf_le_left.trans (bv_and_left Hη_inj)
+  have Hz_mem : Γ ⊓ z ∈ᴮ image η omega f ≤ z ∈ᴮ image η omega f := inf_le_right
+  rw [mem_image_iff] at Hz_mem
+  obtain ⟨Hz_omega, Hz_sup⟩ := Hz_mem
+  -- Hz_sup : ctx ≤ ⨆ z', z' ∈ η ⊓ pair z' z ∈ f
+  apply le_trans (le_inf Hz_sup le_rfl)
+  apply bv_cases_left; intro z'
+  -- ctx1 = (z' ∈ η ⊓ pair z' z ∈ f) ⊓ ctx
+  have Hz'_mem_η : (z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f) ≤ z' ∈ᴮ η :=
+    inf_le_left.trans inf_le_left
+  have Hpz'z_mem : (z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f) ≤ pair z' z ∈ᴮ f :=
+    inf_le_left.trans inf_le_right
+  -- Get w' from exists_two: z' ∈ η → ∃ w', w' ∈ η ∧ (z' ∈ w' ∨ w' ∈ z')
+  have H_et : (z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f) ≤
+      ⨆ w', w' ∈ᴮ η ⊓ (z' ∈ᴮ w' ⊔ w' ∈ᴮ z') :=
+    le_trans (le_inf (inf_le_right.trans (inf_le_left.trans (H_exists_two.trans (iInf_le _ z'))))
+      Hz'_mem_η) bv_imp_elim
+  -- H_et : ctx1 ≤ ⨆ w', w' ∈ η ⊓ (z' ∈ w' ⊔ w' ∈ z')
+  apply le_trans (le_inf H_et le_rfl)
+  apply bv_cases_left; intro w'
+  -- ctx2 = (w' ∈ η ⊓ (z'∈w' ⊔ w'∈z')) ⊓ ctx1
+  -- Case split on z' ∈ w' or w' ∈ z'
+  apply le_trans (le_inf (inf_le_left.trans inf_le_right) le_rfl)
+  apply bv_or_elim_left
+  · -- Case z' ∈ w': ctx3 = (z' ∈ w') ⊓ ctx2
+    -- Extractions: w'∈η=ir.il.il, z'∈w'=il, pair z'z∈f=ir.il.ir, H_eq at ir.ir.ir.ir.H_eq
+    -- H_func(η) at ir.ir.ir.il.bv_and_left_Hη_inj
+    have Hw'_mem_η : (z' ∈ᴮ w') ⊓
+        ((w' ∈ᴮ η ⊓ (z' ∈ᴮ w' ⊔ w' ∈ᴮ z')) ⊓
+         ((z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f))) ≤ w' ∈ᴮ η :=
+      inf_le_right.trans (inf_le_left.trans inf_le_left)
+    have Hfunc2 : (z' ∈ᴮ w') ⊓
+        ((w' ∈ᴮ η ⊓ (z' ∈ᴮ w' ⊔ w' ∈ᴮ z')) ⊓
+         ((z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f))) ≤ is_function η omega f :=
+      inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (bv_and_left Hη_inj))))
+    -- Goal: ctx3 ≤ z ∈ image ρ omega g
+    -- Use sub_image_left for ρ: pair z (f_η(w')) ∈ ind_eps_ρ → z ∈ image ρ omega g
+    apply induced_epsilon_rel_sub_image_left
+    · -- H_func for ρ: ctx3 ≤ is_function ρ omega g
+      -- ctx3.ir.ir.ir.il = Γ → bv_and_left Hρ_inj
+      exact inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (bv_and_left Hρ_inj))))
+    · -- pair z (f_η(w')) ∈ ind_eps_ρ (via rewrite ind_eps_η → ind_eps_ρ using H_eq)
+      exact bv_rw' (ϕ := fun r => pair z (function_eval Hfunc2 w' Hw'_mem_η) ∈ᴮ r)
+        (h_congr := B_ext_mem_right)
+        (bv_symm (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans H_eq)))))
+        (H_new := by
+          rw [mem_induced_epsilon_rel_iff Hfunc2]
+          -- z∈omega: ctx3.ir.ir.ir.Hz_omega (3 rights, then Hz_omega which has LHS Γ⊓z∈image)
+          refine ⟨inf_le_right.trans (inf_le_right.trans (inf_le_right.trans Hz_omega)),
+                 function_eval_mem_codomain, ?_⟩
+          -- z'∈η: ctx3.ir.ir.il.il
+          apply bv_use z'; refine le_inf (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))) ?_
+          apply bv_use w'; refine le_inf Hw'_mem_η ?_
+          -- pair z' z ∈ f: ctx3.ir.ir.il.ir
+          exact le_inf (le_inf (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))) function_eval_pair_mem)
+                       inf_le_left)
+  · -- Case w' ∈ z': ctx3' = (w' ∈ z') ⊓ ctx2
+    have Hz'_mem_η' : (w' ∈ᴮ z') ⊓
+        ((w' ∈ᴮ η ⊓ (z' ∈ᴮ w' ⊔ w' ∈ᴮ z')) ⊓
+         ((z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f))) ≤ z' ∈ᴮ η :=
+      inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_left))
+    have Hw'_mem_η' : (w' ∈ᴮ z') ⊓
+        ((w' ∈ᴮ η ⊓ (z' ∈ᴮ w' ⊔ w' ∈ᴮ z')) ⊓
+         ((z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f))) ≤ w' ∈ᴮ η :=
+      inf_le_right.trans (inf_le_left.trans inf_le_left)
+    have Hfunc2' : (w' ∈ᴮ z') ⊓
+        ((w' ∈ᴮ η ⊓ (z' ∈ᴮ w' ⊔ w' ∈ᴮ z')) ⊓
+         ((z' ∈ᴮ η ⊓ pair z' z ∈ᴮ f) ⊓ (Γ ⊓ z ∈ᴮ image η omega f))) ≤ is_function η omega f :=
+      inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (bv_and_left Hη_inj))))
+    -- Goal: ctx3' ≤ z ∈ image ρ omega g
+    apply induced_epsilon_rel_sub_image_right
+    · -- H_func for ρ: ctx3'.ir.ir.ir.il.bv_and_left_Hρ_inj
+      exact inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans (bv_and_left Hρ_inj))))
+    · -- pair (f_η(w')) z ∈ ind_eps_ρ (via rewrite using H_eq)
+      exact bv_rw' (ϕ := fun r => pair (function_eval Hfunc2' w' Hw'_mem_η') z ∈ᴮ r)
+        (h_congr := B_ext_mem_right)
+        (bv_symm (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans H_eq)))))
+        (H_new := by
+          rw [mem_induced_epsilon_rel_iff Hfunc2']
+          refine ⟨function_eval_mem_codomain,
+                 inf_le_right.trans (inf_le_right.trans (inf_le_right.trans Hz_omega)), ?_⟩
+          apply bv_use w'; apply le_inf Hw'_mem_η'
+          apply bv_use z'; apply le_inf Hz'_mem_η'
+          -- pair z'z∈f: ctx3'.ir.ir.il.ir; w'∈z': il
+          exact le_inf (le_inf function_eval_pair_mem (inf_le_right.trans (inf_le_right.trans (inf_le_left.trans inf_le_right))))
+                       inf_le_left)
 
 -- src/aleph_one.lean:503
 lemma image_eq_of_eq_induced_epsilon_rel
