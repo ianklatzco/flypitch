@@ -126,10 +126,118 @@ def henkin_theory_step {L : Language.{u}} (T : SentTheory L) :
   (fun f : bounded_formula L 1 =>
     wit_property (henkin_language_inclusion.on_bounded_formula f) (wit' f)) '' Set.univ
 
+/-- Auxiliary tautology: `T ⊢ₛ' ∃ x, (∃ y, f y) → f x`. -/
+private lemma henkin_witness_tautology {L : Language.{u}} (T : SentTheory L)
+    (f : bounded_formula L 1) :
+    T ⊢ₛ' bd_ex (bd_imp (bd_ex f).cast1 f) := by
+  show T.fst ⊢' (bd_ex (bd_imp (bd_ex f).cast1 f)).fst
+  refine ⟨?_⟩
+  -- Goal: T.fst ⊢ (bd_ex (bd_imp (bd_ex f).cast1 f)).fst
+  -- = ∃' ((∃' f.fst) ⟹ f.fst)  (since cast1.fst = .fst)
+  show T.fst ⊢ ∃' ((bd_ex f).cast1.fst ⟹ f.fst)
+  apply prf.falsumE
+  apply prf.impE (∃' f.fst)
+  · -- Goal: insert ¬∃' ... ⊢ (∃' f.fst) ⟹ ⊥'
+    apply prf.impI
+    apply prf.impE _ axm2
+    apply exE axm1
+    -- Goal: insert f.fst (lift_formula1 '' insert (∃'f.fst) (insert ¬∃' ... T.fst)) ⊢
+    --       lift_formula1 (∃' ((bd_ex f).cast1.fst ⟹ f.fst))
+    apply exI &0
+    rw [lift_subst_formula_cancel]
+    -- Now we need: ⊢ (bd_ex f).cast1.fst ⟹ f.fst
+    -- (bd_ex f).cast1.fst = (bd_ex f).fst, so this is (∃' f.fst) ⟹ f.fst
+    rw [bounded_preformula.cast1_fst]
+    apply prf.impI
+    exact axm2
+  · -- Goal: insert (∼∃' ...) T.fst ⊢ ∃' f.fst
+    apply prf.falsumE
+    apply prf.impE _ axm2
+    apply exI &0
+    -- Goal: ... ⊢ ((bd_ex f).cast1.fst ⟹ f.fst)[&0 // 0]f
+    -- = (bd_ex f).cast1.fst[&0/0] ⟹ f.fst[&0/0]
+    apply prf.impI
+    apply exfalso
+    apply prf.impE _ axm2
+    -- Goal: ⊢ ∃' f.fst
+    show _ ⊢ ∃' f.fst
+    have key : (bd_ex f).cast1.fst [&0 // 0]f = ∃' f.fst := by
+      rw [bounded_preformula.cast1_fst, subst_sentence_irrel]; rfl
+    rw [← key]
+    exact axm1
+
 /-- The Henkin extension of a consistent theory is consistent -/
 lemma is_consistent_henkin_theory_step {L : Language.{u}} {T : SentTheory L}
-    (hT : T.is_consistent) : (henkin_theory_step T).is_consistent :=
-  sorry -- TODO: requires is_consistent_extend (currently sorry in LanguageExtension)
+    (hT : T.is_consistent) : (henkin_theory_step T).is_consistent := by
+  -- Apply is_consistent_extend with h := λ f, (∃' f).cast1 ⟹ f and g := wit'.
+  have hwit_inj : Function.Injective (@wit' L) := by
+    intro f f' h
+    -- wit' f = wit f, so this comes from injection on `wit`
+    exact henkin_language_functions.wit.inj h
+  have hwit_not_in : ∀ x : bounded_formula L 1,
+      wit' x ∉ Set.range ((@henkin_language_inclusion L).on_function : L.functions 0 →
+        (henkin_language_step L).functions 0) := by
+    intro x ⟨g, hg⟩
+    -- hg : henkin_language_inclusion.on_function g = wit' x
+    -- on_function g = inc g, wit' x = wit x — different constructors
+    simp [henkin_language_inclusion, wit'] at hg
+  have hext :=
+    Lhom.is_consistent_extend hT henkin_language_inclusion_inj
+      (fun f => bd_imp (bd_ex f).cast1 f)
+      (fun f => henkin_witness_tautology T f)
+      wit' hwit_inj hwit_not_in
+  -- hext : (henkin_language_inclusion.Theory_induced T ∪
+  --   (fun f => subst0 (incl.on_bf (bd_imp (bd_ex f).cast1 f)) (bd_const (wit' f))) '' Set.univ)
+  --   .is_consistent
+  -- Goal: henkin_theory_step T = the above set, modulo the witness shape.
+  -- The witness sentence simplifies to wit_property (incl.on_bf f) (wit' f).
+  have hset : henkin_theory_step T =
+      (@henkin_language_inclusion L).Theory_induced T ∪
+        (fun f => subst0_bounded_formula
+          ((@henkin_language_inclusion L).on_bounded_formula
+            (bd_imp (bd_ex f).cast1 f))
+          (bd_const (wit' f))) '' Set.univ := by
+    show henkin_theory_step T = _
+    unfold henkin_theory_step
+    congr 1
+    apply Set.image_congr'
+    intro f
+    -- Goal: wit_property (incl.on_bf f) (wit' f) =
+    --       subst0 (incl.on_bf (bd_imp (bd_ex f).cast1 f)) (bd_const (wit' f))
+    apply bounded_preformula.eq
+    -- compare via .fst
+    simp only [wit_property, subst0_bounded_formula_fst, Lhom.on_bounded_formula,
+               bounded_preformula.fst_bd_imp, bounded_preformula.fst_bd_ex,
+               bounded_preformula.cast1_fst, subst_formula]
+    -- Now the goal is:
+    -- ∃' (incl.on_formula f.fst) ⟹ (incl.on_formula f.fst)[c/0] =
+    -- subst (incl.on_formula (∃' f.fst)) c 0 ⟹ (incl.on_formula f.fst)[c/0]
+    -- The RHS first arg equals the LHS first arg because (incl.on_formula (∃' f.fst))
+    -- is a sentence (closed bounded_formula).
+    congr 1
+    -- Goal: ∃' (incl.on_bf f).fst = (incl.on_bf (cast1 (bd_ex f))).fst [c // 0]f
+    -- RHS: (incl.on_bf (cast1 (bd_ex f))).fst = (cast1 (bd_ex f)).cast1 ... no wait
+    -- (incl.on_bf cast1(X)).fst = on_formula (cast1 X).fst = on_formula X.fst
+    -- So RHS = on_formula (bd_ex f).fst [c//0]f = on_formula (∃' f.fst) [c//0]f
+    --       = (∃' (on_formula f.fst)) [c//0]f
+    -- And subst sentence_irrel gives ∃' (on_formula f.fst).
+    have hRHS : ((@henkin_language_inclusion L).on_bounded_formula
+        (bounded_preformula.cast1 (bd_ex f))).fst =
+        ∃' ((@henkin_language_inclusion L).on_bounded_formula f).fst := by
+      simp only [Lhom.on_bounded_formula_fst, bounded_preformula.cast1_fst,
+          bounded_preformula.fst_bd_ex]
+      rfl
+    rw [hRHS]
+    -- Goal: ∃' (incl.on_bf f).fst = (∃' (incl.on_bf f).fst) [c//0]f
+    -- ∃' X is closed if X is bounded_formula L 1, so use subst_sentence_irrel via casting
+    -- to a sentence
+    have hSent : (bd_ex ((@henkin_language_inclusion L).on_bounded_formula f) :
+        sentence (henkin_language_step L)).fst =
+        ∃' ((@henkin_language_inclusion L).on_bounded_formula f).fst := by
+      simp only [bounded_preformula.fst_bd_ex]
+    rw [← hSent, subst_sentence_irrel]
+  rw [hset]
+  exact hext
 
 /-! ## Henkin language chain -/
 
