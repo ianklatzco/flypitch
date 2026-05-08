@@ -505,15 +505,10 @@ def card_ex : Cardinal.{u} → PSet.{u} := fun κ => ordinalMk (Cardinal.ord κ)
 
 /-! ### Injectivity of ordinalMk (src lines 512-618) -/
 
-/-- The func of ordinalMk η at distinct indices gives inequivalent pSets.
-    Port of `ordinal.mk_inj` (src/pSet_ordinal.lean:595). -/
-lemma ordinalMk_inj (η : Ordinal.{u}) :
-    ∀ (i j : (ordinalMk η).Type), i ≠ j →
-      ¬ Equiv ((ordinalMk η).Func i) ((ordinalMk η).Func j) := by
-  -- TODO: port from src/pSet_ordinal.lean:595
-  intro i j hij _heq
-  apply hij
-  sorry
+/-- Helper: structural equation for `Ordinal.toPSet`. The `eq_def` form. -/
+lemma ordinalMk_eq_def (o : Ordinal.{u}) :
+    ordinalMk o = ⟨o.ToType, fun a : o.ToType => ordinalMk a.toOrd.val⟩ :=
+  Ordinal.toPSet.eq_def o
 
 /-- Injectivity: `ordinalMk η₁ ≡ ordinalMk η₂` → `η₁ = η₂`.
     Port of `eq_of_mk_equiv` (src/pSet_ordinal.lean:604). -/
@@ -534,6 +529,41 @@ lemma eq_of_mk_equiv {η₁ η₂ : Ordinal} (H_equiv : Equiv (ordinalMk η₁) 
     -- Mem.congr_left H_equiv.symm : ordinalMk η₂ ∈ w ↔ ordinalMk η₁ ∈ w
     -- .mpr H_mem (H_mem : ordinalMk η₁ ∈ ordinalMk η₂) gives ordinalMk η₂ ∈ ordinalMk η₂
     exact PSet.mem_irrefl _ ((PSet.Mem.congr_left H_equiv.symm).mpr H_mem)
+
+/-- The func of ordinalMk η at distinct indices gives inequivalent pSets.
+    Port of `ordinal.mk_inj` (src/pSet_ordinal.lean:595). -/
+lemma ordinalMk_inj (η : Ordinal.{u}) :
+    ∀ (i j : (ordinalMk η).Type), i ≠ j →
+      ¬ Equiv ((ordinalMk η).Func i) ((ordinalMk η).Func j) := by
+  intro i j hij heq
+  apply hij
+  -- Extract the HEq characterization of `(ordinalMk η).Func`.
+  have hfunc : HEq (ordinalMk η).Func
+      (fun a : η.ToType => ordinalMk a.toOrd.val) := by
+    rw [ordinalMk_eq_def]; rfl
+  -- Type equality.
+  have htype : (ordinalMk η).Type = η.ToType := ordinalMk_type
+  -- Cast i, j to η.ToType.
+  let i' : η.ToType := cast htype i
+  let j' : η.ToType := cast htype j
+  have hi : HEq i i' := (cast_heq htype i).symm
+  have hj : HEq j j' := (cast_heq htype j).symm
+  -- `congr_heq` produces `Eq` directly when applied to a `Pi` and a `Sigma` of HEq.
+  have heqi : (ordinalMk η).Func i = ordinalMk i'.toOrd.val :=
+    congr_heq hfunc hi
+  have heqj : (ordinalMk η).Func j = ordinalMk j'.toOrd.val :=
+    congr_heq hfunc hj
+  rw [heqi, heqj] at heq
+  -- heq : Equiv (ordinalMk i'.toOrd.val) (ordinalMk j'.toOrd.val)
+  have h_ord_eq : i'.toOrd.val = j'.toOrd.val := eq_of_mk_equiv heq
+  have h_toOrd : i'.toOrd = j'.toOrd := Subtype.ext h_ord_eq
+  have h_inj : i' = j' :=
+    Ordinal.ToType.mk.symm.injective h_toOrd
+  -- Cast both back.
+  have : (cast htype.symm (cast htype i) : (ordinalMk η).Type) =
+         cast htype.symm (cast htype j) :=
+    congrArg (cast htype.symm) h_inj
+  simpa using this
 
 lemma eq_iff_mk_eq {η₁ η₂ : Ordinal} :
     η₁ = η₂ ↔ Equiv (ordinalMk η₁) (ordinalMk η₂) :=
