@@ -1059,6 +1059,13 @@ lemma term_model_ssatisfied {L : Language.{u}} {T : SentTheory L}
     all_realize_sentence (term_model hcomp henk) T := by
   sorry -- TODO: port from src/fol.lean:2672-2673
 
+/-- The term model is nonempty (from src/fol.lean:2630: instance nonempty_term_model) -/
+lemma term_model_nonempty {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T) :
+    Nonempty (term_model hcomp henk).carrier := by
+  sorry -- TODO: port from src/fol.lean:2630: use henk to get a constant c = C(&0≃&0),
+        -- then term_mk T (bd_const c) is an element
+
 /-- The reduct of the term model of the complete henkinization satisfies T -/
 @[simp] lemma reduct_of_complete_henkinization_models_T {L : Language.{u}} {T : SentTheory L}
     (hT : T.is_consistent) :

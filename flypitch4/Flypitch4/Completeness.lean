@@ -55,8 +55,12 @@ theorem model_existence (T : SentTheory L) :
                          (completion_of_henkinization_is_henkin hT)
     let M : Structure L := Lhom.reduct (henkin_language_canonical_map 0) M'
     refine ⟨M, ?_, ?_⟩
-    · -- nonemptiness: sorried because term_model is sorried in Henkin.lean
-      exact sorry -- TODO: port term_model nonemptiness from src/fol.lean:2559
+    · -- nonemptiness: reduct preserves nonemptiness (reduct_coe), and term_model is nonempty
+      have hne : Nonempty M'.carrier :=
+        term_model_nonempty (completion_of_henkinization_complete hT)
+                            (completion_of_henkinization_is_henkin hT)
+      -- M.carrier = M'.carrier by reduct_coe
+      rwa [show M.carrier = M'.carrier from Lhom.reduct_coe M']
     · -- T satisfaction
       exact reduct_of_complete_henkinization_models_T hT
   · intro h_ex
