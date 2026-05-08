@@ -1272,7 +1272,46 @@ lemma mem_a1_iff {Γ : 𝔹} {η : bSet 𝔹} (H_ord : Γ ≤ Ord η) :
 
 -- src/aleph_one.lean:802
 lemma a1_transitive {Γ : 𝔹} : Γ ≤ is_transitive a1 := by
-  sorry -- TODO: port from src/aleph_one.lean:802
+  unfold is_transitive
+  apply le_iInf; intro z; rw [← deduction]
+  rw [subset_unfold']; apply le_iInf; intro w; rw [← deduction]
+  -- Goal: Γ ⊓ z ∈ a1 ⊓ w ∈ z ≤ w ∈ a1
+  -- Case-split on z ∈ a1 ↔ (z = 0 ⊔ z = 1) ⊔ z ∈ a1_aux  (left-assoc via mem_a1_iff₀)
+  have H_cases : Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z ≤ z =ᴮ 0 ⊔ z =ᴮ 1 ⊔ z ∈ᴮ a1_aux :=
+    mem_a1_iff₀.mp (inf_le_left.trans inf_le_right)
+  apply le_trans (b := (z =ᴮ 0 ⊔ z =ᴮ 1 ⊔ z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z))
+  · exact le_inf H_cases le_rfl
+  -- Goal: ((z=0 ⊔ z=1) ⊔ z∈a1_aux) ⊓ ctx ≤ w ∈ a1  (left-assoc)
+  -- Outer split: z=0 ⊔ z=1 vs z∈a1_aux
+  · apply bv_or_elim_left
+    · -- Case z = 0 ⊔ z = 1: inner split
+      apply bv_or_elim_left
+      · -- Case z = 0: z = ∅, so w ∈ ∅ → contradiction
+        apply bv_exfalso
+        apply bv_absurd (w ∈ᴮ (∅ : bSet 𝔹))
+        · -- w ∈ ∅ from w ∈ z and z =ᴮ 0 =ᴮ ∅
+          apply mem_congr bv_refl
+          · exact le_trans (le_inf inf_le_left zero_eq_empty) bv_eq_trans
+          · exact inf_le_right.trans inf_le_right
+        · exact (empty_iff_forall_not_mem.mp bv_refl).trans (iInf_le _ w)
+      · -- Case z = 1: w ∈ 1 → w = 0 → w ∈ a1
+        rw [mem_a1_iff₀]
+        apply le_trans _ (le_sup_left.trans le_sup_left)
+        apply eq_zero_of_mem_one
+        exact mem_congr bv_refl inf_le_left (inf_le_right.trans inf_le_right)
+    · -- Case z ∈ a1_aux: a1_func = ∅ so z = ∅ → w ∈ ∅ → contradiction
+      apply bv_exfalso
+      -- a1_aux.func = a1_func = ∅ by definition; so z ∈ a1_aux = ⨆ χ, bval χ ⊓ z = ∅
+      have Hz_iSup : z ∈ᴮ (a1_aux : bSet 𝔹) ≤
+          ⨆ χ : (a1' (𝔹 := 𝔹)).type, (a1' (𝔹 := 𝔹)).bval χ ⊓ z =ᴮ ∅ := by
+        simp only [a1_aux, mem_unfold]
+        exact le_rfl
+      have Hz_empty : (z ∈ᴮ a1_aux) ⊓ (Γ ⊓ z ∈ᴮ a1 ⊓ w ∈ᴮ z) ≤ z =ᴮ ∅ :=
+        le_trans (le_inf (inf_le_left.trans Hz_iSup) le_rfl)
+          (bv_cases_left (fun χ => inf_le_left.trans inf_le_right))
+      apply bv_absurd (w ∈ᴮ (∅ : bSet 𝔹))
+      · exact mem_congr bv_refl Hz_empty (inf_le_right.trans inf_le_right)
+      · exact (empty_iff_forall_not_mem.mp bv_refl).trans (iInf_le _ w)
 
 -- src/aleph_one.lean:818
 lemma a1_ewo {Γ : 𝔹} : Γ ≤ ewo a1 := by
