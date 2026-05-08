@@ -648,7 +648,83 @@ lemma one_mem_of_not_zero_and_not_one {η : bSet 𝔹} {Γ : 𝔹} (H_ord : Γ �
 -- src/bvm_extras2.lean:312
 lemma exists_two_iff {η : bSet 𝔹} {Γ : 𝔹} (H_ord : Γ ≤ Ord η) :
     Γ ≤ exists_two η ↔ Γ ≤ (η =ᴮ 1)ᶜ := by
-  sorry -- TODO: port from src/bvm_extras2.lean:312
+  constructor
+  · -- Forward: exists_two η → η ≠ 1
+    intro H
+    simp only [← imp_bot]; rw [← deduction]
+    -- Goal: Γ ⊓ η =ᴮ 1 ≤ ⊥
+    -- If η = 1, then 0 ∈ η; exists_two gives w ∈ η with (0∈w or w∈0); but w=0, contradiction
+    have h01 : Γ ⊓ η =ᴮ 1 ≤ (0 : bSet 𝔹) ∈ᴮ η :=
+      bv_rw'' (ϕ := fun v => (0 : bSet 𝔹) ∈ᴮ v) (bv_symm inf_le_right) zero_mem_one B_ext_mem_right
+    unfold exists_two at H
+    have h_spec : Γ ⊓ η =ᴮ 1 ≤ ⨆ z, z ∈ᴮ η ⊓ ((0 : bSet 𝔹) ∈ᴮ z ⊔ z ∈ᴮ 0) :=
+      le_trans (le_inf (inf_le_left.trans (H.trans (iInf_le _ 0))) h01) bv_imp_elim
+    obtain ⟨w, Hw⟩ := exists_convert h_spec
+      (B_ext_inf B_ext_mem_left (B_ext_sup (h₁ := B_ext_mem_right) (h₂ := B_ext_mem_left)))
+    have Hw_η : Γ ⊓ η =ᴮ 1 ≤ w ∈ᴮ η := Hw.trans inf_le_left
+    have Hw_or : Γ ⊓ η =ᴮ 1 ≤ (0 : bSet 𝔹) ∈ᴮ w ⊔ w ∈ᴮ 0 := Hw.trans inf_le_right
+    -- w ∈ η = 1 → w = 0
+    have Hw_eq0 : Γ ⊓ η =ᴮ 1 ≤ w =ᴮ 0 :=
+      eq_zero_of_mem_one (bv_rw'' (ϕ := fun v => w ∈ᴮ v) inf_le_right Hw_η B_ext_mem_right)
+    -- Case 0 ∈ w: w = 0, so 0 ∈ 0, contradiction
+    have hc1 : (0 : bSet 𝔹) ∈ᴮ w ⊓ (Γ ⊓ η =ᴮ 1) ≤ ⊥ :=
+      bot_of_mem_self' (bv_rw'' (ϕ := fun v => (0 : bSet 𝔹) ∈ᴮ v)
+        (inf_le_right.trans Hw_eq0) inf_le_left B_ext_mem_right)
+    -- Case w ∈ 0: 0 = ∅, contradiction
+    have hc2 : w ∈ᴮ (0 : bSet 𝔹) ⊓ (Γ ⊓ η =ᴮ 1) ≤ ⊥ :=
+      bv_exfalso (bot_of_mem_empty (bv_rw'' (ϕ := fun v => w ∈ᴮ v)
+        zero_eq_empty inf_le_left B_ext_mem_right))
+    exact le_trans (le_inf Hw_or le_rfl) (bv_or_elim_left hc1 hc2)
+  · -- Backward: η ≠ 1 → exists_two η
+    intro H_ne1
+    unfold exists_two
+    -- Case: η = 0 or η ≠ 0
+    have h_zero : (η =ᴮ 0) ⊓ Γ ≤ ⨅ x, x ∈ᴮ η ⟹ ⨆ z, z ∈ᴮ η ⊓ (x ∈ᴮ z ⊔ z ∈ᴮ x) := by
+      -- Rewrite η to 0 to ∅; then forall_empty applies
+      apply bv_rw' (H := inf_le_left) (h_congr := B_ext_exists_two)
+      apply bv_rw' (H := zero_eq_empty) (h_congr := B_ext_exists_two)
+      exact forall_empty
+    have h_nonzero : (η =ᴮ 0)ᶜ ⊓ Γ ≤ ⨅ x, x ∈ᴮ η ⟹ ⨆ z, z ∈ᴮ η ⊓ (x ∈ᴮ z ⊔ z ∈ᴮ x) := by
+      have H_ord' : (η =ᴮ 0)ᶜ ⊓ Γ ≤ Ord η := inf_le_right.trans H_ord
+      have H_ne0 : (η =ᴮ 0)ᶜ ⊓ Γ ≤ (η =ᴮ 0)ᶜ := inf_le_left
+      have H_ne1' : (η =ᴮ 0)ᶜ ⊓ Γ ≤ (η =ᴮ 1)ᶜ := inf_le_right.trans H_ne1
+      have h1_mem : (η =ᴮ 0)ᶜ ⊓ Γ ≤ (1 : bSet 𝔹) ∈ᴮ η :=
+        one_mem_of_not_zero_and_not_one H_ord' H_ne0 H_ne1'
+      apply le_iInf; intro z; rw [← deduction]
+      -- For z ∈ η, find w ∈ η with z ∈ w or w ∈ z, using 1 ∈ η
+      set ctx := (η =ᴮ 0)ᶜ ⊓ Γ ⊓ z ∈ᴮ η
+      have Hz_η : ctx ≤ z ∈ᴮ η := inf_le_right
+      have h1_η : ctx ≤ (1 : bSet 𝔹) ∈ᴮ η := inf_le_left.trans h1_mem
+      have Hz_ord : ctx ≤ Ord z := Ord_of_mem_Ord Hz_η (inf_le_left.trans H_ord')
+      -- Trichotomy z vs 1
+      have H_tri := Ord.trichotomy Hz_ord (inf_le_left.trans (inf_le_right.trans Ord_one))
+      -- Case z = 1: pick w = 0 ∈ η (0∈1=z∈η); w=0 ∈ z
+      have hcase1 : (z =ᴮ 1) ⊓ ctx ≤ ⨆ w, w ∈ᴮ η ⊓ (z ∈ᴮ w ⊔ w ∈ᴮ z) := by
+        apply le_iSup_of_le 0
+        apply le_inf
+        · -- 0 ∈ η: 0 ∈ 1 = z, and z ∈ η
+          exact mem_of_mem_Ord
+            (bv_rw'' (ϕ := fun v => (0 : bSet 𝔹) ∈ᴮ v) (bv_symm inf_le_left)
+              zero_mem_one B_ext_mem_right)
+            (inf_le_right.trans Hz_η)
+            (inf_le_right.trans (inf_le_left.trans H_ord'))
+        · -- 0 ∈ z (since 0 ∈ 1 = z)
+          exact bv_or_right (bv_rw'' (ϕ := fun v => (0 : bSet 𝔹) ∈ᴮ v)
+            (bv_symm inf_le_left) zero_mem_one B_ext_mem_right)
+      -- Case z ∈ 1: z = 0; pick w = 1 ∈ η; z ∈ 1 = w
+      have hcase2 : (z ∈ᴮ 1) ⊓ ctx ≤ ⨆ w, w ∈ᴮ η ⊓ (z ∈ᴮ w ⊔ w ∈ᴮ z) := by
+        apply le_iSup_of_le 1
+        exact le_inf (inf_le_right.trans h1_η) (bv_or_left inf_le_left)
+      -- Case 1 ∈ z: pick w = 1 ∈ η; 1 ∈ z, so w ∈ z
+      have hcase3 : ((1 : bSet 𝔹) ∈ᴮ z) ⊓ ctx ≤ ⨆ w, w ∈ᴮ η ⊓ (z ∈ᴮ w ⊔ w ∈ᴮ z) := by
+        apply le_iSup_of_le 1
+        exact le_inf (inf_le_right.trans h1_η) (bv_or_right inf_le_left)
+      exact le_trans (le_inf H_tri le_rfl)
+        (bv_or_elim_left (bv_or_elim_left hcase1 hcase2) hcase3)
+    -- Combine: split on η=0 or η≠0
+    calc Γ = (η =ᴮ 0 ⊔ (η =ᴮ 0)ᶜ) ⊓ Γ := by rw [sup_compl_eq_top, top_inf_eq]
+         _ = (η =ᴮ 0) ⊓ Γ ⊔ (η =ᴮ 0)ᶜ ⊓ Γ := by rw [inf_sup_right]
+         _ ≤ _ := sup_le h_zero h_nonzero
 
 end Ord
 
