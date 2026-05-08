@@ -103,4 +103,16 @@ variable {α : Type u} {β : α → Type v} [∀ x, TopologicalSpace (β x)]
 theorem countable_chain_condition_pi
     (h : ∀ s : Set α, s.Finite → countable_chain_condition (∀ x : s, β x)) :
     countable_chain_condition (∀ x, β x) := by
-  sorry -- TODO: port from src/set_theory.lean:662
+  -- TODO: port from src/set_theory.lean:662.
+  -- The Lean 3 proof depends on a large body of dropped infrastructure
+  -- (`pi_basis`, `pi_subbasis`, `support`, `extend`, `eq_on'`,
+  -- `delta_system_lemma_uncountable`, `finite_root`, …) — roughly
+  -- src/set_theory.lean lines 92–660. Reconstructing all of it is a
+  -- multi-day port (the Δ-system lemma alone is ~200 lines of nontrivial
+  -- well-founded combinatorics). A grep of mathlib4 (as of 2026-05-08)
+  -- finds no equivalents for `Sunflower`/`DeltaSystem` or for a CCC-pi
+  -- theorem under any naming, so there is no short path through mathlib.
+  -- Until the infrastructure is reconstructed, this lemma is sorry-deferred;
+  -- the only downstream consumer is `CantorSpace.countable_chain_condition_set`
+  -- (and through it `Forcing.lean:243`).
+  sorry
