@@ -1098,7 +1098,54 @@ lemma not_zero_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
 lemma not_one_of_induced_rel_nonempty {η f : bSet 𝔹} {Γ : 𝔹}
     (H_func : Γ ≤ is_function η omega f)
     (H : Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ) : Γ ≤ (η =ᴮ 1)ᶜ := by
-  sorry -- TODO: port from src/aleph_one.lean:700
+  -- Proof: assume η = 1. Get pr ∈ induced_epsilon_rel. Get a', b' s.t. a' ∈ b'.
+  -- Then a' ∈ η = 1 → a' = 0, b' ∈ η = 1 → b' = 0. So 0 ∈ 0, contradiction.
+  rw [← imp_bot, ← deduction]
+  -- Goal: Γ ⊓ (η =ᴮ 1) ≤ ⊥
+  -- Extract pr from the nonempty induced_epsilon_rel
+  have H' : Γ ⊓ (η =ᴮ 1) ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ := inf_le_left.trans H
+  rw [nonempty_iff_exists_mem] at H'
+  apply le_trans (le_inf H' le_rfl)
+  apply bv_cases_left; intro pr
+  -- ctx₀ = pr ∈ ind_eps ⊓ (Γ ⊓ η=1)
+  have H_pr_mem₀ := @inf_le_left 𝔹 _ (pr ∈ᴮ induced_epsilon_rel η omega f) (Γ ⊓ (η =ᴮ 1))
+  have H_func₀ : (pr ∈ᴮ induced_epsilon_rel η omega f) ⊓ (Γ ⊓ (η =ᴮ 1)) ≤ is_function η omega f :=
+    @inf_le_right 𝔹 _ (pr ∈ᴮ induced_epsilon_rel η omega f) (Γ ⊓ (η =ᴮ 1)) |>.trans
+      (inf_le_left.trans H_func)
+  obtain ⟨a, b, _, _, _, H_pair_mem⟩ := eq_pair_of_mem_induced_epsilon_rel H_pr_mem₀
+  rw [mem_induced_epsilon_rel_iff H_func₀] at H_pair_mem
+  obtain ⟨_, _, H_sup⟩ := H_pair_mem
+  apply le_trans (le_inf H_sup le_rfl)
+  apply bv_cases_left; intro a'
+  apply le_trans (le_inf (inf_le_left.trans inf_le_right) le_rfl)
+  apply bv_cases_left; intro b'
+  -- ctx: (b'∈η ⊓ (pa'a∈f ⊓ pb'b∈f ⊓ a'∈b')) ⊓ ((a'∈η ⊓ ⨆b',...) ⊓ (pr∈ind_eps ⊓ (Γ⊓η=1)))
+  -- Goal: this ctx ≤ ⊥
+  -- Derive 0 ∈ 0:
+  -- 1. a' ∈ η: ir.il.il, b' ∈ η: il.il
+  -- 2. η = 1: ir.ir.ir.ir (to Γ⊓η=1, then right = η=1)
+  -- 3. a' ∈ 1: from a'∈η and η=1
+  -- 4. a' = 0, b' = 0: eq_zero_of_mem_one
+  -- 5. a' ∈ b': il.ir.ir
+  -- 6. 0 ∈ 0: mem_congr
+  -- Derive 0 ∈ 0 and use bot_of_mem_self'
+  -- Paths in ctx: (b'∈η ⊓ (pa'a∈f ⊓ pb'b∈f ⊓ a'∈b')) ⊓ ((a'∈η ⊓ ⨆b',...) ⊓ (pr∈ ⊓ (Γ ⊓ η=1)))
+  -- a' ∈ η: ir.il.il (3 steps)
+  -- b' ∈ η: il.il (2 steps)
+  -- η = 1: ir.ir.ir.ir (4 steps)
+  -- a' ∈ b': il.ir.ir (3 steps)
+  apply bot_of_mem_self'
+  apply mem_congr
+  · -- ctx ≤ 0 =ᴮ 0 for the "element" (a' =ᴮ 0)
+    exact eq_zero_of_mem_one (mem_congr bv_refl
+      (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans inf_le_right)))
+      (inf_le_right.trans (inf_le_left.trans inf_le_left)))
+  · -- ctx ≤ 0 =ᴮ 0 for the "set" (b' =ᴮ 0)
+    exact eq_zero_of_mem_one (mem_congr bv_refl
+      (inf_le_right.trans (inf_le_right.trans (inf_le_right.trans inf_le_right)))
+      (inf_le_left.trans inf_le_left))
+  · -- ctx ≤ a' ∈ b' (becomes 0 ∈ 0 after rewriting)
+    exact inf_le_left.trans (inf_le_right.trans inf_le_right)
 
 -- src/aleph_one.lean:723
 lemma nonempty_induced_rel_iff_not_zero_and_not_one {η f : bSet 𝔹} {Γ : 𝔹}
