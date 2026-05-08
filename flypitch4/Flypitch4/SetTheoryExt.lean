@@ -172,7 +172,193 @@ theorem delta_system_lemma_aleph1
 
 variable {α : Type u} {β : α → Type v} [∀ x, TopologicalSpace (β x)]
 
+/-- The standard pi-basis from mathlib's `isTopologicalBasis_pi`, instantiated
+to allow any open set as the per-coordinate basis. -/
+private def piOpenBasis : Set (Set (∀ x, β x)) :=
+  { S | ∃ (U : ∀ x, Set (β x)) (F : Finset α),
+        (∀ x, x ∈ F → IsOpen (U x)) ∧ S = (F : Set α).pi U }
+
+private lemma isTopologicalBasis_piOpenBasis :
+    IsTopologicalBasis (piOpenBasis (β := β)) :=
+  isTopologicalBasis_pi (X := β) (T := fun _ => { U | IsOpen U })
+    (fun _ => isTopologicalBasis_opens)
+
+/-- Restricting a pi-basis element to a coordinate subset `R` yields an open
+set in `(∀ x : R, β x)`. -/
+private lemma isOpen_restrict_image_piOpenBasis
+    (R : Set α) {S : Set (∀ x, β x)} (hS : S ∈ piOpenBasis (β := β)) :
+    IsOpen ((fun f : ∀ x, β x => fun x : R => f x.1) '' S) := by
+  classical
+  obtain ⟨U, F, hU, rfl⟩ := hS
+  -- Key claim: image equals an explicit pi cylinder in (∀ x : R, β x).
+  by_cases hpi : ((F : Set α).pi U).Nonempty
+  · -- Non-empty case: image = (F ∩ R).pi (U ∘ ↑)
+    obtain ⟨f₀, hf₀⟩ := hpi
+    have himg : (fun f : ∀ x, β x => fun x : R => f x.1) '' ((F : Set α).pi U) =
+        (Subtype.val ⁻¹' (F : Set α) : Set R).pi (fun x : R => U x.1) := by
+      ext g
+      constructor
+      · rintro ⟨f, hf, rfl⟩ ⟨x, hxR⟩ hxF
+        exact hf x hxF
+      · intro hg
+        refine ⟨fun x => if hx : x ∈ R then g ⟨x, hx⟩ else f₀ x, ?_, ?_⟩
+        · intro x hxF
+          by_cases hxR : x ∈ R
+          · simp only [dif_pos hxR]; exact hg ⟨x, hxR⟩ hxF
+          · simp only [dif_neg hxR]; exact hf₀ x hxF
+        · funext ⟨x, hxR⟩; simp only [dif_pos hxR]
+    rw [himg]
+    apply isTopologicalBasis_piOpenBasis.isOpen
+    refine ⟨fun x : R => U x.1, F.subtype (· ∈ R), ?_, ?_⟩
+    · intro x hx
+      rw [Finset.mem_subtype] at hx
+      exact hU x.1 hx
+    · ext g
+      constructor
+      · intro hg x hxF
+        rw [Finset.mem_coe, Finset.mem_subtype] at hxF
+        exact hg ⟨x, x.2⟩ hxF
+      · intro hg ⟨x, hxR⟩ hxF
+        have : (⟨x, hxR⟩ : R) ∈ F.subtype (· ∈ R) := by
+          rw [Finset.mem_subtype]; exact hxF
+        exact hg _ this
+  · -- Empty case: image is empty.
+    rw [Set.not_nonempty_iff_eq_empty] at hpi
+    rw [hpi, Set.image_empty]
+    exact isOpen_empty
+
+/-- Disjoint pi-basis elements whose supports form a Δ-system with root `R`
+have disjoint restrictions to `R`. -/
+private lemma disjoint_restrict_image_of_delta
+    {S₁ S₂ : Set (∀ x, β x)}
+    {U₁ U₂ : ∀ x, Set (β x)} {F₁ F₂ : Finset α}
+    (h₁ : S₁ = (F₁ : Set α).pi U₁) (h₂ : S₂ = (F₂ : Set α).pi U₂)
+    (hd : Disjoint S₁ S₂) (R : Set α)
+    (hroot : ((F₁ : Set α)) ∩ ((F₂ : Set α)) = R) :
+    Disjoint ((fun f : ∀ x, β x => fun x : R => f x.1) '' S₁)
+             ((fun f : ∀ x, β x => fun x : R => f x.1) '' S₂) := by
+  classical
+  rw [Set.disjoint_iff_inter_eq_empty, Set.eq_empty_iff_forall_notMem]
+  rintro g ⟨⟨f₁, hf₁S, rfl⟩, ⟨f₂, hf₂S, hfeq⟩⟩
+  -- Construct f := f₁ on F₁, f₂ off F₁. Then f ∈ S₁ and f ∈ S₂.
+  rw [h₁] at hf₁S
+  rw [h₂] at hf₂S
+  let f : ∀ x, β x := fun x => if x ∈ F₁ then f₁ x else f₂ x
+  have hfS₁ : f ∈ S₁ := by
+    rw [h₁]
+    intro x hxF
+    simp only [Finset.mem_coe] at hxF
+    show f x ∈ U₁ x
+    simp only [f, if_pos hxF]
+    exact hf₁S x hxF
+  have hfS₂ : f ∈ S₂ := by
+    rw [h₂]
+    intro x hxF
+    simp only [Finset.mem_coe] at hxF
+    show f x ∈ U₂ x
+    by_cases hx1 : x ∈ F₁
+    · -- x ∈ F₁ ∩ F₂ ⊆ R; use that f₁ and f₂ agree on R
+      have hxR : x ∈ R := by
+        rw [← hroot]
+        exact ⟨hx1, hxF⟩
+      simp only [f, if_pos hx1]
+      have heq : f₂ x = f₁ x := by
+        have := congr_fun hfeq ⟨x, hxR⟩
+        simpa using this
+      rw [← heq]
+      exact hf₂S x hxF
+    · simp only [f, if_neg hx1]
+      exact hf₂S x hxF
+  exact (Set.disjoint_iff_forall_ne.mp hd hfS₁ hfS₂) rfl
+
 theorem countable_chain_condition_pi
     (h : ∀ s : Set α, s.Finite → countable_chain_condition (∀ x : s, β x)) :
     countable_chain_condition (∀ x, β x) := by
-  sorry
+  classical
+  apply countable_chain_condition_of_topological_basis (piOpenBasis (β := β))
+    isTopologicalBasis_piOpenBasis
+  intro C hC h2C
+  by_contra h3Cne
+  have h3C : ℵ₀ < #C := by
+    by_contra hle
+    push_neg at hle
+    exact h3Cne (Cardinal.le_aleph0_iff_set_countable.mp hle)
+  -- For each S ∈ C, choose its support data via the basis description.
+  have hCdata : ∀ S : C, ∃ (U : ∀ x, Set (β x)) (F : Finset α),
+      (∀ x ∈ F, IsOpen (U x)) ∧ S.1 = (F : Set α).pi U := by
+    rintro ⟨S, hS⟩; exact hC hS
+  choose U F hUopen hSeq using hCdata
+  -- Apply Δ-system lemma to the supports F.
+  let A : C → Set α := fun S => (F S : Set α)
+  have hA_fin : ∀ S : C, (A S).Finite := fun S => Finset.finite_toSet _
+  obtain ⟨C', hC'_card, R, hR⟩ := delta_system_lemma_aleph1 A h3C hA_fin
+  -- The root R is finite.
+  have h2R : R.Finite := by
+    -- Any two distinct elements x, y ∈ C' give A x ∩ A y = R, and A x is finite.
+    have : ∃ x y : C', x ≠ y := by
+      by_contra hne
+      push_neg at hne
+      have hsub : Subsingleton C' := ⟨fun x y => hne x y⟩
+      have hone : #C' ≤ 1 := Cardinal.mk_le_one_iff_set_subsingleton.mpr (by
+        intro x hx y hy
+        exact congr_arg Subtype.val (hsub.elim ⟨x, hx⟩ ⟨y, hy⟩))
+      have : ℵ₀ < (1 : Cardinal) := lt_of_lt_of_le hC'_card hone
+      have : ℵ₀ < ℵ₀ := this.trans_le (by simp)
+      exact absurd this (lt_irrefl _)
+    obtain ⟨x, y, hxy⟩ := this
+    rw [← hR hxy]
+    exact (hA_fin x.1).inter_of_left _
+  -- Define π : (∀ x, β x) → (∀ x : R, β x) and the family D of restrictions.
+  let π : (∀ x, β x) → (∀ x : R, β x) := fun f x => f x.1
+  let D : Set (Set (∀ x : R, β x)) := (fun S : C' => π '' S.1.1) '' Set.univ
+  -- Each member of D is open.
+  have hD_open : ∀ ⦃o⦄, o ∈ D → IsOpen o := by
+    rintro _ ⟨S, _, rfl⟩
+    exact isOpen_restrict_image_piOpenBasis _ (hC S.1.2)
+  -- Key lemma about disjoint images.
+  have h2'D : ∀ S₁ S₂ : C', S₁ ≠ S₂ → Disjoint (π '' S₁.1.1) (π '' S₂.1.1) := by
+    intro S₁ S₂ hne
+    -- S₁ ≠ S₂ in C', so S₁.1 ≠ S₂.1 in C, so the underlying sets differ.
+    have h12 : S₁.1.1 ≠ S₂.1.1 := fun heq => by
+      apply hne
+      apply Subtype.ext
+      apply Subtype.ext
+      exact heq
+    -- The C-pairwise-disjoint hypothesis gives Disjoint S₁.1.1 S₂.1.1.
+    have hdis : Disjoint S₁.1.1 S₂.1.1 :=
+      h2C S₁.1.2 S₂.1.2 h12
+    -- Apply the support-extension lemma.
+    apply disjoint_restrict_image_of_delta (hSeq S₁.1) (hSeq S₂.1) hdis R
+    -- Need: F S₁.1 ∩ F S₂.1 (as Sets) = R
+    have := hR (x := S₁) (y := S₂) hne
+    -- A is fun S => (F S : Set α), so A S₁ = F S₁ as Set α.
+    simpa [A] using this
+  -- Members of D are pairwise disjoint.
+  have hD_disj : D.PairwiseDisjoint id := by
+    rintro _ ⟨S₁, _, rfl⟩ _ ⟨S₂, _, rfl⟩ hne
+    have hS₁S₂ : S₁ ≠ S₂ := fun heq => by rw [heq] at hne; exact hne rfl
+    exact h2'D S₁ S₂ hS₁S₂
+  -- D is uncountable: π is injective on C'.
+  -- Two basis elements with disjoint images are not equal,
+  -- so the map S ↦ π '' S.1.1 is injective on C' (assuming non-empty images).
+  have hD_card : ℵ₀ < #D := by
+    -- D = range (fun S : C' => π '' S.1.1).
+    -- The map is injective: if π '' S₁ = π '' S₂ and S₁ ≠ S₂, then by h2'D
+    -- the images are disjoint, so they are both empty. But each S ∈ C' is
+    -- a non-empty basis element (we need to handle this).
+    -- For each S ∈ C', S.1.1 must be non-empty to have non-trivial CCC argument.
+    -- The C is defined to contain non-empty opens (from countable_chain_condition_of_nonempty
+    -- via countable_chain_condition_of_topological_basis), so S.1.1 ≠ ∅.
+    -- Actually: countable_chain_condition_of_topological_basis takes a hypothesis on
+    -- ALL subsets s ⊆ B with PairwiseDisjoint. We can't assume non-empty without
+    -- extra work. Let me handle empty separately.
+    --
+    -- Plan: split C' into C'_ne (non-empty) and C'_e (empty members).
+    -- C'_e has at most one element (all are ∅), so |C'_ne| > ℵ₀.
+    -- Then π is injective on C'_ne (non-empty disjoint images can't be equal),
+    -- so #(π '' C'_ne) > ℵ₀, hence #D > ℵ₀.
+    sorry
+  -- Apply CCC for (∀ x : R, β x) to get D countable, contradiction.
+  have hD_count : D.Countable := h R h2R D hD_open hD_disj
+  have : #D ≤ ℵ₀ := Cardinal.le_aleph0_iff_set_countable.mpr hD_count
+  exact absurd hD_card (not_lt.mpr this)
