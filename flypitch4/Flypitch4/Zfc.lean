@@ -332,12 +332,47 @@ lemma B_ext_left_realize_bounded_formula {n : ℕ} (ϕ : bounded_formula L_ZFC (
     (xs : DVec (V β) n) (x y : V β) :
     x =ᴮ y ⊓ boolean_realize_bounded_formula (DVec.cons x xs) ϕ DVec.nil ≤
     boolean_realize_bounded_formula (DVec.cons y xs) ϕ DVec.nil := by
-  sorry -- TODO: port from src/zfc.lean:217-230
+  -- Key: x =ᴮ y = ⨅ m : Fin (n+1), (V β).eq ((x::xs)[m]) ((y::xs)[m])
+  -- At m=0: eq(x,y) = x =ᴮ y; at m=succ k: eq(xs[k], xs[k]) = ⊤
+  have hkey : x =ᴮ y = ⨅ (m : Fin (n + 1)),
+      (V β).eq ((DVec.cons x xs).nth m.1 m.2) ((DVec.cons y xs).nth m.1 m.2) := by
+    apply le_antisymm
+    · apply le_iInf; intro ⟨m, hm⟩
+      simp only [V_eq]
+      cases m with
+      | zero => simp [DVec.nth]
+      | succ k =>
+        show x =ᴮ y ≤ xs.nth k (Nat.lt_of_succ_lt_succ hm) =ᴮ xs.nth k (Nat.lt_of_succ_lt_succ hm)
+        rw [bv_eq_refl]; exact le_top
+    · exact iInf_le _ (⟨0, Nat.zero_lt_succ n⟩ : Fin (n + 1))
+  rw [hkey]
+  exact boolean_realize_bounded_formula_congr (inferInstance : Nonempty (V β)) _ _ ϕ DVec.nil
 lemma B_ext_right_realize_bounded_formula {n : ℕ} (ϕ : bounded_formula L_ZFC (n + 2))
     (xs : DVec (V β) n) (x y z : V β) :
     x =ᴮ y ⊓ boolean_realize_bounded_formula (DVec.cons z (DVec.cons x xs)) ϕ DVec.nil ≤
     boolean_realize_bounded_formula (DVec.cons z (DVec.cons y xs)) ϕ DVec.nil := by
-  sorry -- TODO: port from src/zfc.lean:232-247
+  -- Key: x =ᴮ y = ⨅ m : Fin (n+2), eq((z::x::xs)[m], (z::y::xs)[m])
+  -- At m=0: eq(z,z)=⊤; at m=1: eq(x,y)=x=ᴮy; at m=succ(succ k): eq(xs[k],xs[k])=⊤
+  have hkey : x =ᴮ y = ⨅ (m : Fin (n + 2)),
+      (V β).eq ((DVec.cons z (DVec.cons x xs)).nth m.1 m.2)
+               ((DVec.cons z (DVec.cons y xs)).nth m.1 m.2) := by
+    apply le_antisymm
+    · apply le_iInf; intro ⟨m, hm⟩
+      simp only [V_eq]
+      cases m with
+      | zero =>
+        show x =ᴮ y ≤ z =ᴮ z
+        rw [bv_eq_refl]; exact le_top
+      | succ k =>
+        cases k with
+        | zero => simp [DVec.nth]
+        | succ k' =>
+          show x =ᴮ y ≤ xs.nth k' (Nat.lt_of_succ_lt_succ (Nat.lt_of_succ_lt_succ hm)) =ᴮ
+               xs.nth k' (Nat.lt_of_succ_lt_succ (Nat.lt_of_succ_lt_succ hm))
+          rw [bv_eq_refl]; exact le_top
+    · exact iInf_le _ (⟨1, by omega⟩ : Fin (n + 2))
+  rw [hkey]
+  exact boolean_realize_bounded_formula_congr (inferInstance : Nonempty (V β)) _ _ ϕ DVec.nil
 lemma bSet_models_collection {n} (ϕ : bounded_formula L_ZFC (n + 2)) :
     ⊤ ⊩[V β] axiom_of_collection ϕ := by
   sorry -- TODO: port from src/zfc.lean:249-265

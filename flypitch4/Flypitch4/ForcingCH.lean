@@ -374,9 +374,9 @@ lemma rel_of_array_is_func' (x y : bSet 𝔹) (af : x.type → y.type → 𝔹)
 section function_reflect
 
 -- Private auxiliary for function_reflect_of_omega_closed.
--- We need a noncomputable recursive function that can't be defined inside `by`.
--- This stores (j, B, ⊥ < B, B ≤ is_func' ω ŷ g, B ∈ D) for each step n.
-@[reducible] private noncomputable def fBrec_aux
+-- We prove existence of the full sequence at the Prop level using Nat.rec.
+-- This avoids the Classical.choose definitional reduction issue.
+private lemma fBrec_exists
     {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
     {D : Set 𝔹} {y : PSet.{u}} {g : bSet 𝔹} {Γ : 𝔹}
     (H_is_func' : Γ ≤ is_func' bSet.omega (check y) g)
@@ -389,67 +389,16 @@ section function_reflect
                     Γ'' ≤ is_func' (check px) (check py) f ∧
                     Γ'' ≤ pair (check (px.Func i)) (check (py.Func j)) ∈ᴮ f ∧
                     Γ'' ∈ D)
-    : ℕ → Σ' (j : y.Type) (B : 𝔹),
-        ⊥ < B ∧ B ≤ is_func' bSet.omega (check y) g ∧ B ∈ D
-  | 0 =>
-    let ae0 := AE PSet.omega y H_is_func' H_nonzero (⟨0⟩ : PSet.omega.Type)
-    let j := Classical.choose ae0
-    let ae0' := Classical.choose_spec ae0
-    let B := Classical.choose ae0'
-    let ⟨hpos, _hle, hfunc', _hpair, hmem⟩ := Classical.choose_spec ae0'
-    ⟨j, B, hpos, hfunc', hmem⟩
-  | n + 1 =>
-    let ih := fBrec_aux H_is_func' H_nonzero AE n
-    let aeK := AE PSet.omega y ih.2.2.2.1 ih.2.2.1 (⟨n + 1⟩ : PSet.omega.Type)
-    let j := Classical.choose aeK
-    let aeK' := Classical.choose_spec aeK
-    let B := Classical.choose aeK'
-    let ⟨hpos, _hle, hfunc', _hpair, hmem⟩ := Classical.choose_spec aeK'
-    ⟨j, B, hpos, hfunc', hmem⟩
-
-
--- Helper Prop-lemmas for fBrec_aux (avoid PSigma definitional issues).
--- These are proved by induction on n, using the equation-compiler reduction of fBrec_aux.
-private lemma fBrec_aux_le
-    {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
-    {D : Set 𝔹} {y : PSet.{u}} {g : bSet 𝔹} {Γ : 𝔹}
-    (H_is_func' : Γ ≤ is_func' bSet.omega (check y) g)
-    (H_nonzero : ⊥ < Γ)
-    (AE : ∀ (px py : PSet) {f : bSet 𝔹} {Γ' : 𝔹},
-            Γ' ≤ is_func' (check px) (check py) f →
-              ⊥ < Γ' →
-                ∀ (i : px.Type),
-                  ∃ (j : py.Type) (Γ'' : 𝔹), ⊥ < Γ'' ∧ Γ'' ≤ Γ' ∧
-                    Γ'' ≤ is_func' (check px) (check py) f ∧
-                    Γ'' ≤ pair (check (px.Func i)) (check (py.Func j)) ∈ᴮ f ∧
-                    Γ'' ∈ D)
-    (n : ℕ) : (fBrec_aux H_is_func' H_nonzero AE (n + 1)).2.1 ≤ (fBrec_aux H_is_func' H_nonzero AE n).2.1 := by
-  -- By the equation-compiler equation for fBrec_aux succ:
-  -- fBrec_aux ... (n+1) uses ih = fBrec_aux ... n and picks B from AE applied to ih.
-  -- The chosen B satisfies hle : B ≤ ih.2.1 = (fBrec_aux ... n).2.1.
-  -- This is directly available from Classical.choose_spec of the AE call.
-  -- The equation-compiler unfolds via simp [fBrec_aux]:
-  -- Definitional equality: (fBrec_aux ... (n+1)).2.1 = Classical.choose(Classical.choose_spec(...))
-  -- This holds by the succ-equation of fBrec_aux. Lean 4 cannot automatically reduce this
-  -- even with @[reducible] because noncomputable Classical.choose is not kernel-reducible.
-  -- We sorry this definitional step; the proof structure is correct.
-  sorry
-
-private lemma fBrec_aux_le_Γ
-    {𝔹 : Type u} [NontrivialCompleteBooleanAlgebra 𝔹]
-    {D : Set 𝔹} {y : PSet.{u}} {g : bSet 𝔹} {Γ : 𝔹}
-    (H_is_func' : Γ ≤ is_func' bSet.omega (check y) g)
-    (H_nonzero : ⊥ < Γ)
-    (AE : ∀ (px py : PSet) {f : bSet 𝔹} {Γ' : 𝔹},
-            Γ' ≤ is_func' (check px) (check py) f →
-              ⊥ < Γ' →
-                ∀ (i : px.Type),
-                  ∃ (j : py.Type) (Γ'' : 𝔹), ⊥ < Γ'' ∧ Γ'' ≤ Γ' ∧
-                    Γ'' ≤ is_func' (check px) (check py) f ∧
-                    Γ'' ≤ pair (check (px.Func i)) (check (py.Func j)) ∈ᴮ f ∧
-                    Γ'' ∈ D) :
-    (fBrec_aux H_is_func' H_nonzero AE 0).2.1 ≤ Γ := by
-  sorry  -- same definitional reduction issue as fBrec_aux_le
+    -- The inductive invariant: we have a current Boolean B and can extend one more step
+    : ∀ (n : ℕ) (Bprev : 𝔹), ⊥ < Bprev → Bprev ≤ is_func' bSet.omega (check y) g →
+        ∃ (j : y.Type) (B : 𝔹), ⊥ < B ∧ B ≤ Bprev ∧
+          B ≤ is_func' bSet.omega (check y) g ∧
+          B ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func j)) ∈ᴮ g ∧
+          B ∈ D := by
+  intro n Bprev hpos hfunc
+  have ae := AE PSet.omega y hfunc hpos (⟨n⟩ : PSet.omega.Type)
+  obtain ⟨j, B, hpos', hle, hfunc', hpair, hmem⟩ := ae
+  exact ⟨j, B, hpos', hle, hfunc', hpair, hmem⟩
 
 open Flypitch in
 -- src/forcing_CH.lean:216-348: function_reflect_of_omega_closed
@@ -471,68 +420,140 @@ lemma function_reflect_of_omega_closed
     : ∃ (f : PSet.{u}) (Γ' : 𝔹), ⊥ < Γ' ∧ Γ' ≤ Γ ∧
       (Γ' ≤ check f =ᴮ g) ∧ PSet.is_func PSet.omega y f := by
   -- Port of src/forcing_CH.lean:216-348 (function_reflect_of_omega_closed).
-  -- Build a recursive sequence using fBrec_aux.
-  -- fBrec(n) : Σ' j B, ⊥ < B ∧ B ≤ is_func' ω ŷ g ∧ B ∈ D
-  let fBrec := fBrec_aux H_is_func' H_nonzero AE
-  -- Extract:
-  let fr  : PSet.omega.Type → y.Type := fun n => (fBrec n.down).1
-  let fBᵦ : ℕ → 𝔹               := fun n => (fBrec n).2.1
-  -- Properties:
-  have fBᵦ_pos   : ∀ n, ⊥ < fBᵦ n :=
-    fun n => (fBrec n).2.2.1
+  -- Strategy: build the sequence at the Prop level using nat-induction, avoiding
+  -- Classical.choose definitional unfolding issues.
+  -- Step 1: Prove by induction that for each n, given any Bprev with ⊥ < Bprev and
+  -- Bprev ≤ is_func', there exists (j, B) with the required properties.
+  -- This is just fBrec_exists.
+  -- Step 2: Build a concrete sequence by simultaneously choosing (j_n, B_n) at each step
+  -- using the inductive invariant Bprev = B_{n-1}.
+  -- We carry the state (Bprev, ⊥<Bprev, Bprev≤func') inductively.
+  -- Build the sequence of (j_n, B_n) pairs as a Type-valued function using Classical.choice.
+  -- The inductive state: (B : 𝔹) × (⊥ < B) × (B ≤ is_func' ω ŷ g)
+  -- At each step n, we have state_n = (B_n, pos_n, func_n)
+  -- and (j_n, B_n) come from fBrec_exists n B_{n-1} pos_{n-1} func_{n-1}
+  -- We build the sequence using Nat.rec at the level of (y.Type × 𝔹 × ...):
+  -- state : ℕ → Σ' (j : y.Type) (B : 𝔹), ⊥ < B ∧ B ≤ is_func' bSet.omega (check y) g
+  -- But we need the le-chain property: B_{n+1} ≤ B_n and B_0 ≤ Γ.
+  -- The key insight: use a Prop-only induction to prove the existence of the entire chain,
+  -- then apply Classical.choice once to get all the data.
+
+  -- Prove: ∀ n, ∃ (fr : Fin (n+1) → y.Type) (fB : Fin (n+1) → 𝔹),
+  --   ∀ k < n+1, ⊥ < fB k ∧ (k < n → fB (k+1) ≤ fB k) ∧ fB 0 ≤ Γ ∧
+  --     fB k ≤ is_func' ω ŷ g ∧ fB k ≤ pair(...) ∈ g ∧ fB k ∈ D
+  -- This is unwieldy. Instead, prove a simpler inductive fact:
+
+  -- Key: prove by induction that ∃ sequences fr : ℕ → y.Type and fB : ℕ → 𝔹 such that
+  -- (1) fB 0 ≤ Γ, (2) ∀ n, fB(n+1) ≤ fB n, (3) ∀ n, ⊥ < fB n,
+  -- (4) ∀ n, fB n ≤ is_func' ω ŷ g, (5) ∀ n, fB n ≤ pair(ω_n)(y_{fr n}) ∈ g,
+  -- (6) ∀ n, fB n ∈ D.
+  -- This Prop-level statement is provable by building the sequence step-by-step.
+  -- The sequence exists: choose using dependent choice (or Nat.rec on existence).
+  -- Define the "good state" predicate for a Boolean B:
+  -- GoodB B means ⊥ < B and B ≤ is_func' ω ŷ g.
+  let GoodB : 𝔹 → Prop := fun B => ⊥ < B ∧ B ≤ is_func' bSet.omega (check y) g
+  -- step_exists: given a GoodB, the step function produces the next (j, B) with GoodB.
+  have step_exists : ∀ n (Bprev : 𝔹), GoodB Bprev →
+      ∃ (j : y.Type) (B : 𝔹), GoodB B ∧ B ≤ Bprev ∧
+        B ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func j)) ∈ᴮ g ∧ B ∈ D :=
+    fun n Bprev ⟨hpos, hfunc⟩ => by
+      obtain ⟨j, B, hpos', hle, hfunc', hpair, hmem⟩ :=
+        fBrec_exists H_is_func' H_nonzero AE n Bprev hpos hfunc
+      exact ⟨j, B, ⟨hpos', hfunc'⟩, hle, hpair, hmem⟩
+  -- Build the sequence by Nat.rec at the TYPE level.
+  -- State: {B : 𝔹 // GoodB B} (analogous to KonigLemma's {a : α // (Ici a).Infinite})
+  -- The step function maps state_n to state_{n+1} (and produces j_n as a side effect).
+  -- We carry both j and B:
+  let mkState : ℕ → {j : y.Type // True} × {B : 𝔹 // GoodB B} :=
+    Nat.rec
+      (-- Base: apply step_exists at n=0 with Bprev = Γ
+        let h₀ := step_exists 0 Γ ⟨H_nonzero, H_is_func'⟩
+        ⟨⟨h₀.choose, trivial⟩, ⟨h₀.choose_spec.choose, h₀.choose_spec.choose_spec.1⟩⟩)
+      (-- Inductive step: apply step_exists at n+1 with Bprev = prev state's B
+        fun n prev =>
+          let h := step_exists (n + 1) prev.2.1 prev.2.2
+          ⟨⟨h.choose, trivial⟩, ⟨h.choose_spec.choose, h.choose_spec.choose_spec.1⟩⟩)
+  -- Extract sequences:
+  let fr : ℕ → y.Type := fun n => (mkState n).1.1
+  let fBᵦ : ℕ → 𝔹 := fun n => (mkState n).2.1
+  -- GoodB property (pos and func') come directly from the subtype:
+  have fBᵦ_pos : ∀ n, ⊥ < fBᵦ n := fun n => (mkState n).2.2.1
   have fBᵦ_func' : ∀ n, fBᵦ n ≤ is_func' bSet.omega (check y) g :=
-    fun n => (fBrec n).2.2.2.1
-  have fBᵦ_mem   : ∀ n, fBᵦ n ∈ D :=
-    fun n => (fBrec n).2.2.2.2
-  -- fBᵦ(n+1) ≤ fBᵦ(n): from the hle component of AE at step n+1.
-  -- fBrec (n+1) was built using AE applied to (fBrec n), so hle : fBᵦ(n+1) ≤ fBᵦ(n).
-  -- By definitional unfolding of fBrec_aux (succ case), this is direct.
-  -- fBᵦ_le: the chain is decreasing (from fBrec_aux_le).
-  have fBᵦ_le : ∀ n, fBᵦ (n + 1) ≤ fBᵦ n := fun n => fBrec_aux_le H_is_func' H_nonzero AE n
-  -- fBᵦ 0 ≤ Γ (from fBrec_aux_le_Γ).
-  have fBᵦ0_le_Γ : fBᵦ 0 ≤ Γ := fBrec_aux_le_Γ H_is_func' H_nonzero AE
+    fun n => (mkState n).2.2.2
+  -- Properties proved by induction (NOT definitional reduction).
+  -- At step 0: the step_exists applied to Γ gives j₀, B₀ with all props.
+  -- At step n+1: the step_exists applied to B_n gives j_{n+1}, B_{n+1} with all props.
+  -- Key: we prove these by applying step_exists to (mkState n).2 at each step.
+  --      This gives us the SAME j,B that mkState produces, via Classical.choose_spec.
+  -- The trick: (mkState (n+1)).2.1 = (step_exists (n+1) (mkState n).2.1 (mkState n).2.2).choose_spec.choose
+  -- And Classical.choose_spec gives all the properties of this B.
+  -- We use "unicity" of Classical.choose_spec: for a SPECIFIC Bprev, step_exists Bprev
+  -- gives a SPECIFIC (j, B) via Classical.choose. The properties are provable by
+  -- noting that (mkState (n+1)).2.1 IS that specific Classical.choose value.
+  -- But we can't prove this by rfl (definitional equality issue).
+  -- HOWEVER, we can prove by induction that all properties hold:
+  have fBᵦ_le : ∀ n, fBᵦ (n + 1) ≤ fBᵦ n := by
+    intro n
+    -- fBᵦ (n+1) = (mkState (n+1)).2.1
+    -- mkState (n+1) = step applied to mkState n
+    -- In the step function, h = step_exists (n+1) (mkState n).2.1 (mkState n).2.2
+    -- and (mkState (n+1)).2.1 = h.choose_spec.choose
+    -- h.choose_spec.choose_spec.2.1 : h.choose_spec.choose ≤ (mkState n).2.1
+    -- So: fBᵦ (n+1) ≤ fBᵦ n.
+    -- The challenge: we need to relate mkState (n+1) to step applied to mkState n.
+    -- By the succ equation of Nat.rec:
+    --   mkState (n+1) = (fun k prev => ...) n (mkState n)
+    --               = let h := step_exists (n+1) (mkState n).2.1 (mkState n).2.2;
+    --                 ⟨⟨h.choose, trivial⟩, ⟨h.choose_spec.choose, ...⟩⟩
+    -- So (mkState (n+1)).2.1 = h.choose_spec.choose where h is as above.
+    -- And h.choose_spec.choose_spec.2.1 : h.choose_spec.choose ≤ (mkState n).2.1
+    -- This requires Lean to reduce Nat.rec at succ, which it CAN do.
+    -- Let's try:
+    exact (step_exists (n + 1) (mkState n).2.1 (mkState n).2.2).choose_spec.choose_spec.2.1
+  have fBᵦ0_le_Γ : fBᵦ 0 ≤ Γ := by
+    -- mkState 0 uses step_exists 0 Γ ..., so fBᵦ 0 = that choose_spec.choose ≤ Γ
+    exact (step_exists 0 Γ ⟨H_nonzero, H_is_func'⟩).choose_spec.choose_spec.2.1
+  have fBᵦ_pair : ∀ n, fBᵦ n ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr n))) ∈ᴮ g := by
+    intro n
+    cases n with
+    | zero =>
+      -- fBᵦ 0 and fr 0 come from step_exists 0 Γ ...
+      exact (step_exists 0 Γ ⟨H_nonzero, H_is_func'⟩).choose_spec.choose_spec.2.2.1
+    | succ n =>
+      -- fBᵦ (n+1) and fr (n+1) come from step_exists (n+1) (mkState n).2.1 ...
+      exact (step_exists (n + 1) (mkState n).2.1 (mkState n).2.2).choose_spec.choose_spec.2.2.1
+  have fBᵦ_mem : ∀ n, fBᵦ n ∈ D := by
+    intro n
+    cases n with
+    | zero =>
+      exact (step_exists 0 Γ ⟨H_nonzero, H_is_func'⟩).choose_spec.choose_spec.2.2.2
+    | succ n =>
+      exact (step_exists (n + 1) (mkState n).2.1 (mkState n).2.2).choose_spec.choose_spec.2.2.2
   -- Build f' from fr.
+  let fr' : PSet.omega.Type → y.Type := fun k => fr k.down
   let f' : PSet.{u} :=
-    PSet.function_mk.mk (x := PSet.omega) (fun (k : PSet.omega.Type) => y.Func (fr k))
+    PSet.function_mk.mk (x := PSet.omega) (fun (k : PSet.omega.Type) => y.Func (fr' k))
       (fun i j heqv => by
         have hij : i = j := PSet.omega_inj heqv
         subst hij; exact PSet.Equiv.refl _)
   have f'_is_func : PSet.is_func PSet.omega y f' :=
-    PSet.function_mk.mk_is_func _ (fun i => PSet.func_mem y (fr i))
+    PSet.function_mk.mk_is_func _ (fun i => PSet.func_mem y (fr' i))
   -- Γ' = ⨅ n, fBᵦ n.
   have Γ'_pos : ⊥ < ⨅ n, fBᵦ n :=
     nonzero_iInf_of_mem_DenseOmegaClosed H_docs fBᵦ_le fBᵦ_mem
   have Γ'_le_Γ : (⨅ n, fBᵦ n) ≤ Γ :=
     (iInf_le _ 0).trans fBᵦ0_le_Γ
-  -- fBᵦ_pair: each fBᵦ n witnesses the pair membership in g.
-  -- This is the _hpair component of AE at step n. Same definitional issue as fBᵦ_le:
-  -- (fBrec_aux ... n).2.1 = fBᵦ n ≤ pair(check(omega.Func ⟨n⟩))(check(y.Func(fr ⟨n⟩))) ∈ g
-  have fBᵦ_pair : ∀ n, fBᵦ n ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr ⟨n⟩))) ∈ᴮ g := by
-    intro n; sorry  -- _hpair from AE call (definitional extraction)
   -- iInf_fBᵦ_pair: Γ' ≤ each pair in g
-  have iInf_fBᵦ_pair : ∀ n, (⨅ m, fBᵦ m) ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr ⟨n⟩))) ∈ᴮ g :=
+  have iInf_fBᵦ_pair : ∀ n, (⨅ m, fBᵦ m) ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr' ⟨n⟩))) ∈ᴮ g :=
     fun n => (iInf_le _ n).trans (fBᵦ_pair n)
   -- Γ' ≤ check f' =ᴮ g via bSet.funext.
-  -- The funext body: ⨅ p, p ∈ prod ω (check y) ⟹ (p ∈ check f' ⇔ p ∈ g).
   have Γ'_le_eq : (⨅ n, fBᵦ n) ≤ check f' =ᴮ g := by
     apply funext
     · exact check_is_func f'_is_func
     · exact Γ'_le_Γ.trans H_function
-    · -- Port of function_reflect_aux₃ from Lean 3.
-      -- Goal: ⨅ n, fBᵦ n ≤ ⨅ p, p ∈ prod bSet.omega (check y) ⟹ (p ∈ check f' ⇔ p ∈ g)
-      -- Reduce to pointwise: for each ⟨k, j⟩ : (prod ω (check y)).type
-      apply le_iInf; intro p; rw [← deduction]
-      -- p ∈ prod ω (check y) decomposes as an iSup over indices
-      -- bval of prod at (k, j) is ⊤, func is pair (ω.func k) ((check y).func j)
-      -- Use mem_unfold and distribute
+    · apply le_iInf; intro p; rw [← deduction]
       rw [mem_unfold]
-      simp only [prod_bval, prod_func, omega_bval, check_bval_top, top_inf_eq]
-      -- After simp: ⨅ n, fBᵦ n ⊓ (⨆ ij, pair(ω.k)(ŷ.j) =ᴮ pair(ω.ij.1)(ŷ.ij.2)) ≤ (p ∈ f' ⇔ p ∈ g)
-      -- This is still complex. Let me try to reduce using iSup distribution.
-      -- Goal: ⨅ n, fBᵦ n ⊓ p ∈ prod ω (check y) ≤ p ∈ check f' ⇔ p ∈ g
-      -- Try: use cases on p to get p = ⟨k, j⟩ in (check omega).type × (check y).type
-      -- Actually prod.type = omega.type × (check y).type, and then the index gives the pair.
-      -- Approach: use iSup_le intro on the prod membership
+      simp only [prod_func, check_bval_top, top_inf_eq]
       apply le_inf
       · -- Forward: p ∈ check f' → p ∈ g
         rw [← deduction]
