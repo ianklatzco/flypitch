@@ -342,22 +342,74 @@ theorem countable_chain_condition_pi
   -- Two basis elements with disjoint images are not equal,
   -- so the map S ↦ π '' S.1.1 is injective on C' (assuming non-empty images).
   have hD_card : ℵ₀ < #D := by
-    -- D = range (fun S : C' => π '' S.1.1).
-    -- The map is injective: if π '' S₁ = π '' S₂ and S₁ ≠ S₂, then by h2'D
-    -- the images are disjoint, so they are both empty. But each S ∈ C' is
-    -- a non-empty basis element (we need to handle this).
-    -- For each S ∈ C', S.1.1 must be non-empty to have non-trivial CCC argument.
-    -- The C is defined to contain non-empty opens (from countable_chain_condition_of_nonempty
-    -- via countable_chain_condition_of_topological_basis), so S.1.1 ≠ ∅.
-    -- Actually: countable_chain_condition_of_topological_basis takes a hypothesis on
-    -- ALL subsets s ⊆ B with PairwiseDisjoint. We can't assume non-empty without
-    -- extra work. Let me handle empty separately.
-    --
-    -- Plan: split C' into C'_ne (non-empty) and C'_e (empty members).
-    -- C'_e has at most one element (all are ∅), so |C'_ne| > ℵ₀.
-    -- Then π is injective on C'_ne (non-empty disjoint images can't be equal),
-    -- so #(π '' C'_ne) > ℵ₀, hence #D > ℵ₀.
-    sorry
+    -- The function S ↦ π '' S.1.1 is injective on { S : C' | S.1.1 ≠ ∅ }
+    -- (because disjoint non-empty sets can't be equal). Plus, there's at most
+    -- one S ∈ C' with S.1.1 = ∅. So #D ≥ #C' - 1 > ℵ₀.
+    -- We use that an injective function from an uncountable set has uncountable image.
+    let C'ne : Set C' := { S | S.1.1 ≠ ∅ }
+    have hC'ne_card : ℵ₀ < #C'ne := by
+      -- C' = C'ne ∪ (C' ∩ {empty}). The empty part has at most 1 element.
+      -- More precisely, the set of S : C' with S.1.1 = ∅ has at most 1 element,
+      -- since all such S have S.1.1 = ∅ (as a value in Set (∀ x, β x)),
+      -- and S.1 is determined by S.1.1 (S.1 ∈ C is the set, no extra data).
+      have hcompl : (C'ne)ᶜ ⊆ {S : C' | S.1.1 = ∅} := by
+        intro S hS
+        simp only [Set.mem_compl_iff, ne_eq, not_not] at hS
+        change S.1.1 = ∅
+        by_contra hne
+        exact hS hne
+      have hsub : { S : C' | S.1.1 = ∅ }.Subsingleton := by
+        intro x hx y hy
+        apply Subtype.ext
+        apply Subtype.ext
+        rw [hx, hy]
+      have hsub_card : #({ S : C' | S.1.1 = ∅ } : Set C') ≤ 1 := by
+        rw [Cardinal.mk_le_one_iff_set_subsingleton]
+        exact hsub
+      -- C' = univ = C'ne ∪ (C'ne)ᶜ; the latter has ≤ 1 element.
+      have hsplit : (Set.univ : Set C') = C'ne ∪ (C'ne)ᶜ := (Set.union_compl_self _).symm
+      have hcard_le : #C' ≤ #C'ne + #((C'ne)ᶜ : Set C') := by
+        have hsplit2 : #(Set.univ : Set C') ≤ #C'ne + #((C'ne)ᶜ : Set C') := by
+          have := Cardinal.mk_union_le C'ne (C'ne)ᶜ
+          rw [Set.union_compl_self] at this
+          exact this
+        rwa [Cardinal.mk_univ] at hsplit2
+      have hcompl_card : #((C'ne)ᶜ : Set C') ≤ 1 :=
+        le_trans (Cardinal.mk_le_mk_of_subset hcompl) hsub_card
+      -- ℵ₀ < #C' ≤ #C'ne + 1, and one cannot get a finite bump above ℵ₀.
+      have h1 : ℵ₀ < #C'ne + #((C'ne)ᶜ : Set C') := lt_of_lt_of_le hC'_card hcard_le
+      by_contra hle
+      push_neg at hle
+      have : #C'ne + #((C'ne)ᶜ : Set C') ≤ ℵ₀ := by
+        have h_cmpl : #((C'ne)ᶜ : Set C') ≤ ℵ₀ := le_trans hcompl_card (by exact_mod_cast (one_le_aleph0))
+        exact Cardinal.add_le_aleph0.mpr ⟨hle, h_cmpl⟩
+      exact absurd h1 (not_lt.mpr this)
+    -- Now define the injection from C'ne to D.
+    -- Map: S ↦ π '' S.1.1. Need this is injective on C'ne and lands in D.
+    let f : C'ne → D := fun S =>
+      ⟨π '' S.1.1.1, S.1, trivial, rfl⟩
+    have hf_inj : Function.Injective f := by
+      intro S₁ S₂ hSeq
+      have heq : π '' S₁.1.1.1 = π '' S₂.1.1.1 := by
+        have := congr_arg Subtype.val hSeq
+        exact this
+      -- If S₁ ≠ S₂ as elements of C', then h2'D gives disjoint images, so they
+      -- can't be equal AND non-empty.
+      by_contra hne
+      have hSne : S₁.1 ≠ S₂.1 := fun heq' => hne (Subtype.ext heq')
+      have hdisj := h2'D S₁.1 S₂.1 hSne
+      rw [heq] at hdisj
+      -- π '' S₂.1.1 is disjoint from itself; so it's empty.
+      have : π '' S₂.1.1.1 = ∅ := by
+        rw [disjoint_self] at hdisj
+        exact hdisj
+      -- S₂.1.1.1 is non-empty (since S₂ ∈ C'ne), so π '' S₂.1.1.1 is non-empty.
+      have hS₂ne : S₂.1.1.1 ≠ ∅ := S₂.2
+      rw [Set.image_eq_empty] at this
+      exact hS₂ne this
+    -- Now ℵ₀ < #C'ne ≤ #D.
+    have : #C'ne ≤ #D := Cardinal.mk_le_of_injective hf_inj
+    exact lt_of_lt_of_le hC'ne_card this
   -- Apply CCC for (∀ x : R, β x) to get D countable, contradiction.
   have hD_count : D.Countable := h R h2R D hD_open hD_disj
   have : #D ≤ ℵ₀ := Cardinal.le_aleph0_iff_set_countable.mpr hD_count
