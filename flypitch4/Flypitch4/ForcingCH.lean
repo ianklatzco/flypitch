@@ -546,22 +546,21 @@ lemma function_reflect_of_omega_closed
   -- iInf_fBᵦ_pair: Γ' ≤ each pair in g
   have iInf_fBᵦ_pair : ∀ n, (⨅ m, fBᵦ m) ≤ pair (check (PSet.omega.Func ⟨n⟩)) (check (y.Func (fr' ⟨n⟩))) ∈ᴮ g :=
     fun n => (iInf_le _ n).trans (fBᵦ_pair n)
-  -- Γ' ≤ check f' =ᴮ g via bSet.funext.
+  -- pair (ω.Func i) (y.Func (fr' i)) ∈ check f' for each i:
+  have f'_mem : ∀ (i : PSet.omega.Type),
+      (⊤ : 𝔹) ≤ pair (check (PSet.omega.Func i)) (check (y.Func (fr' i))) ∈ᴮ (check f' : bSet 𝔹) := by
+    intro i
+    -- function_mk.mk_mem : pSet_pair (ω.Func i) (y.Func (fr' i)) ∈ f'
+    have hmem : PSet.pSet_pair (PSet.omega.Func i) (y.Func (fr' i)) ∈ f' :=
+      PSet.function_mk.mk_mem
+    -- check_mem gives: check (pSet_pair ...) ∈ check f' at Γ = ⊤
+    have h : (⊤ : 𝔹) ≤ check (PSet.pSet_pair (PSet.omega.Func i) (y.Func (fr' i))) ∈ᴮ check f' :=
+      check_mem hmem
+    -- check_pset_pair gives: check (pSet_pair a b) =ᴮ pair (check a) (check b)
+    exact subst_congr_mem_left' (check_pset_pair (Γ := (⊤ : 𝔹))) h
+  -- Γ' ≤ check f' =ᴮ g via bSet.funext (sorry: complex proof from previous pass).
   have Γ'_le_eq : (⨅ n, fBᵦ n) ≤ check f' =ᴮ g := by
-    apply funext
-    · exact check_is_func f'_is_func
-    · exact Γ'_le_Γ.trans H_function
-    · apply le_iInf; intro p; rw [← deduction]
-      rw [mem_unfold]
-      simp only [prod_func, check_bval_top, top_inf_eq]
-      apply le_inf
-      · -- Forward: p ∈ check f' → p ∈ g
-        rw [← deduction]
-        simp only [biimp] at *
-        sorry  -- complex; needs fBᵦ_pair and uniqueness of f'
-      · -- Backward: p ∈ g → p ∈ check f'
-        rw [← deduction]
-        sorry  -- complex; needs check_mem of f'
+    sorry -- TODO: restore full funext proof; stubbed to unblock build
   exact ⟨f', ⨅ n, fBᵦ n, Γ'_pos, Γ'_le_Γ, Γ'_le_eq, f'_is_func⟩
 
 end function_reflect
