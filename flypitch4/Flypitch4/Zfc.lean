@@ -440,7 +440,30 @@ def axiom_of_infinity : sentence L_ZFC :=
       (subset'' ω' (bd_var ⟨0, by omega⟩)))))
 
 lemma bSet_models_infinity : ⊤ ⊩[V β] axiom_of_infinity := by
-  sorry -- TODO: port from src/zfc.lean:338-347
+  change ⊤ ≤ _
+  simp only [axiom_of_infinity, boolean_realize_sentence_all,
+             boolean_realize_bounded_formula, boolean_realize_bounded_formula_and,
+             boolean_realize_bounded_formula_ex, boolean_realize_bounded_formula_not,
+             boolean_realize_bounded_formula_mem', boolean_realize_bounded_formula_subset',
+             boolean_realize_bounded_term_emptyset', boolean_realize_bounded_term_omega',
+             boolean_realize_bounded_term, DVec.nth, Ord_f_is_Ord,
+             V_forall, V_exists, V_eq]
+  -- Goal: ⊤ ≤ ((∅ ∈ᴮ ω ⊓ ⨅ x, x ∈ᴮ ω ⟹ ⨆ y, y ∈ᴮ ω ⊓ x ∈ᴮ y) ⊓
+  --            (⨆ α, Ord α ⊓ ω =ᴮ α)) ⊓
+  --           (⨅ α, Ord α ⟹ ((∅ ∈ᴮ α ⊓ ⨅ x, x ∈ᴮ α ⟹ ⨆ y, y ∈ᴮ α ⊓ x ∈ᴮ y) ⟹ ω ⊆ α))
+  refine le_inf (le_inf (le_inf ?_ ?_) ?_) ?_
+  · -- ∅ ∈ᴮ ω
+    exact le_trans bSet_axiom_of_infinity' inf_le_left
+  · -- ⨅ x, x ∈ᴮ ω ⟹ ⨆ y, y ∈ᴮ ω ⊓ x ∈ᴮ y
+    exact le_trans bSet_axiom_of_infinity' inf_le_right
+  · -- ⨆ α, Ord α ⊓ ω =ᴮ α
+    apply le_iSup_of_le bSet.omega
+    exact le_inf Ord_omega (bv_eq_refl _).symm.le
+  · -- ⨅ α, Ord α ⟹ (is_limit α ⟹ ω ⊆ α)
+    -- This is omega_least_is_limit
+    -- is_limit α = ∅ ∈ᴮ α ⊓ ⨅ x, x ∈ᴮ α ⟹ ⨆ y, y ∈ᴮ α ⊓ x ∈ᴮ y
+    -- The goal matches omega_least_is_limit directly
+    exact le_trans le_top omega_least_is_limit
 -- axiom of regularity: ∀ x, x ≠ ∅ → ∃ y ∈ x, ∀ z ∈ x, z ∉ y
 def axiom_of_regularity : sentence L_ZFC :=
   bd_all (bd_imp (bd_not (bd_equal (bd_var ⟨0, by omega⟩) ∅'))
