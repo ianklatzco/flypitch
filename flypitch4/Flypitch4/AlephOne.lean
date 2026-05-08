@@ -1733,7 +1733,37 @@ lemma a1_not_le_omega {Γ : 𝔹} : Γ ≤ (injects_into a1 omega)ᶜ := by
 
 -- src/aleph_one.lean:834
 lemma a1_spec {Γ : 𝔹} : Γ ≤ aleph_one_Ord_spec a1 := by
-  sorry -- TODO: port from src/aleph_one.lean:834
+  refine le_inf a1_not_le_omega (le_inf a1_Ord ?_)
+  apply le_iInf; intro y; rw [← deduction, ← deduction]
+  -- ctx := Γ ⊓ Ord y ⊓ (injects_into y omega)ᶜ, Goal: ctx ≤ a1 ⊆ y
+  have H_Ord_y : Γ ⊓ Ord y ⊓ (injects_into y bSet.omega)ᶜ ≤ Ord y :=
+    inf_le_left.trans inf_le_right
+  have H_no_inj_y : Γ ⊓ Ord y ⊓ (injects_into y bSet.omega)ᶜ ≤ (injects_into y bSet.omega)ᶜ :=
+    inf_le_right
+  -- Show y ∉ a1 (if y ∈ a1 then injects_into y omega, contradiction)
+  have H_not_mem_a1 : Γ ⊓ Ord y ⊓ (injects_into y bSet.omega)ᶜ ≤ (y ∈ᴮ a1)ᶜ := by
+    apply (le_compl_iff_disjoint_right.mpr (disjoint_iff_inf_le.mpr _))
+    apply bv_absurd (injects_into y bSet.omega)
+    · exact injects_into_of_injection_into ((mem_a1_iff (inf_le_left.trans H_Ord_y)).mp inf_le_right)
+    · exact inf_le_left.trans H_no_inj_y
+  -- Now prove a1 ⊆ y by trichotomy
+  rw [Ord.le_iff_lt_or_eq a1_Ord H_Ord_y]
+  -- Goal: ctx ≤ a1 ∈ y ⊔ a1 = y
+  have H_tri := Ord.trichotomy a1_Ord H_Ord_y
+  -- tri: ctx ≤ (a1 =ᴮ y ⊔ a1 ∈ᴮ y) ⊔ y ∈ᴮ a1
+  apply le_trans (b := (a1 =ᴮ y ⊔ a1 ∈ᴮ y ⊔ y ∈ᴮ a1) ⊓
+      (Γ ⊓ Ord y ⊓ (injects_into y bSet.omega)ᶜ))
+  · exact le_inf H_tri le_rfl
+  · apply bv_or_elim_left
+    · -- Case (a1=y ⊔ a1∈y) ⊓ ctx
+      apply bv_or_elim_left
+      · -- a1=y: → a1∈y ⊔ a1=y (right branch)
+        exact le_trans inf_le_left le_sup_right
+      · -- a1∈y: → a1∈y ⊔ a1=y (left branch)
+        exact le_trans inf_le_left le_sup_left
+    · -- Case y∈a1 ⊓ ctx: contradicts H_not_mem_a1
+      apply bv_exfalso
+      exact bv_absurd _ inf_le_left (inf_le_right.trans H_not_mem_a1)
 
 -- src/aleph_one.lean:862
 set_option maxHeartbeats 800000 in
