@@ -862,7 +862,26 @@ lemma eps_iso_inv_is_function {x y f : bSet 𝔹} {Γ : 𝔹} {H₁ : Γ ≤ Ord
 -- src/bvm_extras2.lean:433
 lemma eps_iso_inv_strong_eps_hom {x y f : bSet 𝔹} {Γ : 𝔹} {H₁ : Γ ≤ Ord x} {H₂ : Γ ≤ Ord y}
     {H₃ : Γ ≤ eps_iso x y f} : Γ ≤ strong_eps_hom y x (eps_iso_inv H₁ H₂ H₃) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:433
+  have H_seh := strong_eps_hom_of_eps_iso H₃
+  -- eps_iso_inv = inj_inverse (is_func' x y f) (is_inj f)
+  -- pair z₁ w₁ ∈ eps_iso_inv ↔ w₁ ∈ x ∧ z₁ ∈ y ∧ pair w₁ z₁ ∈ f
+  set H_func := is_func'_of_is_function (is_function_of_eps_iso H₃)
+  set H_inj := eps_iso_inj_of_Ord H₁ H₂ H₃
+  -- Use strong_eps_hom_iff to prove strong_eps_hom y x (eps_iso_inv)
+  rw [strong_eps_hom_iff]
+  intro Γ' H_le z₁ Hz₁_y z₂ Hz₂_y w₁ Hw₁_x w₂ Hw₂_x Hpr₁ Hpr₂
+  -- z₁, z₂ ∈ y (the domain of the inverse), w₁, w₂ ∈ x (the codomain of the inverse)
+  -- pair z₁ w₁ ∈ eps_iso_inv means w₁ ∈ x ∧ z₁ ∈ y ∧ pair w₁ z₁ ∈ f
+  have hpr₁ := (mem_inj_inverse_iff H_func H_inj).mp Hpr₁
+  have hpr₂ := (mem_inj_inverse_iff H_func H_inj).mp Hpr₂
+  -- hpr₁ : w₁ ∈ x ∧ z₁ ∈ y ∧ pair w₁ z₁ ∈ f
+  -- hpr₂ : w₂ ∈ x ∧ z₂ ∈ y ∧ pair w₂ z₂ ∈ f
+  -- Apply strong_eps_hom x y f to get: w₁∈w₂ ↔ z₁∈z₂
+  -- We need z₁∈z₂ ↔ w₁∈w₂ (i.e., the symmetric version)
+  have h_iff := (strong_eps_hom_iff.mp H_seh) H_le
+    w₁ hpr₁.1 w₂ hpr₂.1 z₁ hpr₁.2.1 z₂ hpr₂.2.1 hpr₁.2.2 hpr₂.2.2
+  -- h_iff : Γ' ≤ w₁ ∈ w₂ ↔ Γ' ≤ z₁ ∈ z₂
+  exact h_iff.symm
 
 -- src/bvm_extras2.lean:449
 lemma eps_iso_eps_iso_inv {x y f : bSet 𝔹} {Γ : 𝔹} {H₁ : Γ ≤ Ord x} {H₂ : Γ ≤ Ord y}
