@@ -558,9 +558,234 @@ lemma function_reflect_of_omega_closed
       check_mem hmem
     -- check_pset_pair gives: check (pSet_pair a b) =ᴮ pair (check a) (check b)
     exact subst_congr_mem_left' (check_pset_pair (Γ := (⊤ : 𝔹))) h
-  -- Γ' ≤ check f' =ᴮ g via bSet.funext (sorry: complex proof from previous pass).
+  -- Γ' ≤ check f' =ᴮ g via bSet.funext.
+  -- Abbreviate Γ' for convenience
+  -- (1) Γ' ≤ is_function (check PSet.omega) (check y) (check f')
+  -- (2) Γ' ≤ is_function bSet.omega (check y) g
+  -- (3) Γ' ≤ ⨅ p, p ∈ prod (check PSet.omega) (check y) ⟹ (p ∈ check f' ⇔ p ∈ g)
+  have hΓ'_f'_is_function : (⨅ n, fBᵦ n) ≤ is_function (check PSet.omega) (check y) (check f') :=
+    le_trans le_top (check_is_func f'_is_func)
+  have hΓ'_g_is_function : (⨅ n, fBᵦ n) ≤ is_function bSet.omega (check y) g :=
+    (iInf_le _ 0).trans (fBᵦ0_le_Γ.trans H_function)
+  -- is_func' sub-facts for eq_of_is_func'_of_eq
+  have hΓ'_f'_is_func' : (⨅ n, fBᵦ n) ≤ is_func' (check PSet.omega) (check y) (check f') :=
+    hΓ'_f'_is_function.trans inf_le_left
+  have hΓ'_g_is_func' : (⨅ n, fBᵦ n) ≤ is_func' bSet.omega (check y) g :=
+    hΓ'_g_is_function.trans inf_le_left
   have Γ'_le_eq : (⨅ n, fBᵦ n) ≤ check f' =ᴮ g := by
-    sorry -- TODO: restore full funext proof; stubbed to unblock build
+    -- Use mem_ext directly (which is what funext uses internally):
+    -- check f' =ᴮ g iff (⨅ z, z ∈ check f' ⟹ z ∈ g) ⊓ (⨅ z, z ∈ g ⟹ z ∈ check f')
+    -- We go directly without funext to avoid the name collision with _root_.funext.
+    -- We also use bv_eq_unfold' or mem_ext.
+    apply mem_ext
+    · -- ⊆ direction: ∀ z, z ∈ check f' ⟹ z ∈ g
+      apply le_iInf; intro z; rw [← deduction]
+      -- Goal: (⨅ n, fBᵦ n) ⊓ z ∈ check f' ≤ z ∈ g
+      -- Unfold z ∈ check f' = ⨆ k, z =ᴮ check (f'.Func k)
+      -- By check_is_func, check f' is a function ω → y, so z ∈ check f' gives z = pair (check (ω.Func i)) (check (y.Func (fr' i))) for some i.
+      -- Then z ∈ g follows from iInf_fBᵦ_pair.
+      -- Use the fact that check f' ⊆ prod (check ω) (check y) from is_function.
+      -- More directly: from z ∈ check f', we extract the pair structure.
+      -- z ∈ check f' = ⨆ k : f'.Type, z =ᴮ check (f'.Func k)
+      -- f' = function_mk, f'.Type = PSet.omega.Type, f'.Func i = pSet_pair (ω.Func i) (y.Func (fr' i))
+      -- So z ∈ check f' = ⨆ i : PSet.omega.Type, z =ᴮ check (pSet_pair (ω.Func i) (y.Func (fr' i)))
+      --                  = ⨆ i : PSet.omega.Type, z =ᴮ pair (check (ω.Func i)) (check (y.Func (fr' i)))
+      --                    (using check_pset_pair_eq)
+      -- Distribute inf over iSup, then for each i, we have z =ᴮ pair ... and can substitute.
+      have hz_in_f' := inf_le_right (a := ⨅ n, fBᵦ n) (b := z ∈ᴮ check f')
+      rw [mem_unfold] at hz_in_f'
+      -- hz_in_f' : ... ≤ ⨆ k, (check f').bval k ⊓ z =ᴮ (check f').func k
+      -- Since check f' has bval = ⊤ (from check), this simplifies.
+      -- (check f').func k = check (f'.Func k)
+      -- f'.Func k = pSet_pair (ω.Func k.down) (y.Func (fr' k.down)) [by function_mk construction]
+      -- But to avoid unfolding f', use f'_mem instead.
+      -- Alternative: just use bSet.funext's subset_prod_of_is_function path.
+      -- Actually the cleanest path: from z ∈ check f', extract (i, j) s.t. z =ᴮ pair (check (ω.Func i)) (check (y.Func j)) and j = fr' i.
+      -- Then z ∈ g follows.
+      -- Use the is_function structure: check f' ⊆ prod (check ω) (check y)
+      -- So z ∈ check f' implies z ∈ prod (check ω) (check y) implies z = pair (check (ω.Func i)) (check (y.Func j)) for some i, j.
+      -- Then use check f' functional + f'_mem to get j = fr' i, then iInf_fBᵦ_pair.
+      -- Simplest: use (⨅ n, fBᵦ n) ≤ is_function check ω (check y) (check f') and
+      --           is_function check ω (check y) g and bSet.funext.
+      -- Let me use a different route: show (⨅ n, fBᵦ n) ≤ ⨅ z, z ∈ check f' ⟹ z ∈ g
+      -- by going through the indexed representation.
+      -- Since check f' ⊆ prod (check ω) (check y) (from is_function), z ∈ check f' implies
+      -- z ∈ prod (check ω) (check y) = ⨆ ij, z =ᴮ pair (check (ω.Func ij.1)) (check (y.Func ij.2)) (bval ⊤).
+      -- Distribute: ctx ⊓ z ∈ check f' ≤ ⨆ ij, z =ᴮ pair ...
+      -- For each ij: ctx ⊓ z ∈ check f' ⊓ z =ᴮ pair (ω.Func i) (y.Func j) ≤ z ∈ g.
+      --   - From check f' func'ness: z =ᴮ pair (ω.Func i) (y.Func j) ∈ check f'
+      --     and pair (ω.Func i) (y.Func (fr' i)) ∈ check f' gives j = fr' i (equality in bv sense)
+      --   - Then pair (ω.Func i) (y.Func (fr' i)) ∈ g from iInf_fBᵦ_pair
+      --   - Substitute z =ᴮ pair ... and j = fr' i to get z ∈ g.
+      -- This is getting complex. Let me use the subset + product approach.
+      -- Key: (⨅ n, fBᵦ n) ⊓ z ∈ check f' ≤ z ∈ prod (check ω) (check y)
+      have hz_in_prod : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ≤ z ∈ᴮ prod (check PSet.omega) (check y) :=
+        mem_of_mem_subset (le_trans inf_le_left (subset_prod_of_is_function hΓ'_f'_is_function)) inf_le_right
+      -- z ∈ prod (check ω) (check y) = ⨆ ij, ⊤ ⊓ z =ᴮ pair (check (ω.Func ij.1)) (check (y.Func ij.2))
+      -- So (⨅ n, fBᵦ n) ⊓ z ∈ check f' ≤ ⨆ ij, z =ᴮ pair (ω.Func ij.1) (y.Func ij.2)
+      -- hz_in_prod : ... ≤ z ∈ prod (check ω) (check y)
+      -- The prod has type PSet.omega.Type × y.Type, bval = ⊤, func = pair check check.
+      -- Use the membership in prod to get the indexed form, then case-split.
+      -- Since (prod (check ω) (check y)).type = PSet.omega.Type × y.Type (definitionally),
+      -- z ∈ prod (check ω) (check y) = ⨆ ij, (prod ...).bval ij ⊓ z =ᴮ (prod ...).func ij
+      --    = ⨆ ij, ⊤ ⊓ z =ᴮ pair (check (ω.Func ij.1)) (check (y.Func ij.2))
+      -- Bound: ctx ≤ ⨆ ij, ctx ⊓ z =ᴮ pair ...
+      -- This follows from: ctx ≤ ctx ⊓ z ∈ prod ... ≤ ctx ⊓ ⨆ ij, z =ᴮ pair ... = ⨆ ij, ctx ⊓ z =ᴮ pair ...
+      -- where the prod membership unfolds.
+      -- Direct proof using poset_yoneda-style case split:
+      -- For each ij : (prod ...).type, ctx ⊓ (prod ...).bval ij ⊓ z =ᴮ (prod ...).func ij ≤ z ∈ g
+      -- which after simplifying bval = ⊤ and func = pair ... becomes ctx ⊓ z =ᴮ pair ... ≤ z ∈ g.
+      -- Use: ctx ≤ ⨆ ij : (prod ...).type, ctx ⊓ (prod ...).bval ij ⊓ z =ᴮ (prod ...).func ij
+      -- which follows from: ctx ≤ ctx ⊓ z ∈ prod ... = ctx ⊓ ⨆ ij, bval ij ⊓ ... = ⨆ ij, ctx ⊓ ...
+      rw [mem_unfold] at hz_in_prod
+      -- hz_in_prod : ctx ≤ ⨆ (i : (prod ...).type), (prod ...).bval i ⊓ z =ᴮ (prod ...).func i
+      -- ctx ≤ ctx ⊓ ⨆ i, ...
+      have hctx_le : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ≤
+          ⨆ (ij : (prod (check PSet.omega) (check y)).type),
+          (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+          ((prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij) := by
+        rw [← inf_iSup_eq]
+        apply le_inf
+        · exact le_refl _
+        · exact hz_in_prod
+      -- For each ij : (prod (check ω) (check y)).type = PSet.omega.Type × y.Type,
+      -- show: ctx ⊓ (prod ...).bval ij ⊓ z =ᴮ (prod ...).func ij ≤ z ∈ g
+      -- Key sub-lemma: for each (i : PSet.omega.Type, j : y.Type),
+      --   ctx ⊓ z =ᴮ pair (check (ω.Func i)) (check (y.Func j)) ≤ z ∈ g
+      -- (which is what hctx_le gives after dropping bval = ⊤)
+      -- Use show_step: for each ij, we have bval = ⊤ and func = pair check... check...,
+      -- so context ⊓ (⊤ ⊓ z =ᴮ pair ...) ≤ z ∈ g, which reduces to ctx ⊓ z =ᴮ pair ... ≤ z ∈ g.
+      -- The step-by-step proof for each ij:
+      apply hctx_le.trans
+      apply iSup_le; intro ij
+      -- ij : PSet.omega.Type × y.Type (= (prod (check ω) (check y)).type)
+      -- Simplify bval and func at ij = (ij.1, ij.2):
+      have hstep : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+          ((prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij) ≤
+          z ∈ᴮ g := by
+        -- Reduce to the simpler form using prod_check_bval, prod_func, check_func
+        have hbval : (prod (check PSet.omega) (check y)).bval ij = ⊤ := prod_check_bval
+        rw [hbval, top_inf_eq]
+        -- Goal: ctx ⊓ z =ᴮ (prod (check ω) (check y)).func ij ≤ z ∈ g
+        -- (prod ...).func ij = pair ((check ω).func ij.1) ((check y).func ij.2)
+        --                     = pair (check (ω.Func (check_cast ij.1))) (check (y.Func (check_cast ij.2)))
+        -- Cast to PSet.omega.Type:
+        let i : PSet.omega.Type := check_cast ij.1
+        let j : y.Type := check_cast ij.2
+        -- Key: (prod ...).func ij = pair (check (ω.Func i)) (check (y.Func j))
+        have hfunc : (prod (check PSet.omega) (check y)).func ij =
+            pair (check (PSet.omega.Func i)) (check (y.Func j)) := by
+          simp only [prod_func, check_func]
+          rfl
+        rw [hfunc]
+        -- Now: ctx ⊓ z =ᴮ pair (check (ω.Func i)) (check (y.Func j)) ≤ z ∈ g
+        have hpair_eq : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func j)) ∈ᴮ check f' :=
+          bv_rw' (bv_symm inf_le_right) (ϕ := fun z => z ∈ᴮ check f')
+            (h_congr := B_ext_mem_left) (H_new := inf_le_left.trans inf_le_right)
+        have hf'_fri : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func (fr' i))) ∈ᴮ check f' :=
+          le_trans le_top (f'_mem i)
+        have h_eq : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            check (y.Func j) =ᴮ check (y.Func (fr' i)) :=
+          eq_of_is_func'_of_eq (le_trans (inf_le_left.trans inf_le_left) hΓ'_f'_is_func')
+            bv_refl hpair_eq hf'_fri
+        have hg_fri : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func (fr' i))) ∈ᴮ g :=
+          le_trans (inf_le_left.trans inf_le_left) (iInf_fBᵦ_pair i.down)
+        have hg_j : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ check f' ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func j)) ∈ᴮ g :=
+          bv_rw' h_eq (ϕ := fun z => pair (check (PSet.omega.Func i)) z ∈ᴮ g)
+            (h_congr := B_ext_pair_mem_right) (H_new := hg_fri)
+        exact bv_rw' inf_le_right (ϕ := fun z => z ∈ᴮ g)
+          (h_congr := B_ext_mem_left) (H_new := hg_j)
+      exact hstep
+    · -- ⊇ direction: ∀ z, z ∈ g ⟹ z ∈ check f'
+      apply le_iInf; intro z; rw [← deduction]
+      -- Symmetric to the above, using g's functional nature.
+      have hz_in_prod : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ≤ z ∈ᴮ prod (check PSet.omega) (check y) :=
+        mem_of_mem_subset (le_trans inf_le_left (subset_prod_of_is_function hΓ'_g_is_function)) inf_le_right
+      -- Rewrite only the RHS (z ∈ prod ...) to iSup form, NOT the LHS (z ∈ g)
+      conv at hz_in_prod => rw [show z ∈ᴮ prod (check PSet.omega) (check y) =
+          ⨆ (i : (prod (check PSet.omega) (check y)).type),
+          (prod (check PSet.omega) (check y)).bval i ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func i
+          from mem_unfold]
+      -- ctx ≤ ⨆ ij, ctx ⊓ (bval ij ⊓ z =ᴮ func ij)
+      -- Proof: ctx ≤ ⨆ ij, bval ij ⊓ z =ᴮ func ij (from hz_in_prod)
+      -- So ctx ≤ ctx ⊓ ⨆ ij, bval ij ⊓ ...  ← by le_inf (le_refl) hz_in_prod
+      -- = ⨆ ij, ctx ⊓ (bval ij ⊓ ...) ← by inf_iSup_eq
+      -- Prove: ctx ≤ ⨆ ij, ctx ⊓ (bval ij ⊓ z =ᴮ func ij)
+      -- Strategy: for any specific ij₀, if bval ij₀ ⊓ z =ᴮ func ij₀ is hit by hz_in_prod,
+      -- then ctx ≤ ctx ⊓ (bval ij₀ ⊓ z =ᴮ func ij₀).
+      -- But we can't extract a specific ij₀ from hz_in_prod.
+      -- Proper way: ctx ≤ ctx ⊓ ⨆ ij, bval ij ⊓ z =ᴮ func ij (use le_inf)
+      --           = ⨆ ij, ctx ⊓ (bval ij ⊓ z =ᴮ func ij) (by inf_iSup_eq)
+      -- The le_inf approach keeps giving "Type mismatch" for `exact hz_in_prod`.
+      -- Let's try without `apply le_inf` and directly use `inf_le_intro`:
+      have hctx_le : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ≤
+          ⨆ (ij : (prod (check PSet.omega) (check y)).type),
+          (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+          ((prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij) := by
+        have heq : (⨆ (ij : (prod (check PSet.omega) (check y)).type),
+              (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+              ((prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij)) =
+              (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+              ⨆ (ij : (prod (check PSet.omega) (check y)).type),
+              (prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij :=
+          (inf_iSup_eq _ _).symm
+        rw [heq]
+        refine le_inf le_rfl ?_
+        have : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ≤
+            ⨆ (ij : (prod (check PSet.omega) (check y)).type),
+            (prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij :=
+          hz_in_prod
+        exact this
+      apply hctx_le.trans
+      apply iSup_le; intro ij
+      -- Reduce bval = ⊤ and func = pair check... check... for ij : PSet.omega.Type × y.Type
+      have hstep : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+          ((prod (check PSet.omega) (check y)).bval ij ⊓ z =ᴮ (prod (check PSet.omega) (check y)).func ij) ≤
+          z ∈ᴮ check f' := by
+        have hbval : (prod (check PSet.omega) (check y)).bval ij = ⊤ := prod_check_bval
+        rw [hbval, top_inf_eq]
+        let i : PSet.omega.Type := check_cast ij.1
+        let j : y.Type := check_cast ij.2
+        have hfunc : (prod (check PSet.omega) (check y)).func ij =
+            pair (check (PSet.omega.Func i)) (check (y.Func j)) := by
+          simp only [prod_func, check_func]
+          rfl
+        rw [hfunc]
+        have hpair_eq : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func j)) ∈ᴮ g :=
+          bv_rw' (bv_symm inf_le_right) (ϕ := fun z => z ∈ᴮ g)
+            (h_congr := B_ext_mem_left) (H_new := inf_le_left.trans inf_le_right)
+        have hg_fri : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func (fr' i))) ∈ᴮ g :=
+          le_trans (inf_le_left.trans inf_le_left) (iInf_fBᵦ_pair i.down)
+        have h_eq : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            check (y.Func j) =ᴮ check (y.Func (fr' i)) :=
+          eq_of_is_func'_of_eq (le_trans (inf_le_left.trans inf_le_left) hΓ'_g_is_func')
+            bv_refl hpair_eq hg_fri
+        have hf'_fri : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func (fr' i))) ∈ᴮ check f' :=
+          le_trans le_top (f'_mem i)
+        have hf'_j : (⨅ n, fBᵦ n) ⊓ z ∈ᴮ g ⊓
+            z =ᴮ pair (check (PSet.omega.Func i)) (check (y.Func j)) ≤
+            pair (check (PSet.omega.Func i)) (check (y.Func j)) ∈ᴮ check f' :=
+          bv_rw' h_eq (ϕ := fun z => pair (check (PSet.omega.Func i)) z ∈ᴮ check f')
+            (h_congr := B_ext_pair_mem_right) (H_new := hf'_fri)
+        exact bv_rw' inf_le_right (ϕ := fun z => z ∈ᴮ check f')
+          (h_congr := B_ext_mem_left) (H_new := hf'_j)
+      exact hstep
   exact ⟨f', ⨅ n, fBᵦ n, Γ'_pos, Γ'_le_Γ, Γ'_le_eq, f'_is_func⟩
 
 end function_reflect
