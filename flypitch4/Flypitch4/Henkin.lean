@@ -490,9 +490,10 @@ def ι {L : Language.{u}} {T : SentTheory L} (m : ℕ) : SentTheory (L_infty L) 
 
 @[simp] lemma is_consistent_iota {L : Language.{u}} {T : SentTheory L}
     (hT : T.is_consistent) (m : ℕ) : (@ι L T m).is_consistent := by
-  -- ι m is the image of henkin_theory_chain T m under an injective map,
-  -- so it inherits consistency.
-  sorry -- TODO: port from src/henkin.lean:679-688
+  -- ι m = (henkin_language_canonical_map m).Theory_induced (henkin_theory_chain T m)
+  -- and henkin_language_canonical_map m is injective, and henkin_theory_chain T m is consistent
+  have hm := is_consistent_henkin_theory_chain hT m
+  exact Lhom.is_consistent_Theory_induced (henkin_language_canonical_map_inj m) hm
 
 /-! ## Monotonicity: ι is increasing (src/henkin.lean:736-751) -/
 
@@ -514,7 +515,52 @@ lemma henkin_theory_chain_inclusion_step {L : Language.{u}} {T : SentTheory L} {
 
 lemma iota_inclusion_of_le {L : Language.{u}} {T : SentTheory L} :
     ∀ {i j : ℕ}, i ≤ j → (@ι L T i) ⊆ (@ι L T j) := by
-  sorry -- TODO: port from src/henkin.lean:736-751
+  intro i j h
+  induction j with
+  | zero =>
+    have hi0 : i = 0 := Nat.eq_zero_of_le_zero h
+    subst hi0; exact le_refl _
+  | succ n ih =>
+    by_cases hx : i = n + 1
+    · subst hx; exact le_refl _
+    · have hle : i ≤ n := Nat.lt_succ_iff.mp (Nat.lt_of_le_of_ne h hx)
+      intro ψ hψ
+      -- first lift ψ to ι n
+      have hψn : ψ ∈ @ι L T n := ih hle hψ
+      obtain ⟨g, hgT, hgψ⟩ := hψn
+      -- push g from stage n to stage n+1 in the theory chain
+      have hg_step := henkin_theory_chain_inclusion_step hgT
+      -- The witness in ι (n+1) is on_sentence (hcm (n+1)) (on_bf (hcm n (n+1)) g)
+      -- By cocone compat: on_sentence (canonical_map n) = on_sentence (canonical_map (n+1)) ∘ on_bf (hcm n (n+1))
+      refine ⟨Lhom.on_bounded_formula (henkin_language_chain_maps L n (n + 1) (Nat.le_succ n)) g,
+              hg_step, ?_⟩
+      -- on_sentence (canonical_map (n+1)) (on_bf (hcm n (n+1)) g)
+      -- = on_bf ((canonical_map (n+1)).comp (hcm n (n+1))) g
+      -- = on_bf (canonical_map n) g   [by cocone compat]
+      -- = ψ
+      have hc : henkin_language_canonical_map n =
+          (henkin_language_canonical_map (n + 1)).comp (henkin_language_chain_maps L n (n + 1) (Nat.le_succ n)) :=
+        (@cocone_of_L_infty L).h_compat (Nat.le_succ n)
+      -- The goal is: (canonical_map (n+1)).on_sentence ((hcm n (n+1)).on_bounded_formula g) = ψ
+      -- comp_on_bounded_formula: ((f.comp g).on_bounded_formula x) = f.on_bounded_formula (g.on_bounded_formula x)
+      -- so lhs = ((canonical_map (n+1)).comp (hcm n (n+1))).on_bounded_formula g = (canonical_map n).on_bounded_formula g = ψ
+      have key : (henkin_language_canonical_map (n + 1)).on_bounded_formula
+          ((henkin_language_chain_maps L n (n + 1) (Nat.le_succ n)).on_bounded_formula g) =
+          (henkin_language_canonical_map n).on_bounded_formula g := by
+        -- comp_on_bounded_formula: (f.comp g).on_bf x = f.on_bf (g.on_bf x)
+        -- hc: canonical_map n = (canonical_map (n+1)).comp (hcm n (n+1))
+        -- so (canonical_map n).on_bf g = ((canonical_map (n+1)).comp (hcm n (n+1))).on_bf g
+        --    = (canonical_map (n+1)).on_bf ((hcm n (n+1)).on_bf g)
+        calc (henkin_language_canonical_map (n + 1)).on_bounded_formula
+                 ((henkin_language_chain_maps L n (n + 1) (Nat.le_succ n)).on_bounded_formula g)
+            = ((henkin_language_canonical_map (n + 1)).comp
+                (henkin_language_chain_maps L n (n + 1) (Nat.le_succ n))).on_bounded_formula g :=
+              (congr_fun (Lhom.comp_on_bounded_formula _ _) g).symm
+          _ = (henkin_language_canonical_map n).on_bounded_formula g :=
+              congr_arg (fun ϕ : _ →ᴸ _ => ϕ.on_bounded_formula g) hc.symm
+      simp only [Lhom.on_sentence] at hgψ ⊢
+      rw [key]
+      exact hgψ
 
 /-! ## T_infty: the henkinization (src/henkin.lean:753-774) -/
 
