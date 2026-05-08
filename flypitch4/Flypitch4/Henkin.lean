@@ -424,13 +424,120 @@ def bounded_formula_comparison {L : Language.{u}} (n l) :
 
 -- These are complex structural induction arguments; sorried pending full port.
 
+/-- Auxiliary: surjectivity of term_comparison -/
+private lemma term_comparison_surj {L : Language.{u}} :
+    ∀ {l} (t : preterm (L_infty L) l),
+    ∃ x : colimit (@henkin_term_chain L l), term_comparison l x = t := by
+  intro l t
+  induction t with
+  | var k =>
+      exact ⟨canonical_map 0 (preterm.var k), by
+        simp [term_comparison, universal_map_property, cocone_of_term_L_infty]⟩
+  | func ff =>
+      obtain ⟨⟨i, x⟩, Hx⟩ := germ_rep ff
+      exact ⟨canonical_map i (preterm.func x), by
+        simp only [term_comparison, universal_map_property, cocone_of_term_L_infty,
+                   Lhom.on_term]
+        simp only [henkin_language_canonical_map, canonical_map_language]
+        rw [← Hx]; rfl⟩
+  | app t s iht ihs =>
+      obtain ⟨qt, Hqt⟩ := iht
+      obtain ⟨qs, Hqs⟩ := ihs
+      obtain ⟨⟨i, xt⟩, Hit⟩ := germ_rep qt
+      obtain ⟨⟨j, xs⟩, Hjs⟩ := germ_rep qs
+      have Hqt' : term_comparison _ (canonical_map i xt) = t := by
+        have : canonical_map i xt = qt := Hit.symm ▸ rfl; rw [this]; exact Hqt
+      have Hqs' : term_comparison 0 (canonical_map j xs) = s := by
+        have : canonical_map j xs = qs := Hjs.symm ▸ rfl; rw [this]; exact Hqs
+      have keyt : term_comparison _ (canonical_map (i + j) (push_to_sum_r xt j)) = t := by
+        rw [← same_fiber_as_push_to_r]; exact Hqt'
+      have keys : term_comparison 0 (canonical_map (i + j) (push_to_sum_l xs i)) = s := by
+        rw [← same_fiber_as_push_to_l]; exact Hqs'
+      refine ⟨canonical_map (i + j) (preterm.app (push_to_sum_r xt j) (push_to_sum_l xs i)), ?_⟩
+      simp only [term_comparison, universal_map_property, cocone_of_term_L_infty, Lhom.on_term]
+      exact congrArg₂ preterm.app keyt keys
+
 lemma term_comparison_bijective {L : Language.{u}} (l) :
-    Function.Bijective (@term_comparison L l) := by
-  sorry -- TODO: port from src/henkin.lean:508-541
+    Function.Bijective (@term_comparison L l) :=
+  ⟨universal_map_inj_of_components_inj (fun m => Lhom.on_term_inj (henkin_language_canonical_map_inj m)),
+   term_comparison_surj⟩
+
+/-- Auxiliary: surjectivity of formula_comparison -/
+private lemma formula_comparison_surj {L : Language.{u}} :
+    ∀ {l} (f : @preformula (L_infty L) l),
+    ∃ x : colimit (@henkin_formula_chain L l), formula_comparison l x = f := by
+  intro l f
+  induction f with
+  | falsum =>
+      exact ⟨canonical_map 0 preformula.falsum, by
+        simp [formula_comparison, universal_map_property, cocone_of_formula_L_infty]⟩
+  | equal t₁ t₂ =>
+      obtain ⟨qt₁, Hqt₁⟩ := (term_comparison_bijective 0).right t₁
+      obtain ⟨qt₂, Hqt₂⟩ := (term_comparison_bijective 0).right t₂
+      obtain ⟨⟨i, xt₁⟩, Hit₁⟩ := germ_rep qt₁
+      obtain ⟨⟨j, xt₂⟩, Hit₂⟩ := germ_rep qt₂
+      have Hbt₁ : term_comparison 0 (canonical_map i xt₁) = t₁ := by
+        have : canonical_map i xt₁ = qt₁ := Hit₁.symm ▸ rfl; rw [this]; exact Hqt₁
+      have Hbt₂ : term_comparison 0 (canonical_map j xt₂) = t₂ := by
+        have : canonical_map j xt₂ = qt₂ := Hit₂.symm ▸ rfl; rw [this]; exact Hqt₂
+      have key₁ : term_comparison 0 (canonical_map (i + j) (push_to_sum_r xt₁ j)) = t₁ := by
+        rw [← same_fiber_as_push_to_r]; exact Hbt₁
+      have key₂ : term_comparison 0 (canonical_map (i + j) (push_to_sum_l xt₂ i)) = t₂ := by
+        rw [← same_fiber_as_push_to_l]; exact Hbt₂
+      refine ⟨canonical_map (i + j) (preformula.equal (push_to_sum_r xt₁ j) (push_to_sum_l xt₂ i)), ?_⟩
+      simp only [formula_comparison, universal_map_property, cocone_of_formula_L_infty, Lhom.on_formula]
+      exact congrArg₂ preformula.equal key₁ key₂
+  | rel R =>
+      obtain ⟨⟨i, x⟩, Hx⟩ := germ_rep R
+      exact ⟨canonical_map i (preformula.rel x), by
+        simp only [formula_comparison, universal_map_property, cocone_of_formula_L_infty, Lhom.on_formula]
+        simp only [henkin_language_canonical_map, canonical_map_language]
+        rw [← Hx]; rfl⟩
+  | apprel f t ihf =>
+      obtain ⟨qf, Hqf⟩ := ihf
+      obtain ⟨qt, Hqt⟩ := (term_comparison_bijective 0).right t
+      obtain ⟨⟨i, xf⟩, Hif⟩ := germ_rep qf
+      obtain ⟨⟨j, xt⟩, Hjt⟩ := germ_rep qt
+      have Hbf : formula_comparison _ (canonical_map i xf) = f := by
+        have : canonical_map i xf = qf := Hif.symm ▸ rfl; rw [this]; exact Hqf
+      have Hbt : term_comparison 0 (canonical_map j xt) = t := by
+        have : canonical_map j xt = qt := Hjt.symm ▸ rfl; rw [this]; exact Hqt
+      have keyf : formula_comparison _ (canonical_map (i + j) (push_to_sum_r xf j)) = f := by
+        rw [← same_fiber_as_push_to_r]; exact Hbf
+      have keyt : term_comparison 0 (canonical_map (i + j) (push_to_sum_l xt i)) = t := by
+        rw [← same_fiber_as_push_to_l]; exact Hbt
+      refine ⟨canonical_map (i + j) (preformula.apprel (push_to_sum_r xf j) (push_to_sum_l xt i)), ?_⟩
+      simp only [formula_comparison, universal_map_property, cocone_of_formula_L_infty, Lhom.on_formula]
+      exact congrArg₂ preformula.apprel keyf keyt
+  | imp f₁ f₂ ihf₁ ihf₂ =>
+      obtain ⟨qf₁, Hqf₁⟩ := ihf₁
+      obtain ⟨qf₂, Hqf₂⟩ := ihf₂
+      obtain ⟨⟨i, xf₁⟩, Hif₁⟩ := germ_rep qf₁
+      obtain ⟨⟨j, xf₂⟩, Hjf₂⟩ := germ_rep qf₂
+      have Hbf₁ : formula_comparison _ (canonical_map i xf₁) = f₁ := by
+        have : canonical_map i xf₁ = qf₁ := Hif₁.symm ▸ rfl; rw [this]; exact Hqf₁
+      have Hbf₂ : formula_comparison _ (canonical_map j xf₂) = f₂ := by
+        have : canonical_map j xf₂ = qf₂ := Hjf₂.symm ▸ rfl; rw [this]; exact Hqf₂
+      have keyf₁ : formula_comparison _ (canonical_map (i + j) (push_to_sum_r xf₁ j)) = f₁ := by
+        rw [← same_fiber_as_push_to_r]; exact Hbf₁
+      have keyf₂ : formula_comparison _ (canonical_map (i + j) (push_to_sum_l xf₂ i)) = f₂ := by
+        rw [← same_fiber_as_push_to_l]; exact Hbf₂
+      refine ⟨canonical_map (i + j) (preformula.imp (push_to_sum_r xf₁ j) (push_to_sum_l xf₂ i)), ?_⟩
+      simp only [formula_comparison, universal_map_property, cocone_of_formula_L_infty, Lhom.on_formula]
+      exact congrArg₂ preformula.imp keyf₁ keyf₂
+  | all f ihf =>
+      obtain ⟨qf, Hqf⟩ := ihf
+      obtain ⟨⟨i, xf⟩, Hif⟩ := germ_rep qf
+      have Hbf : formula_comparison _ (canonical_map i xf) = f := by
+        have : canonical_map i xf = qf := Hif.symm ▸ rfl; rw [this]; exact Hqf
+      refine ⟨canonical_map i (preformula.all xf), ?_⟩
+      simp only [formula_comparison, universal_map_property, cocone_of_formula_L_infty, Lhom.on_formula]
+      exact congrArg preformula.all Hbf
 
 lemma formula_comparison_bijective {L : Language.{u}} (l) :
-    Function.Bijective (@formula_comparison L l) := by
-  sorry -- TODO: port from src/henkin.lean:545-580
+    Function.Bijective (@formula_comparison L l) :=
+  ⟨universal_map_inj_of_components_inj (fun m => Lhom.on_formula_inj (henkin_language_canonical_map_inj m)),
+   formula_comparison_surj⟩
 
 /-- Auxiliary: surjectivity of bounded_term_comparison by structural induction -/
 private lemma bounded_term_comparison_surj {L : Language.{u}} :
