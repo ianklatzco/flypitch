@@ -1392,7 +1392,7 @@ private lemma realize_subst_preterm {L : Language.{u}} {S : Structure L} {n l}
     cases xs
     by_cases h : k.1 < n
     · rw [substmax_var_lt k s h]
-      simp only [realize_bounded_term, DVec.nth]
+      simp only [realize_bounded_term]
       rw [DVec.concat_nth v _ k.1 k.2 h]
     · have h' : k.1 = n :=
         Nat.le_antisymm (Nat.lt_succ_iff.mp k.2) (Nat.le_of_not_lt h)
@@ -1430,7 +1430,7 @@ private lemma realize_subst_formula {L : Language.{u}} (S : Structure L) {n}
           · rw [DVec.concat_nth v _ k hk hkn]
             have hnek : k ≠ n := Nat.ne_of_lt hkn
             have hnotlt : ¬ n < k := Nat.not_lt.mpr (Nat.le_of_lt hkn)
-            simp only [subst_realize, hkn, if_true, hnotlt, if_false, φ, hkn, dif_pos]
+            simp only [subst_realize, if_true, hnotlt, if_false, φ, hkn, dif_pos]
           · have hkeq : k = n := Nat.le_antisymm (Nat.lt_succ_iff.mp hk) (Nat.le_of_not_lt hkn)
             subst hkeq
             simp [DVec.concat_nth_last]) f DVec.nil]
