@@ -989,14 +989,15 @@ lemma π_af_wide :
   rcases collapseSpaceBasis_spec.exists_subset_of_mem_open hg hU with ⟨B, HB_basis, HB_mem, HB_sub⟩
   rcases HB_basis with rfl | ⟨p, -, rfl⟩
   · exact absurd HB_mem (by simp)
-  · -- p : CollapsePoset pSet_aleph1.Type PSet.omega.powerset.Type (ℵ₀ + 1)
+  · -- p : CollapsePoset pSet_aleph1.Type PSet.omega.powerset.Type (Order.succ ℵ₀)
     -- Find η' ∉ PFun.Dom p.f using exists_mem_compl_of_mk_lt_mk
-    -- p.Hc : # (PFun.Dom p.f) < ℵ₀ + 1 = ℵ₀ < # pSet_aleph1.Type
+    -- p.Hc : # (PFun.Dom p.f) < Order.succ ℵ₀ = ℵ₁ = # pSet_aleph1.Type
     -- (universe unification: p's X = pSet_aleph1.Type at u_1 = u via rcases unification)
     obtain ⟨η', Hη'⟩ := exists_mem_compl_of_mk_lt_mk (PFun.Dom p.f) (by
-      calc # (PFun.Dom p.f) < ℵ₀ + 1 := p.Hc
-        _ = ℵ₀ := by simp
-        _ < _ := by simp [PSet.mk_type_mk_eq'''])
+      calc # (PFun.Dom p.f) < Order.succ (ℵ₀ : Cardinal) := p.Hc
+        _ = ℵ₁ := Cardinal.succ_aleph0
+        _ = # pSet_aleph1.Type := by
+              simp [pSet_aleph1, PSet.mk_type_mk_eq'''])
     -- Build trivial extension mapping η' to check_cast j
     let h := CPFun.trivial_extension p.f (check_cast j)
     have Hh_open : h ∈ CollapsePoset.principalOpen p := trivialExtension_mem_principalOpen

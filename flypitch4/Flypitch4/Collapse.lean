@@ -714,7 +714,7 @@ end CollapsePoset
     Port of collapse_space (src line 633). -/
 def collapseSpace (X Y : Type u) : TopologicalSpace (X → Y) :=
   TopologicalSpace.generateFrom
-    (Set.image (CollapsePoset.principalOpen (κ := ℵ₀ + 1)) Set.univ)
+    (Set.image (CollapsePoset.principalOpen (κ := Order.succ ℵ₀)) Set.univ)
 
 section CollapseSpaceLemmas
 
@@ -722,14 +722,20 @@ variable {X Y : Type u}
 
 local instance collapseSpaceInst : TopologicalSpace (X → Y) := collapseSpace X Y
 
-@[simp] lemma principalOpen_isOpen {p : CollapsePoset X Y (ℵ₀ + 1)} :
+@[simp] lemma principalOpen_isOpen {p : CollapsePoset X Y (Order.succ ℵ₀)} :
     IsOpen (CollapsePoset.principalOpen p) :=
   TopologicalSpace.GenerateOpen.basic _ (Set.mem_image_of_mem _ trivial)
 
-lemma one_lt_aleph0_succ : 1 < ℵ₀ + 1 :=
-  lt_of_lt_of_le Cardinal.one_lt_aleph0 (le_add_right le_rfl)
+lemma aleph0_lt_aleph0_succ : ℵ₀ < Order.succ (ℵ₀ : Cardinal) :=
+  Order.lt_succ ℵ₀
 
-lemma zero_lt_aleph0_succ : 0 < ℵ₀ + 1 :=
+lemma aleph0_le_aleph0_succ : ℵ₀ ≤ Order.succ (ℵ₀ : Cardinal) :=
+  le_of_lt aleph0_lt_aleph0_succ
+
+lemma one_lt_aleph0_succ : 1 < Order.succ (ℵ₀ : Cardinal) :=
+  lt_trans Cardinal.one_lt_aleph0 aleph0_lt_aleph0_succ
+
+lemma zero_lt_aleph0_succ : 0 < Order.succ (ℵ₀ : Cardinal) :=
   lt_trans one_pos one_lt_aleph0_succ
 
 /-- singleton collapse poset. Port of singleton_collapse_poset (src line 651). -/
@@ -747,7 +753,8 @@ lemma singletonCollapsePoset_principalOpen' {x : X} {y : Y} {hκ : 1 < κ} :
   · intro H; exact H x y ⟨rfl, rfl⟩
   · rintro H x' y' ⟨rfl, rfl⟩; exact H
 
-@[simp] lemma singletonCollapsePoset_principalOpen {x : X} {y : Y} {hκ : 1 < (ℵ₀ + 1 : Cardinal)} :
+@[simp] lemma singletonCollapsePoset_principalOpen {x : X} {y : Y}
+    {hκ : 1 < Order.succ (ℵ₀ : Cardinal)} :
     CollapsePoset.principalOpen (singletonCollapsePoset x y hκ) = {g : X → Y | g x = y} :=
   singletonCollapsePoset_principalOpen'
 
@@ -770,13 +777,13 @@ lemma compl_principalOpen_isUnion (hκ : 1 < κ) (p : CollapsePoset X Y κ) :
     exact ⟨⟨⟨x, g x⟩, H_mem, H_neq⟩, by
       rw [singletonCollapsePoset_principalOpen']; simp⟩
 
-@[simp] lemma principalOpen_isClosed {p : CollapsePoset X Y (ℵ₀ + 1)} :
+@[simp] lemma principalOpen_isClosed {p : CollapsePoset X Y (Order.succ ℵ₀)} :
     IsClosed (CollapsePoset.principalOpen p) := by
   rcases compl_principalOpen_isUnion one_lt_aleph0_succ p with ⟨_, s, Hu⟩
   rw [← isOpen_compl_iff, ← Hu]
   exact isOpen_iUnion (fun i => principalOpen_isOpen)
 
-@[simp] lemma principalOpen_isRegular {p : CollapsePoset X Y (ℵ₀ + 1)} :
+@[simp] lemma principalOpen_isRegular {p : CollapsePoset X Y (Order.succ ℵ₀)} :
     IsRegularOpen (CollapsePoset.principalOpen p) :=
   isRegularOpen_of_isClopen ⟨principalOpen_isClosed, principalOpen_isOpen⟩
 
@@ -801,7 +808,7 @@ lemma inter_principalOpen (hκ : ℵ₀ ≤ κ) {p₁ p₂ : CollapsePoset X Y �
 def collapseSpaceBasis (X Y : Type u) : Set (Set (X → Y)) :=
   insert (∅ : Set (X → Y))
     (Set.image CollapsePoset.principalOpen
-      (Set.univ : Set (CollapsePoset X Y (ℵ₀ + 1))))
+      (Set.univ : Set (CollapsePoset X Y (Order.succ ℵ₀))))
 
 /-- The basis is indeed a topological basis. Port of collapse_space_basis_spec (src line 709). -/
 lemma collapseSpaceBasis_spec : IsTopologicalBasis (collapseSpaceBasis X Y) := by
@@ -814,7 +821,7 @@ lemma collapseSpaceBasis_spec : IsTopologicalBasis (collapseSpaceBasis X Y) := b
     · exact absurd H_mem_inter.1 (Set.notMem_empty _)
     · exact absurd H_mem_inter.2 (Set.notMem_empty _)
     · -- Both are principal opens
-      have hle : ℵ₀ ≤ ℵ₀ + 1 := le_add_right le_rfl
+      have hle : ℵ₀ ≤ Order.succ (ℵ₀ : Cardinal) := aleph0_le_aleph0_succ
       by_cases H_compat : CPFun.compatible p.f p'.f
       · -- Use the union poset
         refine ⟨CollapsePoset.principalOpen (p.union p' hle),
@@ -930,7 +937,7 @@ local instance collapseSpaceInst' : TopologicalSpace (X → Y) := collapseSpace 
 
 /-- Inclusion of a collapse poset into the collapse algebra.
     Port of collapse_poset.inclusion (src line 817). -/
-noncomputable def collapseInclusion (p : CollapsePoset X Y (ℵ₀ + 1)) :
+noncomputable def collapseInclusion (p : CollapsePoset X Y (Order.succ ℵ₀)) :
     CollapseAlgebra X Y :=
   ⟨CollapsePoset.principalOpen p, principalOpen_isRegular⟩
 
@@ -938,14 +945,14 @@ local notation "ι" => collapseInclusion
 
 lemma collapsePoset_dense_basis :
     ∀ T ∈ collapseSpaceBasis X Y, ∀ _h_nonempty : T ≠ ∅,
-      ∃ p : CollapsePoset X Y (ℵ₀ + 1), (ι p).val ⊆ T := by
+      ∃ p : CollapsePoset X Y (Order.succ ℵ₀), (ι p).val ⊆ T := by
   intro T H_mem_basis h_ne
   rcases H_mem_basis with rfl | ⟨p, _, rfl⟩
   · exact absurd rfl h_ne
   · exact ⟨p, le_refl _⟩
 
 lemma collapsePoset_dense [Nonempty (X → Y)] {b : CollapseAlgebra X Y}
-    (H : ⊥ < b) : ∃ p : CollapsePoset X Y (ℵ₀ + 1), ι p ≤ b := by
+    (H : ⊥ < b) : ∃ p : CollapsePoset X Y (Order.succ ℵ₀), ι p ≤ b := by
   have hne : b.val.Nonempty := by
     rw [Set.nonempty_iff_ne_empty]
     intro h
@@ -961,7 +968,7 @@ lemma collapsePoset_dense [Nonempty (X → Y)] {b : CollapseAlgebra X Y}
 
 /-- Port of compatible_of_inclusion_le_inclusion (src line 845). -/
 lemma compatible_of_inclusion_le [Nonempty (X → Y)]
-    {p q : CollapsePoset X Y (ℵ₀ + 1)} (h : ι p ≤ ι q) : CPFun.compatible p.f q.f := by
+    {p q : CollapsePoset X Y (Order.succ ℵ₀)} (h : ι p ≤ ι q) : CPFun.compatible p.f q.f := by
   simp only [collapseInclusion, RegularOpens.le_iff_subset] at h
   intro x px qx
   have key : CPFun.trivial_extension p.f (PFun.fn p.f x px) ∈ CollapsePoset.principalOpen q :=
