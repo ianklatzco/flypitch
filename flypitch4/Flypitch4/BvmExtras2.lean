@@ -918,17 +918,178 @@ lemma eps_iso_symm {x y : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord x) (H₂ : �
 lemma eps_iso_mono {x y z f : bSet 𝔹} {Γ : 𝔹} (H₁ : Γ ≤ Ord y) (H₂ : Γ ≤ z ⊆ᴮ y)
     (H₃ : Γ ≤ eps_iso y z f) (H₄ : Γ ≤ x ∈ᴮ y) (w' : bSet 𝔹)
     (Hw' : Γ ≤ pair x w' ∈ᴮ f) : Γ ≤ x ⊆ᴮ w' := by
-  sorry -- TODO: port from src/bvm_extras2.lean:460
+  -- Let A = { v ∈ y | ∀ w, pair v w ∈ f → w ∈ v } (elements of y whose f-image is below them)
+  -- We claim A = ∅. By regularity, if A ≠ ∅ get minimal a ∈ A; derive wa ∈ A ∩ a, contradiction.
+  have H_func := is_function_of_eps_iso H₃
+  have H_total := is_total_of_is_function H_func
+  -- Define the B_ext for the comprehend predicate: fun v => ⨅ w, pair v w ∈ f ⟹ w ∈ v
+  have H_Bext_A : B_ext (fun v : bSet 𝔹 => ⨅ w, pair v w ∈ᴮ f ⟹ w ∈ᴮ v) :=
+    B_ext_iInf (h := fun w => B_ext_imp (h₁ := B_ext_pair_mem_left) (h₂ := B_ext_mem_right))
+  set A := comprehend (fun v : bSet 𝔹 => ⨅ w, pair v w ∈ᴮ f ⟹ w ∈ᴮ v) y
+  -- The iff for A-membership:
+  -- a ∈ A ↔ ∃ a', a' ∈ y ∧ a = a' ∧ ∀ w, pair a' w ∈ f → w ∈ a'
+  have mem_A_iff : ∀ {a : bSet 𝔹} {Γ' : 𝔹}, Γ' ≤ a ∈ᴮ A ↔
+      Γ' ≤ ⨆ v, v ∈ᴮ y ⊓ (a =ᴮ v ⊓ ⨅ w, pair v w ∈ᴮ f ⟹ w ∈ᴮ v) :=
+    fun {a Γ'} => mem_comprehend_iff₂ _ y H_Bext_A
+  -- Step 1: Prove A = ∅
+  suffices H_empty : Γ ≤ A =ᴮ ∅ by
+    -- From A = ∅: if ¬(x ⊆ w') we'd get x ∈ A, contradiction
+    apply bv_by_contra; rw [← deduction]
+    -- goal: Γ ⊓ (x ⊆ w')ᶜ ≤ ⊥
+    -- H_contra: ¬(x ⊆ w'), so by Ord.lt_of_not_le: w' ∈ x
+    have H_x_ord : Γ ⊓ (x ⊆ᴮ w')ᶜ ≤ Ord x :=
+      Ord_of_mem_Ord (inf_le_left.trans H₄) (inf_le_left.trans H₁)
+    have H_w'_ord : Γ ⊓ (x ⊆ᴮ w')ᶜ ≤ Ord w' := by
+      apply Ord_of_mem_Ord _ (inf_le_left.trans H₁)
+      exact mem_of_mem_subset (inf_le_left.trans H₂)
+        (mem_codomain_of_is_function (inf_le_left.trans Hw') (inf_le_left.trans H_func))
+    have H_w'_mem_x : Γ ⊓ (x ⊆ᴮ w')ᶜ ≤ w' ∈ᴮ x :=
+      Ord.lt_of_not_le H_x_ord H_w'_ord inf_le_right
+    -- x ∈ A since x ∈ y and ∀ w, pair x w ∈ f → w ∈ x
+    have Hx_A : Γ ⊓ (x ⊆ᴮ w')ᶜ ≤ x ∈ᴮ A := by
+      rw [mem_A_iff]
+      apply le_iSup_of_le x
+      refine le_inf (inf_le_left.trans H₄) (le_inf bv_refl ?_)
+      apply le_iInf; intro w; rw [← deduction]
+      -- need: (Γ ⊓ (x⊆w')ᶜ) ⊓ pair x w ∈ f ≤ w ∈ x
+      -- pair x w ∈ f and pair x w' ∈ f → w = w' (by func uniqueness)
+      set ctx := Γ ⊓ (x ⊆ᴮ w')ᶜ ⊓ pair x w ∈ᴮ f
+      have Hw_eq : ctx ≤ w =ᴮ w' :=
+        eq_of_is_function_of_eq (inf_le_left.trans (inf_le_left.trans H_func))
+          bv_refl inf_le_right (inf_le_left.trans (inf_le_left.trans Hw'))
+      exact bv_rw'' (bv_symm Hw_eq) (inf_le_left.trans H_w'_mem_x) B_ext_mem_left
+    -- x ∈ A but A = ∅, contradiction
+    exact bv_exfalso (bot_of_mem_empty
+      (bv_rw'' (inf_le_left.trans H_empty) Hx_A B_ext_mem_right))
+  -- Step 2: Prove A = ∅ by regularity
+  apply bv_by_contra; rw [← deduction]
+  -- goal: Γ ⊓ (A =ᴮ ∅)ᶜ ≤ ⊥
+  -- Get minimal a ∈ A by regularity
+  have H_A_ne : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ (A =ᴮ ∅)ᶜ := inf_le_right
+  have H_reg := bSet_axiom_of_regularity A H_A_ne
+  obtain ⟨a, Ha⟩ := exists_convert H_reg
+    (B_ext_inf B_ext_mem_left (B_ext_iInf (h := fun z' =>
+      B_ext_imp (h₁ := B_ext_const) (h₂ := B_ext_neg (h := B_ext_mem_right)))))
+  have Ha_A : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ a ∈ᴮ A := Ha.trans inf_le_left
+  have Ha_min : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ ⨅ z', z' ∈ᴮ A ⟹ (z' ∈ᴮ a)ᶜ := Ha.trans inf_le_right
+  -- From a ∈ A: ∃ a', a' ∈ y ∧ a = a' ∧ ∀ w, pair a' w ∈ f → w ∈ a'
+  have Ha_in_A : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ ⨆ v, v ∈ᴮ y ⊓ (a =ᴮ v ⊓ ⨅ w, pair v w ∈ᴮ f ⟹ w ∈ᴮ v) :=
+    mem_A_iff.mp Ha_A
+  obtain ⟨a', Ha'⟩ := exists_convert Ha_in_A
+    (B_ext_inf B_ext_mem_left (B_ext_inf B_ext_bv_eq_right H_Bext_A))
+  have Ha'_y : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ a' ∈ᴮ y := Ha'.trans inf_le_left
+  have Ha'_eq : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ a =ᴮ a' := Ha'.trans (inf_le_right.trans inf_le_left)
+  have Ha'_cond : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ ⨅ w, pair a' w ∈ᴮ f ⟹ w ∈ᴮ a' :=
+    Ha'.trans (inf_le_right.trans inf_le_right)
+  -- a ∈ y via a = a' ∈ y
+  have Ha_y : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ a ∈ᴮ y :=
+    bv_rw'' (bv_symm Ha'_eq) Ha'_y B_ext_mem_left
+  -- Get wa: total function gives pair a wa ∈ f
+  have H_total_a : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ ⨆ wa, wa ∈ᴮ z ⊓ pair a wa ∈ᴮ f :=
+    le_trans (le_inf (inf_le_left.trans (H_total.trans (iInf_le _ a))) Ha_y) bv_imp_elim
+  obtain ⟨wa, Hwa⟩ := exists_convert H_total_a (B_ext_inf B_ext_mem_left B_ext_pair_mem_right)
+  have Hwa_z : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ wa ∈ᴮ z := Hwa.trans inf_le_left
+  have Hwa_pair : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ pair a wa ∈ᴮ f := Hwa.trans inf_le_right
+  -- wa ∈ a via the comprehend condition on a': pair a' wa ∈ f → wa ∈ a'
+  -- From pair a wa ∈ f and a = a', get pair a' wa ∈ f
+  have Hwa_pair' : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ pair a' wa ∈ᴮ f :=
+    bv_rw'' (ϕ := fun v => pair v wa ∈ᴮ f) Ha'_eq Hwa_pair B_ext_pair_mem_left
+  have Hwa_a' : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ wa ∈ᴮ a' :=
+    le_trans (le_inf (Ha'_cond.trans (iInf_le _ wa)) Hwa_pair') bv_imp_elim
+  -- wa ∈ a (= a')
+  have Hwa_mem_a : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ wa ∈ᴮ a :=
+    bv_rw'' (bv_symm Ha'_eq) Hwa_a' B_ext_mem_right
+  -- wa ∈ y (since wa ∈ z ⊆ y)
+  have Hwa_y : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ wa ∈ᴮ y :=
+    mem_of_mem_subset (inf_le_left.trans H₂) Hwa_z
+  -- wa ∈ A: wa ∈ y and ∀ wa', pair wa wa' ∈ f → wa' ∈ wa
+  have Hwa_A : Γ ⊓ (A =ᴮ ∅)ᶜ ≤ wa ∈ᴮ A := by
+    rw [mem_A_iff]
+    apply le_iSup_of_le wa
+    refine le_inf Hwa_y (le_inf bv_refl ?_)
+    apply le_iInf; intro wa'; rw [← deduction]
+    -- need: (Γ ⊓ (A=∅)ᶜ) ⊓ pair wa wa' ∈ f ≤ wa' ∈ wa
+    set ctx2 := Γ ⊓ (A =ᴮ ∅)ᶜ ⊓ pair wa wa' ∈ᴮ f
+    -- wa' ∈ z (codomain of f): from pair wa wa' ∈ f
+    have Hwa'_z : ctx2 ≤ wa' ∈ᴮ z :=
+      mem_codomain_of_is_function inf_le_right (inf_le_left.trans (inf_le_left.trans H_func))
+    -- Use eps_iso_mem: wa ∈ a → wa' ∈ wa
+    --   eps_iso y z f, wa∈y, a∈y, wa∈a, wa'∈z, pair wa wa' ∈ f, wa∈z, pair a wa ∈ f
+    exact eps_iso_mem (inf_le_left.trans (inf_le_left.trans H₃))
+      (inf_le_left.trans Hwa_y) (inf_le_left.trans Ha_y)
+      (inf_le_left.trans Hwa_mem_a)
+      Hwa'_z inf_le_right
+      (inf_le_left.trans Hwa_z) (inf_le_left.trans Hwa_pair)
+  -- wa ∈ A and wa ∈ a contradicts minimality of a
+  have H_min_wa := le_trans (le_inf (Ha_min.trans (iInf_le _ wa)) Hwa_A) bv_imp_elim
+  exact bv_absurd _ Hwa_mem_a H_min_wa
 
 -- src/bvm_extras2.lean:505
 lemma eq_of_Ord_eps_iso_aux {x y : bSet 𝔹} {Γ : 𝔹} (Hx_ord : Γ ≤ Ord x) (Hy_ord : Γ ≤ Ord y)
     (H_eps_iso : Γ ≤ ⨆ f, eps_iso y x f) (H_mem : Γ ≤ x ∈ᴮ y) : Γ ≤ ⊥ := by
-  sorry -- TODO: port from src/bvm_extras2.lean:505
+  -- Get a concrete f from the existential
+  have B_eps_iso_f : B_ext (fun f : bSet 𝔹 => eps_iso y x f) := by
+    unfold eps_iso is_surj strong_eps_hom
+    exact B_ext_inf (h₁ := B_ext_inf (h₁ := B_ext_is_function_right)
+      (h₂ := B_ext_iInf (h := fun z₁ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+        B_ext_iInf (h := fun z₂ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+          B_ext_iInf (h := fun w₁ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+            B_ext_iInf (h := fun w₂ => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+              B_ext_imp (h₁ := B_ext_mem_right) (h₂ :=
+                B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const)))))))))))) (h₂ :=
+      B_ext_iInf (h := fun v => B_ext_imp (h₁ := B_ext_const) (h₂ :=
+        B_ext_iSup (h := fun w => B_ext_inf (h₁ := B_ext_const) (h₂ := B_ext_mem_right)))))
+  obtain ⟨f, Hf⟩ := exists_convert H_eps_iso B_eps_iso_f
+  have H_function := is_function_of_eps_iso Hf
+  have H_total := is_total_of_is_function H_function
+  -- Get w = f(x) with w ∈ x and pair x w ∈ f
+  have H_total_x : Γ ≤ ⨆ w, w ∈ᴮ x ⊓ pair x w ∈ᴮ f :=
+    le_trans (le_inf (H_total.trans (iInf_le _ x)) H_mem) bv_imp_elim
+  obtain ⟨w, Hw⟩ := exists_convert H_total_x (B_ext_inf B_ext_mem_left B_ext_pair_mem_right)
+  have Hw_x : Γ ≤ w ∈ᴮ x := Hw.trans inf_le_left
+  have Hw_pair : Γ ≤ pair x w ∈ᴮ f := Hw.trans inf_le_right
+  -- x ⊆ y (since x ∈ y and y is an ordinal)
+  have H_x_sub_y : Γ ≤ x ⊆ᴮ y := subset_of_mem_Ord H_mem Hy_ord
+  -- Apply eps_iso_mono: x ⊆ w
+  have H_x_sub_w : Γ ≤ x ⊆ᴮ w :=
+    eps_iso_mono Hy_ord H_x_sub_y Hf H_mem w Hw_pair
+  -- From x ⊆ w, get either x ∈ w or x = w
+  have H_w_ord : Γ ≤ Ord w := Ord_of_mem_Ord Hw_x Hx_ord
+  have H_lor : Γ ≤ x ∈ᴮ w ⊔ x =ᴮ w :=
+    (Ord.le_iff_lt_or_eq Hx_ord H_w_ord).mp H_x_sub_w
+  -- Case split: x ∈ w → bot_of_mem_mem' with w ∈ x; x = w → w ∈ w from w ∈ x
+  apply le_trans (le_inf H_lor le_rfl)
+  apply bv_or_elim_left
+  · -- x ∈ w and w ∈ x → contradiction
+    exact bot_of_mem_mem' x w inf_le_left (inf_le_right.trans Hw_x)
+  · -- x = w and w ∈ x → w ∈ w → contradiction
+    apply bot_of_mem_self'
+    exact bv_rw'' inf_le_left (inf_le_right.trans Hw_x) B_ext_mem_right
 
 -- src/bvm_extras2.lean:526
 lemma eq_of_Ord_eps_iso {x y : bSet 𝔹} {Γ : 𝔹} (Hx_ord : Γ ≤ Ord x) (Hy_ord : Γ ≤ Ord y)
     (H_eps_iso : Γ ≤ ⨆ f, eps_iso x y f) : Γ ≤ x =ᴮ y := by
-  sorry -- TODO: port from src/bvm_extras2.lean:526
+  -- Use ordinal trichotomy: x = y, x ∈ y, or y ∈ x
+  have H_tri := Ord.trichotomy Hx_ord Hy_ord
+  -- trichotomy: (x=y ⊔ x∈y) ⊔ y∈x (left-assoc)
+  apply le_trans (le_inf H_tri le_rfl)
+  apply bv_or_elim_left
+  · -- Case x=y ⊔ x∈y
+    apply bv_or_elim_left
+    · -- Case x = y: done
+      exact inf_le_left
+    · -- Case x ∈ y: get eps_iso y x (inverse), then contradiction
+      apply bv_exfalso
+      -- Swap direction: eps_iso x y → eps_iso y x
+      have H_eps_iso_sym : (x ∈ᴮ y) ⊓ Γ ≤ ⨆ f, eps_iso y x f :=
+        (eps_iso_symm (inf_le_right.trans Hx_ord) (inf_le_right.trans Hy_ord)).mp
+          (inf_le_right.trans H_eps_iso)
+      exact eq_of_Ord_eps_iso_aux (inf_le_right.trans Hx_ord) (inf_le_right.trans Hy_ord)
+        H_eps_iso_sym inf_le_left
+  · -- Case y ∈ x: eps_iso x y f and y ∈ x → contradiction
+    apply bv_exfalso
+    exact eq_of_Ord_eps_iso_aux (inf_le_right.trans Hy_ord) (inf_le_right.trans Hx_ord)
+      (inf_le_right.trans H_eps_iso) inf_le_left
 
 end eps_iso
 
