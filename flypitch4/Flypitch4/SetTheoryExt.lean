@@ -8,6 +8,8 @@ Authors: Jesse Han, Floris van Doorn
 
 import Flypitch4.ToMathlib
 import Mathlib.Topology.Bases
+import Mathlib.Data.Set.Card
+import Mathlib.Order.Zorn
 
 /-! ## Lean 3 → Lean 4 Port: scope-narrowed slice of `src/set_theory.lean`
 
@@ -155,22 +157,222 @@ if every pair of distinct values intersects exactly in `r`. -/
 def IsDeltaSystem {ι : Type*} {α : Type*} (A : ι → Set α) : Prop :=
   ∃ root : Set α, ∀ ⦃x y : ι⦄, x ≠ y → A x ∩ A y = root
 
+namespace DeltaSystemAux
+
+/-- Helper: an uncountable set has cardinality `> ℵ₀`. -/
+private lemma aleph0_lt_of_not_countable {ι : Type v} {t : Set ι} (h : ¬ t.Countable) :
+    ℵ₀ < #t := by
+  rw [← not_le]
+  intro hle
+  exact h (Cardinal.le_aleph0_iff_set_countable.mp hle)
+
+private lemma not_countable_of_aleph0_lt {ι : Type v} {t : Set ι} (h : ℵ₀ < #t) :
+    ¬ t.Countable := by
+  intro hc
+  exact absurd (Cardinal.le_aleph0_iff_set_countable.mpr hc) (not_le.mpr h)
+
+/-- Pigeonhole: an uncountable family `f : ι → ℕ` has an uncountable fiber. -/
+private lemma exists_uncountable_fiber_nat {ι : Type v} (f : ι → ℕ)
+    (hι : ¬ (Set.univ : Set ι).Countable) :
+    ∃ n : ℕ, ¬ (f ⁻¹' {n}).Countable := by
+  by_contra hne
+  push_neg at hne
+  -- ι = ⋃ n, f ⁻¹' {n}
+  have huniv : (Set.univ : Set ι) = ⋃ n : ℕ, f ⁻¹' {n} := by
+    ext x; simp
+  apply hι
+  rw [huniv]
+  exact Set.countable_iUnion hne
+
+/-- The Δ-system lemma for size-`n` families (induction on `n`).
+
+If `A : ι → Set α` is an uncountable family of finite sets all of size `n`,
+then there is an uncountable subfamily forming a Δ-system. -/
+private theorem delta_system_size_n {α : Type u} {ι : Type v}
+    (n : ℕ) (A : ι → Set α)
+    (hι : ¬ (Set.univ : Set ι).Countable)
+    (hA_fin : ∀ i, (A i).Finite)
+    (hA_card : ∀ i, Set.ncard (A i) = n) :
+    ∃ t : Set ι, ¬ t.Countable ∧ ∃ root : Set α,
+      ∀ ⦃x⦄, x ∈ t → ∀ ⦃y⦄, y ∈ t → x ≠ y → A x ∩ A y = root := by
+  induction n generalizing ι with
+  | zero =>
+    -- Every A i is empty.
+    refine ⟨Set.univ, hι, ∅, ?_⟩
+    intro x _ y _ _
+    have hx : A x = ∅ := by
+      have h0 : Set.ncard (A x) = 0 := hA_card x
+      exact (Set.ncard_eq_zero (hA_fin x)).mp h0
+    rw [hx, Set.empty_inter]
+  | succ n ih =>
+    by_cases hcase : ∃ x : α, ¬ {i | x ∈ A i}.Countable
+    · -- Case 1: pick such x. Restrict to t₀ = {i | x ∈ A i}.
+      obtain ⟨x, hx⟩ := hcase
+      let t₀ : Set ι := {i | x ∈ A i}
+      let A' : t₀ → Set α := fun i => A i.1 \ {x}
+      have hA'_fin : ∀ i : t₀, (A' i).Finite := fun i => (hA_fin i.1).diff
+      have hA'_card : ∀ i : t₀, Set.ncard (A' i) = n := by
+        intro i
+        have hxA : x ∈ A i.1 := i.2
+        have h := Set.ncard_diff_singleton_add_one hxA (hA_fin i.1)
+        have h2 : Set.ncard (A i.1) = n + 1 := hA_card i.1
+        change Set.ncard (A i.1 \ {x}) = n
+        omega
+      have ht₀_ucnt : ¬ (Set.univ : Set t₀).Countable := by
+        intro hc
+        apply hx
+        rw [Set.countable_univ_iff] at hc
+        exact Set.countable_coe_iff.mp hc
+      obtain ⟨t', ht'_ucnt, r', hr'⟩ := ih A' ht₀_ucnt hA'_fin hA'_card
+      -- Push t' down to ι.
+      let t : Set ι := Subtype.val '' t'
+      have ht_inj : Set.InjOn (Subtype.val : t₀ → ι) t' := fun a _ b _ h => Subtype.ext h
+      have ht_ucnt : ¬ t.Countable := by
+        intro hc
+        apply ht'_ucnt
+        exact Set.countable_of_injective_of_countable_image ht_inj hc
+      refine ⟨t, ht_ucnt, insert x r', ?_⟩
+      rintro _ ⟨⟨a, ha₀⟩, hat', rfl⟩ _ ⟨⟨b, hb₀⟩, hbt', rfl⟩ hab
+      have hab' : (⟨a, ha₀⟩ : t₀) ≠ ⟨b, hb₀⟩ := fun h => hab (congr_arg Subtype.val h)
+      have h_intersect : A' ⟨a, ha₀⟩ ∩ A' ⟨b, hb₀⟩ = r' := hr' hat' hbt' hab'
+      -- Compute A a ∩ A b = insert x r'.
+      ext y
+      simp only [Set.mem_inter_iff, Set.mem_insert_iff]
+      constructor
+      · rintro ⟨hya, hyb⟩
+        by_cases hyx : y = x
+        · exact Or.inl hyx
+        · refine Or.inr ?_
+          have hyA' : y ∈ A' ⟨a, ha₀⟩ ∩ A' ⟨b, hb₀⟩ := by
+            refine ⟨⟨hya, ?_⟩, ⟨hyb, ?_⟩⟩ <;> simp [hyx]
+          rw [h_intersect] at hyA'
+          exact hyA'
+      · rintro (rfl | hyr)
+        · exact ⟨ha₀, hb₀⟩
+        · have : y ∈ A' ⟨a, ha₀⟩ ∩ A' ⟨b, hb₀⟩ := by rw [h_intersect]; exact hyr
+          exact ⟨this.1.1, this.2.1⟩
+    · -- Case 2: every x ∈ α appears in countably many A i.
+      push_neg at hcase
+      -- Key fact: for any countable s : Set α, only countably many i have A i ∩ s ≠ ∅.
+      have key : ∀ s : Set α, s.Countable →
+          {i : ι | (A i ∩ s).Nonempty}.Countable := by
+        intro s hs
+        have hsub : {i : ι | (A i ∩ s).Nonempty} ⊆ ⋃ y ∈ s, {i | y ∈ A i} := by
+          intro i ⟨y, hy⟩
+          exact Set.mem_iUnion₂.mpr ⟨y, hy.2, hy.1⟩
+        exact Set.Countable.mono hsub (hs.biUnion (fun y _ => hcase y))
+      -- Each A i is nonempty (size n+1 > 0).
+      have hAne : ∀ i, (A i).Nonempty := by
+        intro i
+        rw [← Set.ncard_pos (hA_fin i), hA_card i]
+        omega
+      -- Apply Zorn to get a maximal disjoint family.
+      let P : Set ι → Prop := fun M => M.PairwiseDisjoint A
+      have hP_chain : ∀ c ⊆ {M | P M}, IsChain (· ⊆ ·) c → ∃ ub ∈ {M | P M}, ∀ s ∈ c, s ⊆ ub := by
+        intro c hc hchain
+        refine ⟨⋃₀ c, ?_, fun s hs => Set.subset_sUnion_of_mem hs⟩
+        rintro i ⟨M₁, hM₁c, hi⟩ j ⟨M₂, hM₂c, hj⟩ hij
+        rcases hchain.total hM₁c hM₂c with hsub | hsub
+        · exact (hc hM₂c) (hsub hi) hj hij
+        · exact (hc hM₁c) hi (hsub hj) hij
+      obtain ⟨M, hM_max⟩ := zorn_subset {M | P M} hP_chain
+      have hM_S : P M := hM_max.prop
+      -- Claim: M is uncountable.
+      by_cases hM_cnt : M.Countable
+      · -- Contradiction: extend M.
+        let B : Set α := ⋃ i ∈ M, A i
+        have hB_cnt : B.Countable :=
+          hM_cnt.biUnion (fun i _ => (hA_fin i).countable)
+        have hbad_cnt : {i : ι | (A i ∩ B).Nonempty}.Countable := key B hB_cnt
+        -- Find i₀ ∉ {i | (A i ∩ B).Nonempty}.
+        have hex : ∃ i : ι, ¬ (A i ∩ B).Nonempty := by
+          by_contra hne
+          push_neg at hne
+          apply hι
+          have huniv : (Set.univ : Set ι) ⊆ {i | (A i ∩ B).Nonempty} := fun i _ => hne i
+          exact hbad_cnt.mono huniv
+        obtain ⟨i₀, hi₀⟩ := hex
+        rw [Set.not_nonempty_iff_eq_empty] at hi₀
+        have hi₀_dis : ∀ i ∈ M, Disjoint (A i₀) (A i) := by
+          intro i hi
+          rw [Set.disjoint_iff_inter_eq_empty]
+          have hsub : A i₀ ∩ A i ⊆ A i₀ ∩ B := fun y ⟨ha, hb⟩ =>
+            ⟨ha, Set.mem_biUnion hi hb⟩
+          exact Set.subset_eq_empty hsub hi₀
+        have hi₀_notM : i₀ ∉ M := by
+          intro hin
+          have hAi : A i₀ ⊆ B := Set.subset_biUnion_of_mem hin
+          obtain ⟨y, hy⟩ := hAne i₀
+          have : y ∈ A i₀ ∩ B := ⟨hy, hAi hy⟩
+          rw [hi₀] at this
+          exact this.elim
+        -- Build M' := insert i₀ M, still pairwise disjoint.
+        let M' : Set ι := insert i₀ M
+        have hM'_P : P M' := by
+          intro a ha b hb hab
+          simp only [M', Set.mem_insert_iff] at ha hb
+          rcases ha with rfl | ha
+          · rcases hb with rfl | hb
+            · exact absurd rfl hab
+            · exact hi₀_dis b hb
+          · rcases hb with rfl | hb
+            · exact (hi₀_dis a ha).symm
+            · exact hM_S ha hb hab
+        have hM_sub : M ⊆ M' := Set.subset_insert _ _
+        have heq : M' = M := hM_max.eq_of_superset hM'_P hM_sub
+        have hin : i₀ ∈ M := heq ▸ Set.mem_insert _ _
+        exact absurd hin hi₀_notM
+      -- M is uncountable: take t := M, root := ∅.
+      refine ⟨M, hM_cnt, ∅, ?_⟩
+      intro a ha b hb hab
+      exact Set.disjoint_iff_inter_eq_empty.mp (hM_S ha hb hab)
+
+end DeltaSystemAux
+
 /-- The Δ-system lemma at `ω₁`: any uncountably-indexed family of finite sets
 contains an uncountable Δ-subsystem. (Lean 3 source:
-`src/set_theory.lean:308 (delta_system_lemma_uncountable)`.)
-
-The Lean 3 proof goes via a much more general regular-cardinal version (~250
-lines of cardinal arithmetic). Porting it is left as a follow-up — for the
-single CCC-pi consumer below we use it as a black box. -/
+`src/set_theory.lean:308 (delta_system_lemma_uncountable)`.) -/
 theorem delta_system_lemma_aleph1
     {α : Type u} {ι : Type v} (A : ι → Set α)
     (hι : ℵ₀ < #ι) (h2A : ∀ i, (A i).Finite) :
     ∃ t : Set ι, ℵ₀ < #t ∧ IsDeltaSystem (fun i : t => A i.1) := by
-  -- TODO: Reduction via pigeonhole + induction on `n = (A i).ncard`. The
-  -- reduction step requires reducing across universes (ι : Type v, ℕ : Type 0)
-  -- which makes the mathlib `infinite_pigeonhole_card_lt` direct application
-  -- nontrivial. Inductive step (Δ-system from fixed-size) is the hard core.
-  sorry
+  -- Step 1: pigeonhole on the size function. Some size `n` has uncountable preimage.
+  have hι_uncnt : ¬ (Set.univ : Set ι).Countable := by
+    intro hc
+    have hCount : Countable ι := by
+      rw [← Set.countable_univ_iff]; exact hc
+    have : #ι ≤ ℵ₀ := Cardinal.mk_le_aleph0_iff.mpr hCount
+    exact absurd hι (not_lt.mpr this)
+  let f : ι → ℕ := fun i => Set.ncard (A i)
+  obtain ⟨n, hn⟩ := DeltaSystemAux.exists_uncountable_fiber_nat f hι_uncnt
+  let t₀ : Set ι := f ⁻¹' {n}
+  let A' : t₀ → Set α := fun i => A i.1
+  have ht₀_uncnt : ¬ (Set.univ : Set t₀).Countable := by
+    intro hc
+    apply hn
+    rw [Set.countable_univ_iff] at hc
+    exact Set.countable_coe_iff.mp hc
+  have hA'_fin : ∀ i : t₀, (A' i).Finite := fun i => h2A i.1
+  have hA'_card : ∀ i : t₀, Set.ncard (A' i) = n := fun i => i.2
+  obtain ⟨t', ht'_uncnt, root, hroot⟩ :=
+    DeltaSystemAux.delta_system_size_n n A' ht₀_uncnt hA'_fin hA'_card
+  let t : Set ι := Subtype.val '' t'
+  have ht_inj : Set.InjOn (Subtype.val : t₀ → ι) t' := fun a _ b _ h => Subtype.ext h
+  refine ⟨t, ?_, root, ?_⟩
+  · -- t is uncountable.
+    apply DeltaSystemAux.aleph0_lt_of_not_countable
+    intro hc
+    exact ht'_uncnt (Set.countable_of_injective_of_countable_image ht_inj hc)
+  · -- Δ-system property.
+    rintro ⟨x, hx⟩ ⟨y, hy⟩ hxy
+    obtain ⟨a, hat', rfl⟩ := hx
+    obtain ⟨b, hbt', rfl⟩ := hy
+    have hab' : a ≠ b := by
+      intro h; apply hxy
+      apply Subtype.ext
+      show (↑a : ι) = ↑b
+      rw [h]
+    exact hroot hat' hbt' hab'
 
 /-! ## CCC for product topologies -/
 
