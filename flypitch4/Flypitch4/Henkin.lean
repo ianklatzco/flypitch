@@ -432,9 +432,55 @@ lemma formula_comparison_bijective {L : Language.{u}} (l) :
     Function.Bijective (@formula_comparison L l) := by
   sorry -- TODO: port from src/henkin.lean:545-580
 
+/-- Auxiliary: surjectivity of bounded_term_comparison by structural induction -/
+private lemma bounded_term_comparison_surj {L : Language.{u}} :
+    ∀ {n l} (t : bounded_preterm (L_infty L) n l),
+    ∃ x : colimit (@henkin_bounded_term_chain L n l),
+      bounded_term_comparison n l x = t := by
+  intro n l t
+  induction t with
+  | bd_var k =>
+      exact ⟨canonical_map 0 (bd_var k), by
+        apply bounded_preterm.eq
+        simp [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty]⟩
+  | bd_func ff =>
+      obtain ⟨⟨i, x⟩, Hx⟩ := germ_rep ff
+      exact ⟨canonical_map i (bd_func x), by
+        apply bounded_preterm.eq
+        simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty,
+                   Lhom.on_bounded_term, bounded_preterm.fst]
+        simp only [henkin_language_canonical_map, canonical_map_language]
+        rw [← Hx]; rfl⟩
+  | bd_app t s iht ihs =>
+      obtain ⟨qt, Hqt⟩ := iht
+      obtain ⟨qs, Hqs⟩ := ihs
+      obtain ⟨⟨i, xt⟩, Hit⟩ := germ_rep qt
+      obtain ⟨⟨j, xs⟩, Hjs⟩ := germ_rep qs
+      -- Pre-compute back-tracking
+      have Hbt : bounded_term_comparison _ _ (canonical_map i xt) = t := by
+        have : canonical_map i xt = qt := Hit.symm ▸ rfl; rw [this]; exact Hqt
+      have Hbs : bounded_term_comparison _ 0 (canonical_map j xs) = s := by
+        have : canonical_map j xs = qs := Hjs.symm ▸ rfl; rw [this]; exact Hqs
+      have keyt : bounded_term_comparison _ _ (canonical_map (i + j) (push_to_sum_r xt j)) = t := by
+        rw [← same_fiber_as_push_to_r]; exact Hbt
+      have keys : bounded_term_comparison _ 0 (canonical_map (i + j) (push_to_sum_l xs i)) = s := by
+        rw [← same_fiber_as_push_to_l]; exact Hbs
+      refine ⟨canonical_map (i + j) (bd_app (push_to_sum_r xt j) (push_to_sum_l xs i)), ?_⟩
+      apply bounded_preterm.eq
+      simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty,
+                 Lhom.on_bounded_term, bounded_preterm.fst]
+      congr 1
+      · have h_eq := congrArg bounded_preterm.fst keyt
+        simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty] at h_eq
+        exact (Lhom.on_bounded_term_fst _ _) ▸ h_eq
+      · have h_eq := congrArg bounded_preterm.fst keys
+        simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty] at h_eq
+        exact (Lhom.on_bounded_term_fst _ _) ▸ h_eq
+
 @[simp] lemma bounded_term_comparison_bijective {L : Language.{u}} (n l) :
-    Function.Bijective (@bounded_term_comparison L n l) := by
-  sorry -- TODO: port from src/henkin.lean:582-615
+    Function.Bijective (@bounded_term_comparison L n l) :=
+  ⟨universal_map_inj_of_components_inj (fun m => Lhom.on_bounded_term_inj (henkin_language_canonical_map_inj m)),
+   bounded_term_comparison_surj⟩
 
 /-- Auxiliary: surjectivity of bounded_formula_comparison by structural induction -/
 private lemma bounded_formula_comparison_surj {L : Language.{u}} :
