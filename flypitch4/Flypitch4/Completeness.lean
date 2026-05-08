@@ -55,12 +55,12 @@ theorem model_existence (T : SentTheory L) :
                          (completion_of_henkinization_is_henkin hT)
     let M : Structure L := Lhom.reduct (henkin_language_canonical_map 0) M'
     refine ⟨M, ?_, ?_⟩
-    · -- nonemptiness: reduct preserves nonemptiness (reduct_coe), and term_model is nonempty
-      have hne : Nonempty M'.carrier :=
-        term_model_nonempty (completion_of_henkinization_complete hT)
-                            (completion_of_henkinization_is_henkin hT)
-      -- M.carrier = M'.carrier by reduct_coe
-      rwa [show M.carrier = M'.carrier from Lhom.reduct_coe M']
+    · -- nonemptiness: term_model' T = Quotient (closed_term L) (term_setoid T) is nonempty
+      -- We get a constant from has_enough_constants: use bd_const c as a witness
+      rw [show M.carrier = M'.carrier from Lhom.reduct_coe M']
+      show Nonempty (term_model' (completion_of_henkinization hT))
+      obtain ⟨C, _⟩ := completion_of_henkinization_is_henkin hT
+      exact ⟨@Quotient.mk'' _ (term_setoid _) (bd_const (C bd_falsum))⟩
     · -- T satisfaction
       exact reduct_of_complete_henkinization_models_T hT
   · intro h_ex
