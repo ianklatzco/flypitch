@@ -392,7 +392,34 @@ private lemma realize_lift3_at2 {n} (ϕ : bounded_formula L_ZFC (n + 2))
   exact realize_lift2_at2 ϕ v x y z₂ z₃
 
 lemma bSet_models_collection {n} (ϕ : bounded_formula L_ZFC (n + 2)) :
-    ⊤ ⊩[V β] axiom_of_collection ϕ := by sorry -- TODO: cleanup-agent attempt failed before quota cap
+    ⊤ ⊩[V β] axiom_of_collection ϕ := by
+  change ⊤ ≤ _
+  simp only [axiom_of_collection, boolean_realize_sentence_bd_alls]
+  apply le_iInf
+  intro xs
+  match xs with
+  | DVec.cons u xs' =>
+    simp only [boolean_realize_bounded_formula, boolean_realize_bounded_formula_and,
+               boolean_realize_bounded_formula_ex, boolean_realize_bounded_formula_mem',
+               boolean_realize_bounded_term, DVec.nth, V_forall, V_exists, V_eq,
+               boolean_realize_formula_insert_lift2, realize_lift2_at2, realize_lift3_at2,
+               boolean_realize_subst_formula0]
+    -- After simp, goal should be `⊤ ≤ realize (cons u xs') (imp ... (∃ ...))`
+    -- with the formula bodies being  ϕ.eval at appropriate env
+    -- ψ a b := boolean_realize (b :: a :: xs') ϕ  matches the role of ϕ in bSet_axiom_of_collection
+    have hcoll := bSet_axiom_of_collection
+        (fun a b : bSet β =>
+          boolean_realize_bounded_formula (DVec.cons b (DVec.cons a xs')) ϕ DVec.nil)
+        (fun x y z => by
+          -- need: x =ᴮ y ⊓ realize (x :: z :: xs') ϕ ≤ realize (y :: z :: xs') ϕ
+          -- (ψ z x → ψ z y means varying position 0 of cons-cons)
+          exact B_ext_left_realize_bounded_formula ϕ (DVec.cons z xs') x y)
+        (fun x y z => by
+          -- need: x =ᴮ y ⊓ realize (z :: x :: xs') ϕ ≤ realize (z :: y :: xs') ϕ
+          exact B_ext_right_realize_bounded_formula ϕ xs' x y z)
+    have hu := hcoll.trans (iInf_le _ u)
+    -- Try to match goal
+    convert hu using 0
 -- axiom of union: ∀ u x, x ∈ ⋃u ↔ ∃ y ∈ u, x ∈ y
 def axiom_of_union : sentence L_ZFC :=
   bd_all (bd_all
