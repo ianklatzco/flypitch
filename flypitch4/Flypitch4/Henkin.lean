@@ -1046,25 +1046,143 @@ def completion_of_henkinization_complete {L : Language.{u}} {T : SentTheory L}
   · exact Set.image_mono (completion_of_henkinization_contains hT)
   · exact HC f
 
+/-! ## Helpers for the term model (ported from src/fol.lean:2445-2498) -/
+
+/-- If T is complete and T ⊢ₛ' f, then f ∈ T -/
+lemma mem_of_sprovable {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) {f : sentence L} (hf : T ⊢ₛ' f) : f ∈ T := by
+  rcases hcomp.2 f with h | h
+  · exact h
+  · exfalso; apply hcomp.1
+    -- h : bd_not f ∈ T, hf : T ⊢ₛ' f
+    -- T.fst ⊢' f.fst ⟹ ⊥'  (from h), and T.fst ⊢' f.fst (from hf)
+    exact impE' _ ⟨prf.axm (Set.mem_image_of_mem _ h)⟩ hf
+
+/-- If T is complete and T ⊬ₛ' f, then T ⊢ₛ' bd_not f -/
+lemma notI_of_is_complete {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) {f : sentence L} (hf : ¬T ⊢ₛ' f) : T ⊢ₛ' bd_not f := by
+  rcases hcomp.2 f with h | h
+  · exact absurd ⟨prf.axm (Set.mem_image_of_mem _ h)⟩ hf
+  · exact ⟨prf.axm (Set.mem_image_of_mem _ h)⟩
+
+/-- If T is complete, T ⊢ₛ' (bd_imp φ ψ) follows from (T ⊢ₛ' φ → T ⊢ₛ' ψ) -/
+lemma impI_of_is_complete {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) {φ ψ : sentence L}
+    (h : SentTheory.sprovable T φ → SentTheory.sprovable T ψ) :
+    SentTheory.sprovable T (bd_imp φ ψ) := by
+  simp only [SentTheory.sprovable, SentTheory.fst, bounded_preformula.fst]
+  rcases hcomp.2 φ with h₁ | h₁
+  · -- φ ∈ T
+    exact impI' (weakening1' (h ⟨prf.axm (Set.mem_image_of_mem _ h₁)⟩))
+  · -- bd_not φ ∈ T (h₁ : bd_not φ ∈ T)
+    apply impI'
+    apply falsumE'
+    apply weakening1'
+    -- need: insert φ.fst T.fst ⊢' ⊥'
+    -- h₁ : bd_not φ ∈ T  →  (φ.fst ⟹ ⊥') ∈ T.fst  →  ∈ insert φ.fst T.fst
+    have hmem : bounded_preformula.fst φ ⟹ ⊥' ∈ bounded_preformula.fst '' T :=
+      Set.mem_image_of_mem _ h₁
+    exact impE' _ ⟨prf.axm (Set.mem_insert_of_mem _ hmem)⟩ ⟨axm1⟩
+
+/-- Given a complete Henkin theory, universal failure yields a counterexample -/
+lemma find_counterexample_of_henkin {L : Language.{u}} {T : SentTheory L}
+    (hcomp : T.is_complete) (henk : has_enough_constants T)
+    (f : bounded_formula L 1) (hf : ¬T ⊢ₛ' bd_all f) :
+    ∃ t : closed_term L, T ⊢ₛ' bd_not (subst0_bounded_formula f t) := by
+  obtain ⟨C, hC⟩ := henk
+  refine ⟨bd_const (C (bd_not f)), ?_⟩
+  have hwit : T.fst ⊢' (wit_property (bd_not f) (C (bd_not f))).fst := hC (bd_not f)
+  -- hwit : T.fst ⊢' (bd_ex (bd_not f)).fst ⟹ (bd_not f)[c/0].fst
+  -- We need T.fst ⊢' (bd_not (subst0_bounded_formula f (bd_const (C (bd_not f))))).fst
+  -- Strategy: use ex_not_of_not_all to get ∃'(∼f), then apply hwit
+  have hnotall : T ⊢ₛ' bd_not (bd_all f) := notI_of_is_complete hcomp hf
+  simp only [SentTheory.sprovable, SentTheory.fst, bd_not, bounded_preformula.fst,
+             wit_property, bd_imp, bd_ex, bd_all, subst0_bounded_formula_fst] at *
+  -- After simp, hnotall : T.fst ⊢' ∀'f.fst ⟹ ⊥'
+  -- hwit : T.fst ⊢' (∀'(f.fst ⟹ ⊥') ⟹ ⊥') ⟹ something
+  -- We need: T.fst ⊢' ∀'(f.fst ⟹ ⊥') ⟹ ⊥'
+  -- ex_not_of_not_all : Γ ⊢ ∼(∀' f) → Γ ⊢ ∃'(∼f)
+  -- hnotall (after simp): T.fst ⊢' ∀'f.fst ⟹ ⊥' which is ∼(∀'f.fst)
+  -- So ⟨ex_not_of_not_all hnotall.some⟩ : T.fst ⊢' ∃'(∼f.fst)
+  -- ∃'(∼f.fst) = ∼(∀'∼∼f.fst) but we need ∼(∀'(f.fst ⟹ ⊥')) = ∼(∀'∼f.fst)
+  -- Actually ∼f = f ⟹ ⊥' and ∼∼f = ∼f ⟹ ⊥' so ∃'∼f = ∼(∀'∼∼f) = (∀'(f⟹⊥')⟹⊥')⟹⊥' ... hmm
+  -- Let me just use sorry here for now
+  sorry
+
+/-! ## Term model construction (src/fol.lean:2500-2559) -/
+
+/-- The term equality relation: t₁ ~ t₂ iff T ⊢ₛ' t₁ ≃ t₂ -/
+def term_rel {L : Language.{u}} (T : SentTheory L) (t₁ t₂ : closed_term L) : Prop :=
+  T ⊢ₛ' bd_equal t₁ t₂
+
+/-- The term equality setoid -/
+noncomputable def term_setoid {L : Language.{u}} (T : SentTheory L) : Setoid (closed_term L) :=
+  { r := term_rel T
+    iseqv := {
+      refl := fun t => ⟨prf.ref T.fst t.fst⟩
+      symm := fun h => h.map prf_symm
+      trans := fun h₁ h₂ => h₁.map2 prf_trans h₂
+    }
+  }
+
+/-- The carrier of the term model: closed terms modulo provable equality -/
+noncomputable def term_model' {L : Language.{u}} (T : SentTheory L) : Type u :=
+  @Quotient (closed_term L) (term_setoid T)
+
+/-- The function interpretation helper for the term model -/
+noncomputable def term_model_fun' {L : Language.{u}} (T : SentTheory L)
+    {l} (t : closed_preterm L l) (ts : DVec (closed_term L) l) : term_model' T :=
+  @Quotient.mk'' _ (term_setoid T) (bd_apps t ts)
+
+/-- The function interpretation in the term model, using quotient_lift -/
+noncomputable def term_model_fun {L : Language.{u}} (T : SentTheory L)
+    {l} (t : closed_preterm L l) (ts : DVec (term_model' T) l) : term_model' T :=
+  DVec.quotient_lift (term_model_fun' T t)
+    (fun {xs xs'} hxs => by
+      induction hxs with
+      | rnil => rfl
+      | rcons hx hxs ih =>
+        -- need to shift the term under the quotient
+        -- for now, sorry this compatibility step
+        sorry)
+    ts
+
+/-- The relation interpretation helper -/
+noncomputable def term_model_rel' {L : Language.{u}} (T : SentTheory L)
+    {l} (f : presentence L l) (ts : DVec (closed_term L) l) : Prop :=
+  T ⊢ₛ' bd_apps_rel f ts
+
+/-- The relation interpretation in the term model -/
+noncomputable def term_model_rel {L : Language.{u}} (T : SentTheory L)
+    {l} (f : presentence L l) (ts : DVec (term_model' T) l) : Prop :=
+  DVec.quotient_lift (term_model_rel' T f)
+    (fun {xs xs'} hxs => by
+      induction hxs with
+      | rnil => rfl
+      | rcons hx hxs ih =>
+        -- need to handle congr step
+        sorry)
+    ts
+
 /-! ## Term model and main completeness theorem -/
 
-/-- term_model of a complete Henkin theory (placeholder for src/fol.lean:2559) -/
+/-- term_model of a complete Henkin theory (src/fol.lean:2559-2562) -/
 noncomputable def term_model {L : Language.{u}} {T : SentTheory L}
     (_hcomp : T.is_complete) (_henk : has_enough_constants T) : Structure L :=
-  sorry -- TODO: port from src/fol.lean:2559-2580
+  { carrier := term_model' T
+    fun_map := fun {_n} f ts => term_model_fun T (bd_func f) ts
+    rel_map := fun {_n} R ts => term_model_rel T (bd_rel R) ts }
 
-/-- The term model satisfies T (placeholder for src/fol.lean:2672) -/
+/-- Canonical quotient map from closed terms to the term model -/
+@[reducible] noncomputable def term_mk {L : Language.{u}} (T : SentTheory L)
+    (t : closed_term L) : term_model' T :=
+  @Quotient.mk'' _ (term_setoid T) t
+
+/-- The term model satisfies T (src/fol.lean:2672) -/
 lemma term_model_ssatisfied {L : Language.{u}} {T : SentTheory L}
     (hcomp : T.is_complete) (henk : has_enough_constants T) :
     all_realize_sentence (term_model hcomp henk) T := by
   sorry -- TODO: port from src/fol.lean:2672-2673
-
-/-- The term model is nonempty (from src/fol.lean:2630: instance nonempty_term_model) -/
-lemma term_model_nonempty {L : Language.{u}} {T : SentTheory L}
-    (hcomp : T.is_complete) (henk : has_enough_constants T) :
-    Nonempty (term_model hcomp henk).carrier := by
-  sorry -- TODO: port from src/fol.lean:2630: use henk to get a constant c = C(&0≃&0),
-        -- then term_mk T (bd_const c) is an element
 
 /-- The reduct of the term model of the complete henkinization satisfies T -/
 @[simp] lemma reduct_of_complete_henkinization_models_T {L : Language.{u}} {T : SentTheory L}
