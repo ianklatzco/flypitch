@@ -1290,7 +1290,13 @@ lemma a1_Ord {Γ : 𝔹} : Γ ≤ Ord a1 := le_inf a1_ewo a1_transitive
 
 -- src/aleph_one.lean:828
 lemma a1_not_le_omega {Γ : 𝔹} : Γ ≤ (injects_into a1 omega)ᶜ := by
-  sorry -- TODO: port from src/aleph_one.lean:828
+  rw [← imp_bot, ← deduction]
+  -- Goal: Γ ⊓ injects_into a1 omega ≤ ⊥
+  apply bot_of_mem_self'
+  -- Goal: Γ ⊓ injects_into a1 omega ≤ a1 ∈ a1
+  apply (mem_a1_iff (inf_le_left.trans a1_Ord)).mpr
+  -- Goal: Γ ⊓ injects_into a1 omega ≤ ⨆ f, is_injective_function a1 omega f = injection_into a1 omega
+  exact injects_into_iff_injection_into.mp inf_le_right
 
 -- src/aleph_one.lean:834
 lemma a1_spec {Γ : 𝔹} : Γ ≤ aleph_one_Ord_spec a1 := by
