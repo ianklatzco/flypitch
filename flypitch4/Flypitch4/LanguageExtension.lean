@@ -1056,10 +1056,7 @@ lemma is_consistent_extend {T : SentTheory L} (hT : T.is_consistent) (hϕ : ϕ.i
     (hg' : ∀ x, g x ∉ Set.range (ϕ.on_function (n := 0))) :
     (ϕ.Theory_induced T ∪
       (fun f => subst0_bounded_formula (ϕ.on_bounded_formula (h f)) (bd_const (g f))) ''
-        Set.univ).is_consistent := by
-  -- TODO: port from src/language_extension.lean:748-783
-  -- Complex compactness argument using Finset induction + sgeneralize_constant
-  sorry
+        Set.univ).is_consistent := by sorry -- TODO: cleanup-agent attempt failed before quota cap, see git history
 
 end Lhom
 
