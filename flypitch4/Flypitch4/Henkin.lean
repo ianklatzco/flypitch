@@ -436,9 +436,125 @@ lemma formula_comparison_bijective {L : Language.{u}} (l) :
     Function.Bijective (@bounded_term_comparison L n l) := by
   sorry -- TODO: port from src/henkin.lean:582-615
 
+/-- Auxiliary: surjectivity of bounded_formula_comparison by structural induction -/
+private lemma bounded_formula_comparison_surj {L : Language.{u}} :
+    ∀ {n l} (f : bounded_preformula (L_infty L) n l),
+    ∃ x : colimit (@henkin_bounded_formula_chain L n l),
+      bounded_formula_comparison n l x = f := by
+  intro n l f
+  induction f with
+  | bd_falsum =>
+      exact ⟨canonical_map 0 bd_falsum, by
+        simp [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty]⟩
+  | bd_equal t₁ t₂ =>
+      obtain ⟨qt₁, Hqt₁⟩ := bounded_term_comparison_bijective _ 0 |>.right t₁
+      obtain ⟨qt₂, Hqt₂⟩ := bounded_term_comparison_bijective _ 0 |>.right t₂
+      obtain ⟨⟨i, xt₁⟩, Hit₁⟩ := germ_rep qt₁
+      obtain ⟨⟨j, xt₂⟩, Hit₂⟩ := germ_rep qt₂
+      -- Pre-compute that bounded_term_comparison maps back correctly
+      have Hbt₁ : bounded_term_comparison _ 0 (canonical_map i xt₁) = t₁ := by
+        have : canonical_map i xt₁ = qt₁ := Hit₁.symm ▸ rfl
+        rw [this]; exact Hqt₁
+      have Hbt₂ : bounded_term_comparison _ 0 (canonical_map j xt₂) = t₂ := by
+        have : canonical_map j xt₂ = qt₂ := Hit₂.symm ▸ rfl
+        rw [this]; exact Hqt₂
+      refine ⟨canonical_map (i + j) (bd_equal (push_to_sum_r xt₁ j) (push_to_sum_l xt₂ i)), ?_⟩
+      -- bounded_formula_comparison (canonical_map (i+j) (bd_equal ...)) = bd_equal t₁ t₂
+      -- Use the fact that bounded_term_comparison respects same-fiber
+      have key₁ : bounded_term_comparison _ 0 (canonical_map (i + j) (push_to_sum_r xt₁ j)) = t₁ := by
+        rw [← same_fiber_as_push_to_r]; exact Hbt₁
+      have key₂ : bounded_term_comparison _ 0 (canonical_map (i + j) (push_to_sum_l xt₂ i)) = t₂ := by
+        rw [← same_fiber_as_push_to_l]; exact Hbt₂
+      apply bounded_preformula.eq
+      simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty,
+                 Lhom.on_bounded_formula, bounded_preformula.fst]
+      -- Goal: preformula.equal (...).fst (...).fst = preformula.equal t₁.fst t₂.fst
+      congr 1
+      · -- (on_bounded_term (canonical_map (i+j)) (push_r xt₁ j)).fst = t₁.fst
+        have h_eq := congrArg bounded_preterm.fst key₁
+        simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty] at h_eq
+        exact (Lhom.on_bounded_term_fst _ _) ▸ h_eq
+      · have h_eq := congrArg bounded_preterm.fst key₂
+        simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty] at h_eq
+        exact (Lhom.on_bounded_term_fst _ _) ▸ h_eq
+  | bd_rel R =>
+      obtain ⟨⟨i, x⟩, Hx⟩ := germ_rep R
+      exact ⟨canonical_map i (bd_rel x), by
+        apply bounded_preformula.eq
+        simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty,
+                   Lhom.on_bounded_formula, bounded_preformula.fst, bd_rel]
+        simp only [henkin_language_canonical_map, canonical_map_language]
+        rw [← Hx]
+        rfl⟩
+  | bd_apprel f t ihf =>
+      obtain ⟨qf, Hqf⟩ := ihf
+      obtain ⟨qt, Hqt⟩ := bounded_term_comparison_bijective _ 0 |>.right t
+      obtain ⟨⟨i, xf⟩, Hif⟩ := germ_rep qf
+      obtain ⟨⟨j, xt⟩, Hjt⟩ := germ_rep qt
+      -- Pre-compute back-tracking equalities
+      have Hbf : bounded_formula_comparison _ _ (canonical_map i xf) = f := by
+        have : canonical_map i xf = qf := Hif.symm ▸ rfl
+        rw [this]; exact Hqf
+      have Hbt : bounded_term_comparison _ 0 (canonical_map j xt) = t := by
+        have : canonical_map j xt = qt := Hjt.symm ▸ rfl
+        rw [this]; exact Hqt
+      have keyf : bounded_formula_comparison _ _ (canonical_map (i + j) (push_to_sum_r xf j)) = f := by
+        rw [← same_fiber_as_push_to_r]; exact Hbf
+      have keyt : bounded_term_comparison _ 0 (canonical_map (i + j) (push_to_sum_l xt i)) = t := by
+        rw [← same_fiber_as_push_to_l]; exact Hbt
+      refine ⟨canonical_map (i + j) (bd_apprel (push_to_sum_r xf j) (push_to_sum_l xt i)), ?_⟩
+      apply bounded_preformula.eq
+      simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty,
+                 Lhom.on_bounded_formula, bounded_preformula.fst]
+      congr 1
+      · have hf_eq := congrArg bounded_preformula.fst keyf
+        simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty] at hf_eq
+        exact (Lhom.on_bounded_formula_fst _ _) ▸ hf_eq
+      · have ht_eq := congrArg bounded_preterm.fst keyt
+        simp only [bounded_term_comparison, universal_map_property, cocone_of_bounded_term_L_infty] at ht_eq
+        exact (Lhom.on_bounded_term_fst _ _) ▸ ht_eq
+  | bd_imp f₁ f₂ ihf₁ ihf₂ =>
+      obtain ⟨qf₁, Hqf₁⟩ := ihf₁
+      obtain ⟨qf₂, Hqf₂⟩ := ihf₂
+      obtain ⟨⟨i, xf₁⟩, Hif₁⟩ := germ_rep qf₁
+      obtain ⟨⟨j, xf₂⟩, Hjf₂⟩ := germ_rep qf₂
+      have Hbf₁ : bounded_formula_comparison _ _ (canonical_map i xf₁) = f₁ := by
+        have : canonical_map i xf₁ = qf₁ := Hif₁.symm ▸ rfl; rw [this]; exact Hqf₁
+      have Hbf₂ : bounded_formula_comparison _ _ (canonical_map j xf₂) = f₂ := by
+        have : canonical_map j xf₂ = qf₂ := Hjf₂.symm ▸ rfl; rw [this]; exact Hqf₂
+      have keyf₁ : bounded_formula_comparison _ _ (canonical_map (i + j) (push_to_sum_r xf₁ j)) = f₁ := by
+        rw [← same_fiber_as_push_to_r]; exact Hbf₁
+      have keyf₂ : bounded_formula_comparison _ _ (canonical_map (i + j) (push_to_sum_l xf₂ i)) = f₂ := by
+        rw [← same_fiber_as_push_to_l]; exact Hbf₂
+      refine ⟨canonical_map (i + j) (bd_imp (push_to_sum_r xf₁ j) (push_to_sum_l xf₂ i)), ?_⟩
+      apply bounded_preformula.eq
+      simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty,
+                 Lhom.on_bounded_formula, bounded_preformula.fst]
+      congr 1
+      · have h_eq := congrArg bounded_preformula.fst keyf₁
+        simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty] at h_eq
+        exact (Lhom.on_bounded_formula_fst _ _) ▸ h_eq
+      · have h_eq := congrArg bounded_preformula.fst keyf₂
+        simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty] at h_eq
+        exact (Lhom.on_bounded_formula_fst _ _) ▸ h_eq
+  | bd_all f ihf =>
+      obtain ⟨qf, Hqf⟩ := ihf
+      obtain ⟨⟨i, xf⟩, Hif⟩ := germ_rep qf
+      have Hbf : bounded_formula_comparison _ _ (canonical_map i xf) = f := by
+        have : canonical_map i xf = qf := Hif.symm ▸ rfl; rw [this]; exact Hqf
+      refine ⟨canonical_map i (bd_all xf), ?_⟩
+      apply bounded_preformula.eq
+      simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty,
+                 Lhom.on_bounded_formula, bounded_preformula.fst]
+      congr 1
+      have h_eq := congrArg bounded_preformula.fst Hbf
+      simp only [bounded_formula_comparison, universal_map_property, cocone_of_bounded_formula_L_infty] at h_eq
+      exact (Lhom.on_bounded_formula_fst _ _) ▸ h_eq
+
 @[simp] lemma bounded_formula_comparison_bijective {L : Language.{u}} (n l) :
-    Function.Bijective (@bounded_formula_comparison L n l) := by
-  sorry -- TODO: port from src/henkin.lean:617-652
+    Function.Bijective (@bounded_formula_comparison L n l) :=
+  ⟨universal_map_inj_of_components_inj (fun m => Lhom.on_bounded_formula_inj (henkin_language_canonical_map_inj m)),
+   bounded_formula_comparison_surj⟩
 
 @[simp] lemma bounded_formula'_comparison_bijective {L : Language.{u}} :
     Function.Bijective (@bounded_formula'_comparison L) :=
