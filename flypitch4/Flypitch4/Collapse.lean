@@ -41,20 +41,24 @@ lemma poset_coyoneda_iff {β : Type*} [Preorder β] {a b : β} :
     for helpers that are only needed to be stated, and the actual collapse algebra code will
     use Mathlib's `Cardinal.add_lt_of_lt`, `mul_lt_of_lt`, etc. directly. -/
 
-/-- Analog of cardinal.sum_const_lift. TODO (15b): fix universe annotations. -/
+/-- Analog of cardinal.sum_const_lift. -/
 theorem collapse_sum_const_lift (ι : Type u) (a : Cardinal.{max u v}) :
     Cardinal.sum (fun _ : ι => a) = Cardinal.lift.{v} (#ι) * a := by
-  sorry -- TODO: universe mismatch; use Cardinal.sum_const + ring
+  rw [Cardinal.sum_const]
+  have h1 : @Cardinal.lift.{max u v, u} = @Cardinal.lift.{v, u} := Cardinal.lift_umax
+  have h2 : Cardinal.lift.{u} a = a := Cardinal.lift_id' a
+  rw [← h1, h2]
 
-/-- Analog of cardinal.sum_le_sup_lift. TODO (15b): fix universe annotations. -/
+/-- Analog of cardinal.sum_le_sup_lift. -/
 theorem collapse_sum_le_sup_lift {ι : Type u} (f : ι → Cardinal.{max u v}) :
-    Cardinal.sum f ≤ Cardinal.lift.{v} (#ι) * ⨆ i, f i := by
-  sorry -- TODO: Mathlib's sum_le_lift_mk_mul_iSup has different lift levels
+    Cardinal.sum f ≤ Cardinal.lift.{v} (#ι) * ⨆ i, f i :=
+  Cardinal.sum_le_lift_mk_mul_iSup f
 
-/-- Analog of cardinal.mk_Union_le_sum_mk'. TODO (15b): fix universe annotations. -/
+/-- Analog of cardinal.mk_Union_le_sum_mk'. -/
 theorem collapse_mk_iUnion_le_sum_mk {ι : Type u} {α : Type (max u v)} {f : ι → Set α} :
     #(⋃ i, f i) ≤ Cardinal.sum (fun i => #(f i)) := by
-  sorry -- TODO: type universe mismatch with mk_iUnion_le_sum_mk
+  have h := @Cardinal.mk_iUnion_le_sum_mk_lift α ι f
+  rwa [Cardinal.lift_id'] at h
 
 /-- Analog of cardinal.mk_Union_le_lift. TODO (15b): fix universe annotations. -/
 lemma collapse_mk_iUnion_le_lift {ι : Type u} {α : Type (max u v)} (f : ι → Set α) :
@@ -66,10 +70,15 @@ lemma collapse_mk_iUnion_le_lift {ι : Type u} {α : Type (max u v)} (f : ι →
 
 /-! ## Ordinal helpers (src lines 52-70) -/
 
-/-- Analog of ordinal.sup_lt_ord_lift. TODO (15b): fix universe annotations. -/
+/-- Analog of ordinal.sup_lt_ord_lift. -/
 theorem collapse_sup_lt_ord_lift {ι : Type u} (f : ι → Ordinal.{max u v}) {c : Ordinal}
     (H1 : Cardinal.lift.{v} (#ι) < c.cof) (H2 : ∀ i, f i < c) : iSup f < c := by
-  sorry -- TODO: Ordinal.lift_iSup_lt_of_lt_cof has different universe levels
+  apply Ordinal.lift_iSup_lt_of_lt_cof
+  · rw [← Ordinal.lift_cof]
+    rw [show Cardinal.lift.{u, max u v} c.cof = c.cof from Cardinal.lift_id' _]
+    rw [show @Cardinal.lift.{max u v, u} = @Cardinal.lift.{v, u} from Cardinal.lift_umax]
+    exact H1
+  · exact H2
 
 /-- Analog of ordinal.sup_lt_lift. TODO (15b): fix universe annotations. -/
 theorem collapse_sup_lt_lift {ι : Type u} (f : ι → Cardinal.{max u v}) {c : Cardinal.{max u v}}
