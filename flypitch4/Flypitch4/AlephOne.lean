@@ -1445,7 +1445,144 @@ lemma mem_a1_of_injects_into_omega_aux {Γ : 𝔹} {η : bSet 𝔹}
     (H_ord : Γ ≤ Ord η) (H_inj : Γ ≤ ⨆ f, is_injective_function η omega f)
     (H_not_zero : Γ ≤ (η =ᴮ 0)ᶜ) (H_not_one : Γ ≤ (η =ᴮ 1)ᶜ) :
     Γ ≤ η ∈ᴮ a1_aux := by
-  sorry -- TODO: port from src/aleph_one.lean:746
+  -- Step 1: Extract f from H_inj using maximum_principle
+  obtain ⟨f, Hf_eq⟩ := maximum_principle (fun f => is_injective_function η omega f)
+    (B_ext_inf B_ext_is_function_right (B_ext_iInf (h := fun w₁ => B_ext_iInf (h := fun w₂ =>
+      B_ext_iInf (h := fun v₁ => B_ext_iInf (h := fun v₂ =>
+        B_ext_imp (h₁ := B_ext_inf (h₁ := B_ext_inf (h₁ := B_ext_mem_right) (h₂ := B_ext_mem_right))
+          (h₂ := B_ext_const)) (h₂ := B_ext_const)))))))
+  have Hf : Γ ≤ is_injective_function η omega f := Hf_eq ▸ H_inj
+  -- Step 2: Let R = induced_epsilon_rel η omega f
+  set R := induced_epsilon_rel η omega f
+  -- Step 3: Show R ∈ a1'
+  -- Need: (i) R ∈ bv_powerset (prod omega omega), (ii) ϕ' R holds
+  -- (i) induced_epsilon_rel ⊆ prod omega omega (subset.mk_subset)
+  -- (ii) ϕ'(R) = ∃ η', Ord η' ∧ ∃ g, inj_fun η' ω g ∧ image(mem_rel η')(prod ω ω)(pm η' ω g) =ᴮ R ∧ R ≠ ∅
+  have HR_mem_a1' : Γ ≤ R ∈ᴮ (a1' : bSet 𝔹) := by
+    -- a1' = comprehend ϕ' (bv_powerset (prod ω ω))
+    -- use mem_comprehend_iff₂ with ϕ' being the big predicate
+    rw [show (a1' (𝔹 := 𝔹)) = comprehend
+        (fun x : bSet 𝔹 => ⨆ η', Ord η' ⊓ ⨆ f', is_injective_function η' omega f' ⊓
+          (image (mem_rel η') (prod omega omega) (prod_map_self η' omega f') =ᴮ x) ⊓ (x =ᴮ ∅)ᶜ)
+        (bv_powerset (prod omega omega)) from rfl]
+    rw [mem_comprehend_iff₂
+      (H_congr := B_ext_iSup (h := fun η' => B_ext_inf (h₁ := B_ext_const) (h₂ :=
+        B_ext_iSup (h := fun f' => B_ext_inf
+          (h₁ := B_ext_inf (h₁ := B_ext_const) (h₂ := B_ext_bv_eq_right))
+          (h₂ := B_ext_neg (h := B_ext_bv_eq_left))))))]
+    -- Provide witness: R itself (R ∈ bv_powerset and ϕ'(R))
+    apply le_iSup_of_le R
+    refine le_inf ?_ (le_inf bv_refl ?_)
+    · -- R ∈ bv_powerset (prod omega omega)
+      rw [mem_powerset_iff]
+      -- induced_epsilon_rel = image (...) (prod omega omega) (...) ⊆ prod omega omega
+      exact le_trans (le_top) (le_trans le_top image_subset)
+    · -- ϕ'(R) = ⨆ η', Ord η' ⊓ ...
+      apply le_iSup_of_le η
+      refine le_inf H_ord ?_
+      apply le_iSup_of_le f
+      refine le_inf (le_inf Hf bv_refl) ?_
+      -- R ≠ ∅: use nonempty_induced_rel_iff_not_zero_and_not_one
+      exact ((nonempty_induced_rel_iff_not_zero_and_not_one H_ord (Hf.trans inf_le_left)).mpr
+        ⟨H_not_zero, H_not_one⟩)
+  -- Step 4: Show η ∈ a1_aux using the χ from R ∈ a1'
+  -- Use bv_cases_left pattern to introduce χ while keeping Γ in context
+  -- Goal: Γ ≤ η ∈ a1_aux = ⨆ χ : a1'.type, a1'.bval χ ⊓ η =ᴮ a1_func χ
+  rw [mem_unfold] at HR_mem_a1'
+  rw [mem_unfold]
+  -- Transform: Γ ≤ (⨆ χ, bval χ ⊓ R =ᴮ func χ) → Γ ≤ (⨆ χ, bval χ ⊓ η =ᴮ a1_func χ)
+  -- via bv_cases_left keeping Γ in context
+  apply le_trans (le_inf HR_mem_a1' le_rfl)
+  apply bv_cases_left; intro χ
+  -- Now ctx = (a1'.bval χ ⊓ R =ᴮ a1'.func χ) ⊓ Γ
+  apply le_iSup_of_le χ
+  apply le_inf (inf_le_left.trans inf_le_left)
+  -- Goal: (bval χ ⊓ R =ᴮ func χ) ⊓ Γ ≤ η =ᴮ a1_func χ
+  -- Step 5: Use a1_func_spec
+  have Hbval : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      (a1' (𝔹 := 𝔹)).bval χ := inf_le_left.trans inf_le_left
+  have Hfunc_eq : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      R =ᴮ (a1' (𝔹 := 𝔹)).func χ := inf_le_left.trans inf_le_right
+  have H_mem' : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      (a1' (𝔹 := 𝔹)).func χ ∈ᴮ (a1' (𝔹 := 𝔹)) :=
+    le_trans Hbval (mem_mk' _ _)
+  have H_spec : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      a1_ψ ((a1' (𝔹 := 𝔹)).func χ) (a1_func χ) := a1_func_spec H_mem'
+  have H_afc_ord : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      Ord (a1_func χ) := H_spec.trans (inf_le_left.trans inf_le_left)
+  have H_spec_inj : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      ⨆ g, is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ :=
+    H_spec.trans (inf_le_left.trans inf_le_right)
+  have H_afc_nonempty : (a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ ≤
+      ((a1' (𝔹 := 𝔹)).func χ =ᴮ ∅)ᶜ := H_spec.trans inf_le_right
+  -- Step 6: For each g, derive η =ᴮ a1_func χ
+  apply le_trans (le_inf H_spec_inj le_rfl)
+  apply bv_cases_left; intro g
+  -- New ctx: (inj_fun(afc,ω,g) ⊓ img =ᴮ func χ) ⊓ ((bval χ ⊓ R =ᴮ func χ) ⊓ Γ)
+  have Hg_inj : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      is_injective_function (a1_func χ) omega g :=
+    inf_le_left.trans inf_le_left
+  have Hg_img : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ :=
+    inf_le_left.trans inf_le_right
+  have HR_func_χ : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      R =ᴮ (a1' (𝔹 := 𝔹)).func χ :=
+    inf_le_right.trans Hfunc_eq
+  have H_afc_ord2 : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      Ord (a1_func χ) := inf_le_right.trans H_afc_ord
+  have H_nonempty2 : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      ((a1' (𝔹 := 𝔹)).func χ =ᴮ ∅)ᶜ := inf_le_right.trans H_afc_nonempty
+  -- H_ord, Hf, H_not_one from Γ
+  have H_ord2 := inf_le_right.trans (inf_le_right.trans H_ord) (a := (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓ ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ))
+  have Hf2 := inf_le_right.trans (inf_le_right.trans Hf) (a := (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓ ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ))
+  have H_not_one2 := inf_le_right.trans (inf_le_right.trans H_not_one) (a := (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓ ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ))
+  have H_ind_eq : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      induced_epsilon_rel η omega f =ᴮ induced_epsilon_rel (a1_func χ) omega g := by
+    unfold induced_epsilon_rel at *
+    exact le_trans (le_inf HR_func_χ (bv_symm Hg_img)) bv_eq_trans
+  have H_exists_two_η := (exists_two_iff H_ord2).mpr H_not_one2
+  have H_exists_two_afc : (is_injective_function (a1_func χ) omega g ⊓
+      image (mem_rel (a1_func χ)) (prod omega omega) (prod_map_self (a1_func χ) omega g) =ᴮ
+      (a1' (𝔹 := 𝔹)).func χ) ⊓
+      ((a1' (𝔹 := 𝔹)).bval χ ⊓ R =ᴮ (a1' (𝔹 := 𝔹)).func χ ⊓ Γ) ≤
+      exists_two (a1_func χ) := by
+    rw [exists_two_iff H_afc_ord2]
+    -- Use: not_one_of_induced_rel_nonempty + ind nonempty from H_nonempty2 + Hg_img
+    apply not_one_of_induced_rel_nonempty (Hg_inj.trans inf_le_left)
+    -- Need: (induced_epsilon_rel (a1_func χ) omega g =ᴮ ∅)ᶜ
+    -- From Hg_img: ind =ᴮ a1'.func χ and H_nonempty2: (a1'.func χ =ᴮ ∅)ᶜ
+    apply bv_rw' (H := Hg_img) (ϕ := fun v => (v =ᴮ ∅)ᶜ)
+      (h_congr := B_ext_neg (h := B_ext_bv_eq_left))
+    exact H_nonempty2
+  exact eq_of_eq_induced_epsilon_rel H_ord2 H_afc_ord2 Hf2 Hg_inj H_ind_eq
+    H_exists_two_η H_exists_two_afc
 
 -- src/aleph_one.lean:777
 lemma mem_a1_iff {Γ : 𝔹} {η : bSet 𝔹} (H_ord : Γ ≤ Ord η) :
