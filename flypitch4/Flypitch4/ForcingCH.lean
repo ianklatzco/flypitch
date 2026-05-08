@@ -886,7 +886,10 @@ lemma AE_of_check_func_check' (x y : PSet.{u})
 -- src/forcing_CH.lean:416-444
 lemma check_functions_eq_functions (y : PSet.{u}) {Γ : 𝔹_collapse} :
     Γ ≤ check (PSet.functions PSet.omega y) =ᴮ functions bSet.omega (check y) := by
-  -- TODO: port from src/forcing_CH.lean:416
+  -- TODO: port from src/forcing_CH.lean:416-444. Density argument using
+  -- `rel_dense_of_dense_in_basis` + `function_reflect_of_omega_closed` (now proven).
+  -- Cascade attempt previously failed on namespace qualification (`isOpen_of_isRegularOpen`
+  -- lives in `Flypitch.Regular`, not at top level) and `rw` pattern issues.
   sorry
 
 -- ============================================================
