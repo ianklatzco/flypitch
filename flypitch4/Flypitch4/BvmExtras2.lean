@@ -671,7 +671,52 @@ lemma strong_eps_hom_iff {x y f : bSet 𝔹} {Γ : 𝔹} :
       (w₁) (_Hw₁_mem : Γ' ≤ w₁ ∈ᴮ y) (w₂) (_Hw₂_mem : Γ' ≤ w₂ ∈ᴮ y)
       (_Hpr₁_mem : Γ' ≤ pair z₁ w₁ ∈ᴮ f) (_Hpr₂_mem : Γ' ≤ pair z₂ w₂ ∈ᴮ f),
       Γ' ≤ z₁ ∈ᴮ z₂ ↔ Γ' ≤ w₁ ∈ᴮ w₂ := by
-  sorry -- TODO: port from src/bvm_extras2.lean:352
+  constructor
+  · -- Forward: unfold the iInf structure and use bv_biimp_iff
+    intro H Γ' H_le z₁ Hz₁ z₂ Hz₂ w₁ Hw₁ w₂ Hw₂ Hpr₁ Hpr₂
+    -- Unfold strong_eps_hom manually (we can't use strong_eps_hom_unfold since it's defined after)
+    have H' := le_trans H_le H
+    have h1 := le_trans H' (iInf_le _ z₁)
+    have h2 := le_trans (le_inf h1 Hz₁) bv_imp_elim
+    have h3 := le_trans h2 (iInf_le _ z₂)
+    have h4 := le_trans (le_inf h3 Hz₂) bv_imp_elim
+    have h5 := le_trans h4 (iInf_le _ w₁)
+    have h6 := le_trans (le_inf h5 Hw₁) bv_imp_elim
+    have h7 := le_trans h6 (iInf_le _ w₂)
+    have h8 := le_trans (le_inf h7 Hw₂) bv_imp_elim
+    have h9 := le_trans (le_inf h8 Hpr₁) bv_imp_elim
+    have h10 := le_trans (le_inf h9 Hpr₂) bv_imp_elim
+    rw [bv_biimp_iff] at h10
+    exact h10 le_rfl
+  · -- Backward: build the iInf structure
+    intro H
+    unfold strong_eps_hom
+    apply le_iInf; intro z₁; rw [← deduction]
+    apply le_iInf; intro z₂; rw [← deduction]
+    apply le_iInf; intro w₁; rw [← deduction]
+    apply le_iInf; intro w₂; rw [← deduction, ← deduction, ← deduction]
+    -- ctx6 = Γ ⊓ z₁∈x ⊓ z₂∈x ⊓ w₁∈y ⊓ w₂∈y ⊓ pair z₁ w₁ ∈ f ⊓ pair z₂ w₂ ∈ f ≤ z₁∈z₂ ⇔ w₁∈w₂
+    -- Note: the context is left-associated: ((((((Γ ⊓ z₁∈x) ⊓ z₂∈x) ⊓ w₁∈y) ⊓ w₂∈y) ⊓ pr₁∈f) ⊓ pr₂∈f)
+    rw [bv_biimp_iff]
+    intro Γ'' H_Γ''
+    apply H
+    · -- Γ'' ≤ Γ
+      exact H_Γ''.trans (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans
+        (inf_le_left.trans (inf_le_left.trans inf_le_left)))))
+    · -- Γ'' ≤ z₁ ∈ᴮ x
+      exact H_Γ''.trans (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans
+        (inf_le_left.trans (inf_le_left.trans inf_le_right)))))
+    · -- Γ'' ≤ z₂ ∈ᴮ x
+      exact H_Γ''.trans (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans
+        (inf_le_left.trans inf_le_right))))
+    · -- Γ'' ≤ w₁ ∈ᴮ y
+      exact H_Γ''.trans (inf_le_left.trans (inf_le_left.trans (inf_le_left.trans inf_le_right)))
+    · -- Γ'' ≤ w₂ ∈ᴮ y
+      exact H_Γ''.trans (inf_le_left.trans (inf_le_left.trans inf_le_right))
+    · -- Γ'' ≤ pair z₁ w₁ ∈ᴮ f
+      exact H_Γ''.trans (inf_le_left.trans inf_le_right)
+    · -- Γ'' ≤ pair z₂ w₂ ∈ᴮ f
+      exact H_Γ''.trans inf_le_right
 
 -- src/bvm_extras2.lean:365
 lemma strong_eps_hom_unfold {x y f : bSet 𝔹} {Γ : 𝔹} (H : Γ ≤ strong_eps_hom x y f) :
@@ -964,6 +1009,53 @@ lemma Ord.succ_le_of_lt {η ρ : bSet 𝔹} {Γ : 𝔹} (H_Ord' : Γ ≤ Ord ρ)
 -- src/bvm_extras2.lean:572
 lemma omega_least_is_limit {Γ : 𝔹} :
     Γ ≤ ⨅ η, Ord η ⟹ ((is_limit η) ⟹ omega ⊆ᴮ η) := by
-  sorry -- TODO: port from src/bvm_extras2.lean:572
+  apply le_iInf; intro η; rw [← deduction, ← deduction]
+  -- ctx = Γ ⊓ Ord η ⊓ is_limit η
+  -- Goal: ctx ≤ omega ⊆ᴮ η
+  -- omega ⊆ η unfolds via subset_unfold to ⨅ j : ULift ℕ, ⊤ ⟹ of_nat j.down ∈ η
+  rw [subset_unfold]
+  apply le_iInf; intro j
+  simp only [omega_bval, omega_func, top_imp]
+  -- Goal: Γ ⊓ Ord η ⊓ is_limit η ≤ of_nat j.down ∈ᴮ η
+  -- Prove by induction on j.down
+  set ctx := Γ ⊓ Ord η ⊓ is_limit η
+  have H_η : ctx ≤ Ord η := inf_le_left.trans inf_le_right
+  have H_limit : ctx ≤ is_limit η := inf_le_right
+  have H_zero : ctx ≤ (∅ : bSet 𝔹) ∈ᴮ η := H_limit.trans inf_le_left
+  have H_succ : ctx ≤ ⨅ x, x ∈ᴮ η ⟹ ⨆ y, y ∈ᴮ η ⊓ x ∈ᴮ y := H_limit.trans inf_le_right
+  -- Induction on j.down
+  induction j.down with
+  | zero =>
+    -- of_nat 0 = 0 = ∅ ∈ η
+    apply bv_rw' (H := zero_eq_empty) (H_new := H_zero) (h_congr := B_ext_mem_left)
+  | succ n ih =>
+    -- of_nat (n+1) = succ (of_nat n) ∈ η
+    rw [check_succ_eq_succ_check]
+    -- ih : ctx ≤ of_nat n ∈ᴮ η
+    -- H_succ applied to of_nat n gives ⨆ y, y ∈ η ⊓ of_nat n ∈ y
+    have h_spec : ctx ≤ ⨆ y, y ∈ᴮ η ⊓ (of_nat n) ∈ᴮ y :=
+      le_trans (le_inf (H_succ.trans (iInf_le _ (of_nat n))) ih) bv_imp_elim
+    -- Get y with y ∈ η ∧ of_nat n ∈ y
+    obtain ⟨y, Hy⟩ := exists_convert h_spec
+      (B_ext_inf B_ext_mem_left B_ext_mem_right)
+    have Hy_η : ctx ≤ y ∈ᴮ η := Hy.trans inf_le_left
+    have Hn_y : ctx ≤ (of_nat n) ∈ᴮ y := Hy.trans inf_le_right
+    -- y ∈ η means Ord y (by Ord_of_mem_Ord)
+    have Hy_ord : ctx ≤ Ord y := Ord_of_mem_Ord Hy_η H_η
+    -- We need succ (of_nat n) ∈ η
+    -- of_nat n ∈ y and Ord η, Ord y means either succ (of_nat n) ⊆ y or y ∈ succ (of_nat n)
+    -- Use Ord.succ_le_of_lt: of_nat n ∈ y → succ (of_nat n) ⊆ y
+    have h_sub : ctx ≤ succ (of_nat n) ⊆ᴮ y :=
+      Ord.succ_le_of_lt Hy_ord Hn_y
+    -- From Ord.le_iff_lt_or_eq: succ (of_nat n) ⊆ y → succ (of_nat n) ∈ y ∨ succ (of_nat n) = y
+    have h_lor : ctx ≤ succ (of_nat n) ∈ᴮ y ⊔ succ (of_nat n) =ᴮ y :=
+      (Ord.le_iff_lt_or_eq (Ord_succ Ord_of_nat) Hy_ord).mp h_sub
+    -- Case succ (of_nat n) ∈ y: then succ (of_nat n) ∈ η by mem_of_mem_Ord
+    have hcase1 : (succ (of_nat n) ∈ᴮ y) ⊓ ctx ≤ succ (of_nat n) ∈ᴮ η :=
+      mem_of_mem_Ord inf_le_left (inf_le_right.trans Hy_η) (inf_le_right.trans H_η)
+    -- Case succ (of_nat n) = y: then succ (of_nat n) ∈ η (since y ∈ η)
+    have hcase2 : (succ (of_nat n) =ᴮ y) ⊓ ctx ≤ succ (of_nat n) ∈ᴮ η :=
+      bv_rw'' (ϕ := fun v => v ∈ᴮ η) (bv_symm inf_le_left) (inf_le_right.trans Hy_η) B_ext_mem_left
+    exact le_trans (le_inf h_lor le_rfl) (bv_or_elim_left hcase1 hcase2)
 
 end bSet
