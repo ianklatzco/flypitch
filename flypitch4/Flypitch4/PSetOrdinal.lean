@@ -134,14 +134,13 @@ lemma ordinalMk_zero_equiv : PSet.Equiv (ordinalMk (0 : Ordinal.{u})) (∅ : PSe
     obtain ⟨a, ha, _⟩ := hy
     exact absurd ha (not_lt.mpr (bot_le))
 
--- For 6b/6c: type of ordinalMk 0
--- Note: Ordinal.ToType 0 is the empty type but not definitionally PEmpty;
--- this is a sorry (TODO) pending a better proof.
-@[simp] lemma ordinalMk_zero_type : (ordinalMk (0 : Ordinal.{u})).Type = PEmpty := by
-  -- TODO: port from src/pSet_ordinal.lean:93-95
-  -- ordinalMk_type gives .Type = Ordinal.ToType 0 = 0.out.α which is empty but ≠ PEmpty def'ly
-  simp only [ordinalMk_type]
-  sorry
+-- For 6b/6c: type of ordinalMk 0 is empty.
+-- Note: `Ordinal.ToType 0` is the empty type (mathlib provides
+-- `isEmpty_toType_zero`) but it is not definitionally `PEmpty`, so we state
+-- the result as `IsEmpty` rather than `= PEmpty`.
+lemma ordinalMk_zero_type : IsEmpty (ordinalMk (0 : Ordinal.{u})).Type := by
+  rw [ordinalMk_type]
+  exact Ordinal.isEmpty_toType_zero
 
 -- Successor: membership in ordinalMk(succ η) ↔ in ordinalMk η or ≡ ordinalMk η
 lemma ordinalMk_succ_mem_iff {η : Ordinal} {x : PSet} :
