@@ -38,10 +38,11 @@ verbatim in `src/set_theory.lean` as a reference.
 
 ### TODO (sorry-deferred, on the critical path)
 
-- `countable_chain_condition_pi` — needed by the port of `cantor_space.lean`.
-  Statement is uncontroversial; the proof requires the (dropped) `pi_basis`/
-  `support` infrastructure. Either reconstruct that infrastructure or rebind
-  to a mathlib4 equivalent at the time `cantor_space` is ported.
+- `delta_system_lemma_aleph1` — Δ-system lemma at ω₁ for finite-set families.
+  The CCC-pi proof below reduces to this single black-box assumption. The
+  Lean 3 source provides `delta_system_lemma_uncountable` (~250 lines of
+  cardinal arithmetic via a more general regular-cardinal version); porting
+  it is the only remaining work for completeness.
 -/
 
 universe u v
