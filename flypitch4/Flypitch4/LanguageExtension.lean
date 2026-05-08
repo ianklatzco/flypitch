@@ -818,8 +818,59 @@ noncomputable def generalize_constant {Γ : Set (formula L)} (c : L.constants)
     (hΓ : (Sum.inl ⟨0, c⟩ : Language.symbols L) ∉ ⋃₀ (symbols_in_formula '' Γ))
     {f : formula L} (hf : (Sum.inl ⟨0, c⟩ : Language.symbols L) ∉ symbols_in_formula f)
     (H : Γ ⊢ f [preterm.func c // 0]f) : Γ ⊢ ∀' f := by
-  -- TODO: port from src/language_extension.lean:596-628
-  sorry
+  apply prf.allI
+  -- Filter morphism that removes c from the language
+  let p : Language.symbols L → Prop := (· ≠ Sum.inl ⟨0, c⟩)
+  let ψ : filter_symbols p →ᴸ L := filter_symbols_Lhom p
+  have hψ : is_injective ψ := is_injective_filter_symbols_Lhom p
+  haveI : has_decidable_range ψ :=
+    ⟨fun {_} _f => Classical.propDecidable _, fun {_} _R => Classical.propDecidable _⟩
+  -- c is not in the range of ψ.on_function (since filter language excludes it)
+  have hc : c ∉ Set.range (ψ.on_function (n := 0)) := by
+    rintro ⟨c', hc'⟩
+    -- c'.val = c, but c'.2 says Sum.inl ⟨0, c'.val⟩ ≠ Sum.inl ⟨0, c⟩
+    exact c'.2 (congrArg (Sum.inl ∘ Sigma.mk 0) hc')
+  -- f lifts back to the filtered language
+  have hf' : symbols_in_formula f ⊆ {s | p s} := by
+    intro s hs hps; subst hps; exact hf hs
+  obtain ⟨f₀, hf₀⟩ := find_formula_filter_symbols p f hf'
+  -- Rename: now f = ψ.on_formula f₀
+  subst hf₀
+  -- Find filtered preimage of Γ
+  -- Each formula in Γ lifts to filter language (c not in symbols)
+  have hΓ_lift : ∀ f' ∈ Γ, ∃ f₁ : formula (filter_symbols p), ψ.on_formula f₁ = f' := by
+    intro f' hf'mem
+    have hf'sym : symbols_in_formula f' ⊆ {s | p s} := by
+      intro s hs hps; subst hps; exact hΓ ⟨_, Set.mem_image_of_mem _ hf'mem, hs⟩
+    exact ⟨(find_formula_filter_symbols p f' hf'sym).1, (find_formula_filter_symbols p f' hf'sym).2⟩
+  -- Build Γ₀ as preimage of Γ under ψ.on_formula
+  let Γ₀ := ψ.on_formula ⁻¹' Γ
+  have hΓ₀ : ψ.on_formula '' Γ₀ = Γ :=
+    image_preimage_eq_of_subset_image (fun f' hf' => by
+      obtain ⟨f₁, hf₁⟩ := hΓ_lift f' hf'
+      exact ⟨f₁, show ψ.on_formula f₁ ∈ Γ by rw [hf₁]; exact hf', hf₁⟩)
+  -- Rewrite goal: lift_formula1 '' Γ ⊢ ψ.on_formula f₀
+  -- as ψ.on_formula '' (lift_formula1 '' Γ₀) ⊢ ψ.on_formula f₀
+  have comm : ∀ (g : formula (filter_symbols p)),
+      lift_formula1 (ψ.on_formula g) = ψ.on_formula (lift_formula1 g) :=
+    fun g => by simp [lift_formula1, on_formula_lift_at]
+  conv_lhs => rw [← hΓ₀]
+  rw [Set.image_image, Set.image_congr' comm, ← Set.image_image]
+  -- Apply ψ.on_prf: suffices lift_formula1 '' Γ₀ ⊢ f₀
+  apply ψ.on_prf
+  -- Use reflect_prf_gen to reflect H back to filtered language
+  -- H : ψ.on_formula '' Γ₀ ⊢ (ψ.on_formula f₀) [preterm.func c // 0]
+  have H' : ψ.on_formula '' Γ₀ ⊢ (ψ.on_formula f₀) [preterm.func c // 0]f := by
+    rwa [hΓ₀]
+  have step := reflect_prf_gen hψ 0 H'
+  -- Simplify the LHS: (reflect_formula 0 ∘ ψ.on_formula) '' Γ₀ = lift_formula1 '' Γ₀
+  -- via reflect_formula_on_formula hψ 0: reflect_formula 0 (ψ.on_formula g) = g ↑f' 1 # 0
+  -- Simplify the RHS via reflect_formula_subst0, reflect_term_const_neg, reflect_formula_on_formula, lift_subst_formula_cancel
+  rw [Set.image_image] at step
+  simp only [reflect_formula_on_formula hψ 0] at step
+  rw [reflect_formula_subst0 hψ] at step
+  rw [reflect_term_const_neg hc, reflect_formula_on_formula hψ 1, lift_subst_formula_cancel] at step
+  exact step
 
 noncomputable def sgeneralize_constant {T : SentTheory L} (c : L.constants)
     (hΓ : (Sum.inl ⟨0, c⟩ : Language.symbols L) ∉ ⋃₀ (symbols_in_formula '' T.fst))
