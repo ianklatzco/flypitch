@@ -886,11 +886,72 @@ lemma AE_of_check_func_check' (x y : PSet.{u})
 -- src/forcing_CH.lean:416-444
 lemma check_functions_eq_functions (y : PSet.{u}) {Γ : 𝔹_collapse} :
     Γ ≤ check (PSet.functions PSet.omega y) =ᴮ functions bSet.omega (check y) := by
-  -- TODO: port from src/forcing_CH.lean:416-444. Density argument using
-  -- `rel_dense_of_dense_in_basis` + `function_reflect_of_omega_closed` (now proven).
-  -- Cascade attempt previously failed on namespace qualification (`isOpen_of_isRegularOpen`
-  -- lives in `Flypitch.Regular`, not at top level) and `rw` pattern issues.
-  sorry
+  -- Port of src/forcing_CH.lean:416-444.
+  -- Strategy: use subset_ext with check_functions_subset_functions (one direction already proven)
+  -- For the reverse direction, use a density argument:
+  -- for each g in functions ω (check y), show g ∈ check(functions ω y) via function_reflect_of_omega_closed.
+  refine subset_ext check_functions_subset_functions ?_
+  -- Goal: Γ ≤ functions bSet.omega (check y) ⊆ᴮ check (PSet.functions PSet.omega y)
+  rw [subset_unfold']
+  apply le_iInf; intro g; rw [← deduction]
+  -- Goal: Γ ⊓ g ∈ᴮ functions bSet.omega (check y) ≤ g ∈ᴮ check (PSet.functions PSet.omega y)
+  set B := Γ ⊓ g ∈ᴮ functions bSet.omega (check y) with hB
+  set A := g ∈ᴮ check (PSet.functions PSet.omega y) with hA
+  -- Show B ≤ A by showing RelDense B.val A.val then applying p_p_eq_univ_of_rel_dense_of_open.
+  have hB_open : IsOpen B.val := Flypitch.Regular.isOpen_of_isRegularOpen B.property
+  have hA_reg : A.valᵖᵖ = A.val := Flypitch.Regular.isRegularOpen_eq_p_p A.property
+  -- Prove RelDense B.val A.val
+  have hRelDense : Flypitch.RelDense B.val A.val := by
+    apply Flypitch.rel_dense_of_dense_in_basis B.val A.val collapseSpaceBasis_spec
+    -- Goal: RelDenseInBasis B.val A.val collapseSpaceBasis_spec
+    intro D HD hDB
+    rcases HD with rfl | ⟨p, -, rfl⟩
+    · -- D = ∅: (∅ ∩ B.val) = ∅ is not nonempty
+      exact absurd hDB (by simp)
+    · -- D = principalOpen p
+      let P := collapseInclusion p
+      have hP_val : P.val = CollapsePoset.principalOpen p := rfl
+      -- (principalOpen p ∩ B.val).Nonempty ↔ (P ⊓ B).val.Nonempty
+      have hPB_val : (CollapsePoset.principalOpen p ∩ B.val) = (P ⊓ B).val := by
+        simp only [RegularOpens.inf_val, P, collapseInclusion]; rfl
+      rw [hPB_val] at hDB
+      -- P ⊓ B > ⊥ from nonemptiness
+      have hPB_pos : ⊥ < P ⊓ B := RegularOpens.bot_lt_iff.mpr hDB
+      -- P ⊓ B ≤ g ∈ functions bSet.omega (check y) ≤ is_function, is_func'
+      have hPB_le_Bg : P ⊓ B ≤ g ∈ᴮ functions bSet.omega (check y) :=
+        inf_le_right.trans inf_le_right
+      have hPB_func : P ⊓ B ≤ is_function bSet.omega (check y) g :=
+        mem_functions_iff.mp hPB_le_Bg
+      have hPB_func' : P ⊓ B ≤ is_func' bSet.omega (check y) g :=
+        is_func'_of_is_function hPB_func
+      -- Apply function_reflect_of_omega_closed to get PSet function f
+      obtain ⟨f, Γ', hΓ'_pos, hΓ'_le, hΓ'_eq, hf_func⟩ :=
+        function_reflect_of_omega_closed
+          principalOpens_denseOmegaClosed hPB_pos hPB_func' hPB_func
+          (fun px py {f} {Γ'} hfunc hpos i => AE_of_check_func_check' px py hfunc hpos i)
+      -- Get g ∈ check(functions ω y) at Γ'
+      have hΓ'_le_A : Γ' ≤ A := by
+        rw [hA]
+        exact bv_rw' (bv_symm hΓ'_eq)
+          (ϕ := fun z => z ∈ᴮ check (PSet.functions PSet.omega y))
+          (h_congr := B_ext_mem_left)
+          (H_new := check_mem ((PSet.mem_functions_iff f).mpr hf_func))
+      -- Get witness h from ⊥ < Γ'
+      obtain ⟨h, hh⟩ := RegularOpens.bot_lt_iff.mp hΓ'_pos
+      -- h ∈ D ∩ B.val ∩ A.val where D = principalOpen p
+      -- principalOpen p = P.val, so h ∈ P.val ∩ B.val ∩ A.val
+      refine ⟨h, ?_, hΓ'_le_A hh⟩
+      rw [Set.mem_inter_iff]
+      exact ⟨hP_val ▸ (RegularOpens.le_iff_subset.mp (hΓ'_le.trans inf_le_left) hh),
+             RegularOpens.le_iff_subset.mp (hΓ'_le.trans inf_le_right) hh⟩
+  -- From RelDense B.val A.val + B.val open + A regular open, conclude B ≤ A
+  -- Use p_p_eq_univ_of_rel_dense_of_open: B.val ∩ A.valᵖᵖ = B.val
+  -- Then A.valᵖᵖ = A.val (A is regular open), so B.val ∩ A.val = B.val, i.e., B.val ⊆ A.val
+  have h := Flypitch.RegularOpens.p_p_eq_univ_of_rel_dense_of_open hB_open hRelDense
+  -- h : B.val ∩ A.valᵖᵖ = B.val
+  rw [hA_reg] at h
+  -- h : B.val ∩ A.val = B.val
+  exact Set.inter_eq_left.mp h
 
 -- ============================================================
 -- π_af definitions (src lines 446-551)
@@ -1071,13 +1132,18 @@ lemma aleph1_larger_than_continuum {Γ : 𝔹_collapse} :
   exact le_inf subset_self π_spec'
 
 -- src/forcing_CH.lean:559-593
+-- src/forcing_CH.lean:559-593
+-- NOTE: The proof structure is clear (by_contra + function_reflect + check_not_is_surj)
+-- but blocked by a Lean 4 universe polymorphism issue: function_reflect_of_omega_closed
+-- creates h : PSet.{u_1} (fresh universe variable) while H needs PSet.{u} (ForcingCH's u).
+-- The two are definitionally equal but Lean's universe tracking prevents direct application.
+-- Marked sorry pending a universe workaround.
 lemma surjection_reflect {Γ : 𝔹_collapse} (H_bot_lt : ⊥ < Γ)
     (H_surj : Γ ≤ surjects_onto (bSet.omega : bSet 𝔹_collapse)
                     (check pSet_aleph1 : bSet 𝔹_collapse))
     : ∃ (f : PSet.{u}),
       PSet.is_func PSet.omega (PSet.card_ex (Cardinal.aleph 1)) f ∧
       PSet.is_surj PSet.omega (PSet.card_ex (Cardinal.aleph 1)) f := by
-  -- TODO: port from src/forcing_CH.lean:559
   sorry
 
 -- src/forcing_CH.lean:595-608
@@ -1098,8 +1164,30 @@ lemma aleph_one_check_le_of_omega_lt_collapse (Γ : 𝔹_collapse) :
 lemma continuum_le_continuum_check {Γ : 𝔹_collapse} :
     Γ ≤ bv_powerset (bSet.omega : bSet 𝔹_collapse) ≼
       (check (PSet.powerset PSet.omega) : bSet 𝔹_collapse) := by
-  -- TODO: port from src/forcing_CH.lean:617
-  sorry
+  -- Port of src/forcing_CH.lean:617-630.
+  -- Strategy:
+  -- bv_powerset ω ≼ functions ω 𝟚  [powerset_injects_into_functions]
+  -- functions ω 𝟚 = check(functions ω 2) = check(functions ω (ofNat 2))  [check_functions_eq_functions]
+  -- check(functions ω (ofNat 2)) ≼ check(powerset ω)  [check_is_injective_function + functions_2_injects_into_powerset]
+  -- Step 1: Get check(functions ω 2) ≼ check(powerset ω) from PSet injection
+  have h_pset_inj := PSet.functions_2_injects_into_powerset PSet.omega
+  obtain ⟨f_pset, Hf_pset⟩ := h_pset_inj
+  -- h1: Γ ≤ injects_into (check (functions ω 2)) (check (powerset ω))
+  have h1 : Γ ≤ injects_into
+      (check (PSet.functions PSet.omega (PSet.ofNat 2)))
+      (check (PSet.powerset PSet.omega)) := by
+    rw [injects_into_iff_injection_into]
+    exact le_trans le_top (le_iSup_of_le (check f_pset) (check_is_injective_function Hf_pset))
+  -- Step 2: Rewrite check(functions ω 2) = functions ω 𝟚 using check_functions_eq_functions
+  -- check_functions_eq_functions (PSet.ofNat 2) : Γ ≤ check(functions ω 2) =ᴮ functions ω (check 2)
+  -- and check (PSet.ofNat 2) = 𝟚
+  have h2 : Γ ≤ injects_into
+      (functions bSet.omega (𝟚 : bSet 𝔹_collapse))
+      (check (PSet.powerset PSet.omega)) :=
+    bv_rw'' (check_functions_eq_functions (PSet.ofNat 2))
+      (H_new := h1) (h_congr := B_ext_injects_into_left)
+  -- Step 3: Combine: bv_powerset ω ≼ functions ω 𝟚 ≼ check(powerset ω)
+  exact injects_into_trans (powerset_injects_into_functions bSet.omega) h2
 
 -- src/forcing_CH.lean:632-637
 -- ≺ = (larger_than _ _)ᶜ
