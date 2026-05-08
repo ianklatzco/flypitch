@@ -1152,7 +1152,20 @@ lemma nonempty_induced_rel_iff_not_zero_and_not_one {η f : bSet 𝔹} {Γ : �
     (H_ord : Γ ≤ Ord η) (H_inj : Γ ≤ is_function η omega f) :
     Γ ≤ (induced_epsilon_rel η omega f =ᴮ ∅)ᶜ ↔
     (Γ ≤ (η =ᴮ 0)ᶜ ∧ Γ ≤ (η =ᴮ 1)ᶜ) := by
-  sorry -- TODO: port from src/aleph_one.lean:723
+  constructor
+  · intro H
+    exact ⟨not_zero_of_induced_rel_nonempty H_inj H,
+           not_one_of_induced_rel_nonempty H_inj H⟩
+  · intro ⟨H₁, H₂⟩
+    rw [nonempty_iff_exists_mem]
+    -- Get 1 ∈ η (since η ≥ 2 ordinal-wise)
+    have H_1_mem : Γ ≤ (1 : bSet 𝔹) ∈ᴮ η := one_mem_of_not_zero_and_not_one H_ord H₁ H₂
+    -- Get 0 ∈ η (since 0 ∈ 1 ∈ η, and η is ordinal ↔ transitive)
+    have H_0_mem : Γ ≤ (0 : bSet 𝔹) ∈ᴮ η := mem_of_mem_Ord zero_mem_one H_1_mem H_ord
+    -- Apply mem_induced_epsilon_rel_of_mem with 0 ∈ η, 1 ∈ η, 0 ∈ 1
+    -- Need is_function η omega f
+    apply bv_use (pair (function_eval H_inj (0 : bSet 𝔹) H_0_mem) (function_eval H_inj 1 H_1_mem))
+    exact mem_induced_epsilon_rel_of_mem H_0_mem H_1_mem zero_mem_one H_inj
 
 -- src/aleph_one.lean:746
 /-- a1 contains every ordinal η which injects into ω -/
