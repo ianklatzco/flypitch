@@ -166,7 +166,10 @@ theorem delta_system_lemma_aleph1
     {α : Type u} {ι : Type v} (A : ι → Set α)
     (hι : ℵ₀ < #ι) (h2A : ∀ i, (A i).Finite) :
     ∃ t : Set ι, ℵ₀ < #t ∧ IsDeltaSystem (fun i : t => A i.1) := by
-  -- TODO: port src/set_theory.lean:308 (delta_system_lemma_uncountable).
+  -- TODO: Reduction via pigeonhole + induction on `n = (A i).ncard`. The
+  -- reduction step requires reducing across universes (ι : Type v, ℕ : Type 0)
+  -- which makes the mathlib `infinite_pigeonhole_card_lt` direct application
+  -- nontrivial. Inductive step (Δ-system from fixed-size) is the hard core.
   sorry
 
 /-! ## CCC for product topologies -/
