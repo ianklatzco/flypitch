@@ -4891,7 +4891,63 @@ theorem bSet_zorns_lemma' {Γ : 𝔹} :
       ((⨅ y, (y ⊆ᴮ X ⊓ (⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
           w₁ ∈ᴮ y ⊓ w₂ ∈ᴮ y ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁))) ⟹ bv_union y ∈ᴮ X) ⟹
         (⨆ c, c ∈ᴮ X ⊓ (⨅ z, z ∈ᴮ X ⟹ (c ⊆ᴮ z ⟹ c =ᴮ z)))) := by
-  sorry -- TODO: port from src/bvm_extras.lean:2753
+  apply le_iInf; intro X
+  rw [← curry_uncurry]
+  suffices h : (⨅ (Y : bSet 𝔹), ((Y =ᴮ ∅)ᶜ ⊓ ⨅ y, (y ⊆ᴮ Y ⊓
+      (⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
+        w₁ ∈ᴮ y ⊓ w₂ ∈ᴮ y ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁))) ⟹ bv_union y ∈ᴮ Y) ⟹
+    (⨆ c, c ∈ᴮ Y ⊓ (⨅ z, z ∈ᴮ Y ⟹ (c ⊆ᴮ z ⟹ c =ᴮ z)))) = ⊤ by
+    exact le_top.trans (h ▸ iInf_le _ X)
+  apply core_aux_lemma2
+  · exact B_ext_inf (h₁ := B_ext_neg (h := B_ext_bv_eq_left))
+      (h₂ := B_ext_iInf (h := fun y => B_ext_imp
+        (h₁ := B_ext_inf B_ext_subset_right B_ext_const)
+        (h₂ := B_ext_mem_right)))
+  · exact B_ext_iSup (h := fun c => B_ext_inf (h₁ := B_ext_mem_right)
+      (h₂ := B_ext_iInf (h := fun z => B_ext_imp (h₁ := B_ext_mem_right) (h₂ := B_ext_const))))
+  · intro u hu
+    have h_nonempty : (u =ᴮ ∅)ᶜ = ⊤ := top_unique (hu ▸ inf_le_left)
+    have h_chain : (⊤ : 𝔹) ≤ ⨅ y, (y ⊆ᴮ u ⊓
+        (⨅ (w₁ : bSet 𝔹), ⨅ (w₂ : bSet 𝔹),
+          w₁ ∈ᴮ y ⊓ w₂ ∈ᴮ y ⟹ (w₁ ⊆ᴮ w₂ ⊔ w₂ ⊆ᴮ w₁))) ⟹ bv_union y ∈ᴮ u :=
+      hu ▸ inf_le_right
+    exact top_unique (bSet_zorns_lemma u h_nonempty h_chain)
+  · apply top_unique; apply le_iSup_of_le ({∅} : bSet 𝔹)
+    apply le_inf
+    · apply nonempty_of_exists_mem; apply le_iSup_of_le (∅ : bSet 𝔹)
+      have hmem : (∅ : bSet 𝔹) ∈ᴮ ({∅} : bSet 𝔹) = ⊤ := by
+        simp [mem_singleton_bSet, bv_eq_refl]
+      exact le_of_eq hmem.symm
+    · apply le_iInf; intro y; apply bv_imp_intro_lemma; rw [top_inf_eq]
+      simp only [mem_singleton_bSet]
+      apply le_sup_of_le_left
+      rw [eq_iff_subset_subset]
+      apply le_inf
+      · -- Goal: ctx ≤ bv_union y ⊆ᴮ ∅
+        -- Rewrite via the propositional equality from subset_unfold'
+        rw [show bv_union y ⊆ᴮ (∅ : bSet 𝔹) = ⨅ w : bSet 𝔹, w ∈ᴮ bv_union y ⟹ w ∈ᴮ ∅
+              from subset_unfold']
+        apply le_iInf; intro w; apply bv_imp_intro_lemma
+        -- goal: ctx ⊓ w ∈ bv_union y ≤ w ∈ ∅, w : bSet 𝔹
+        -- Step 1: from bv_union_spec_split, w ∈ bv_union y ↔ ⨆ z, z ∈ y ⊓ w ∈ z
+        -- Then use y ⊆ {∅} to show z = ∅, then w ∈ z = w ∈ ∅ = ⊥
+        apply le_trans (b := y ⊆ᴮ ({∅} : bSet 𝔹) ⊓ ⨆ z, z ∈ᴮ y ⊓ w ∈ᴮ z)
+        · exact le_inf (inf_le_left.trans inf_le_left) ((bv_union_spec_split y w).mp inf_le_right)
+        · rw [inf_iSup_eq']; apply iSup_le; intro z
+          -- goal: y ⊆ {∅} ⊓ (z ∈ y ⊓ w ∈ z) ≤ w ∈ ∅
+          -- First: z ∈ y ⊓ y ⊆ {∅} ≤ z ∈ {∅} = z =ᴮ ∅ ⊔ z ∈ ∅
+          have hz_sing : y ⊆ᴮ ({∅} : bSet 𝔹) ⊓ (z ∈ᴮ y ⊓ w ∈ᴮ z) ≤ z ∈ᴮ ({∅} : bSet 𝔹) :=
+            mem_of_mem_subset inf_le_left (inf_le_right.trans inf_le_left)
+          -- Second: z ∈ {∅} simplifies to z =ᴮ ∅ ⊔ z ∈ ∅
+          have hz_eq : y ⊆ᴮ ({∅} : bSet 𝔹) ⊓ (z ∈ᴮ y ⊓ w ∈ᴮ z) ≤ z =ᴮ (∅ : bSet 𝔹) := by
+            have hh := hz_sing; simp only [mem_singleton_bSet] at hh
+            have hbot_z : z ∈ᴮ (∅ : bSet 𝔹) = ⊥ := by
+              rw [mem_unfold]; exact exists_over_empty _
+            simpa only [hbot_z, sup_bot_eq] using hh
+          -- Third: use bv_rw' to substitute z =ᴮ ∅ into w ∈ z giving w ∈ ∅
+          exact bv_rw' (H := bv_symm hz_eq)
+            (h_congr := B_ext_mem_right) (H_new := inf_le_right.trans inf_le_right)
+      · exact le_trans le_top empty_subset
 
 end zorns_lemma
 
