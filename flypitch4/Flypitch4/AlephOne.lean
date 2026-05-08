@@ -1587,7 +1587,63 @@ lemma mem_a1_of_injects_into_omega_aux {Γ : 𝔹} {η : bSet 𝔹}
 -- src/aleph_one.lean:777
 lemma mem_a1_iff {Γ : 𝔹} {η : bSet 𝔹} (H_ord : Γ ≤ Ord η) :
     Γ ≤ η ∈ᴮ a1 ↔ Γ ≤ ⨆ f, is_injective_function η omega f := by
-  sorry -- TODO: port from src/aleph_one.lean:777
+  constructor
+  · -- Forward: η ∈ a1 → η injects into ω
+    intro H_mem
+    rw [mem_a1_iff₀] at H_mem
+    -- Case split: η = 0, η = 1, or η ∈ a1_aux
+    apply le_trans H_mem; apply sup_le; apply sup_le
+    · -- Case η = 0: 0 injects into ω
+      exact le_trans (le_inf (bv_symm le_rfl) (le_trans le_top
+        (injection_into_of_injects_into (injects_into_of_subset of_nat_subset_omega))))
+        (B_ext_iSup (h := fun f => B_ext_is_injective_function_left) _ _)
+    · -- Case η = 1: 1 injects into ω
+      exact le_trans (le_inf (bv_symm le_rfl) (le_trans le_top
+        (injection_into_of_injects_into (injects_into_of_subset of_nat_subset_omega))))
+        (B_ext_iSup (h := fun f => B_ext_is_injective_function_left) _ _)
+    · -- Case η ∈ a1_aux: get a1_func χ which injects into ω
+      rw [mem_unfold]
+      apply le_trans (b := ⨆ (i : (a1' (𝔹 := 𝔹)).type), (a1' (𝔹 := 𝔹)).bval i ⊓ η =ᴮ a1_func i)
+      · exact le_rfl
+      apply iSup_le; intro χ
+      -- a1'.bval χ ⊓ η =ᴮ a1_func χ → η injects into ω
+      -- a1_func_spec: Γ ≤ a1_ψ (a1'.func χ) (a1_func χ) includes ⨆ g, inj_fun(a1_func χ,ω,g)
+      -- η =ᴮ a1_func χ → η has same injections
+      have H_mem' : (a1' (𝔹 := 𝔹)).bval χ ⊓ η =ᴮ a1_func χ ≤
+          (a1' (𝔹 := 𝔹)).func χ ∈ᴮ (a1' (𝔹 := 𝔹)) :=
+        le_trans inf_le_left (mem_mk' _ _)
+      have H_spec : (a1' (𝔹 := 𝔹)).bval χ ⊓ η =ᴮ a1_func χ ≤
+          a1_ψ ((a1' (𝔹 := 𝔹)).func χ) (a1_func χ) := a1_func_spec H_mem'
+      have H_afc_inj : (a1' (𝔹 := 𝔹)).bval χ ⊓ η =ᴮ a1_func χ ≤
+          ⨆ g, is_injective_function (a1_func χ) omega g :=
+        le_trans (H_spec.trans (inf_le_left.trans inf_le_right))
+          (iSup_le (fun g => le_iSup_of_le g inf_le_left))
+      -- Rewrite using η =ᴮ a1_func χ
+      exact le_trans (le_inf (bv_symm inf_le_right) H_afc_inj)
+        (B_ext_iSup (h := fun g => B_ext_is_injective_function_left) _ _)
+  · -- Backward: η injects into ω → η ∈ a1
+    intro H_inj
+    rw [mem_a1_iff₀]
+    -- BA-valued case split on η = 1, then η = 0
+    apply le_trans (b := (η =ᴮ 1 ⊔ (η =ᴮ 1)ᶜ) ⊓ Γ)
+    · simp [sup_compl_eq_top]
+    apply bv_or_elim_left
+    · -- Case η = 1: → z =ᴮ 0 ⊔ z =ᴮ 1 ⊔ _
+      exact le_trans inf_le_left (le_sup_of_le_left le_sup_right)
+    · -- Case η ≠ 1: split on η = 0
+      apply le_trans (b := (η =ᴮ 0 ⊔ (η =ᴮ 0)ᶜ) ⊓ ((η =ᴮ 1)ᶜ ⊓ Γ))
+      · simp [sup_compl_eq_top]
+      apply bv_or_elim_left
+      · -- Case η = 0: → z =ᴮ 0 ⊔ ...
+        exact le_trans inf_le_left (le_sup_of_le_left le_sup_left)
+      · -- Case η ≠ 0, η ≠ 1: use mem_a1_of_injects_into_omega_aux
+        -- Context: (η=0)ᶜ ⊓ ((η=1)ᶜ ⊓ Γ)
+        apply le_sup_of_le_right
+        apply mem_a1_of_injects_into_omega_aux
+        · exact inf_le_right.trans (inf_le_right.trans H_ord)  -- Γ → Ord η
+        · exact inf_le_right.trans (inf_le_right.trans H_inj)  -- Γ → H_inj
+        · exact inf_le_left  -- (η=0)ᶜ
+        · exact inf_le_right.trans inf_le_left  -- (η=1)ᶜ
 
 -- src/aleph_one.lean:802
 lemma a1_transitive {Γ : 𝔹} : Γ ≤ is_transitive a1 := by
