@@ -502,7 +502,15 @@ def zorns_lemma : sentence L_ZFC :=
             (bd_equal (bd_var ⟨1, by omega⟩) (bd_var ⟨0, by omega⟩)))))))))
 
 lemma bSet_models_Zorn : ⊤ ⊩[V β] zorns_lemma := by
-  sorry -- TODO: port from src/zfc.lean:372-376
+  change ⊤ ≤ _
+  simp only [zorns_lemma, boolean_realize_sentence_all, boolean_realize_bounded_formula,
+             boolean_realize_bounded_formula_not, boolean_realize_bounded_formula_and,
+             boolean_realize_bounded_formula_ex, boolean_realize_bounded_formula_or,
+             boolean_realize_bounded_formula_subset', boolean_realize_bounded_formula_mem',
+             boolean_realize_bounded_term_emptyset', boolean_realize_bounded_term_Union',
+             boolean_realize_bounded_term, DVec.nth, V_forall, V_exists, V_eq]
+  -- After simp, goal should match bSet_zorns_lemma' exactly
+  exact bSet_zorns_lemma'
 -- ============================================================
 -- The ZFC theory (src/zfc.lean:378-399)
 -- ============================================================
