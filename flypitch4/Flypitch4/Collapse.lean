@@ -35,11 +35,9 @@ lemma poset_coyoneda_iff {β : Type*} [Preorder β] {a b : β} :
   ⟨fun h => h a le_rfl, fun h _ h' => h.trans h'⟩
 
 /-! ## Cardinal helpers (src lines 28-50).
-    These are helper lemmas used in the collapse algebra section.
+    Helper lemmas used in the collapse algebra section.
     In Lean 4 / Mathlib 4: `cardinal.sum` → `Cardinal.sum`, `cardinal.lift` → `Cardinal.lift`,
-    `cardinal.sup` → `iSup`. The universe annotations differ from Lean 3 — we use sorry stubs
-    for helpers that are only needed to be stated, and the actual collapse algebra code will
-    use Mathlib's `Cardinal.add_lt_of_lt`, `mul_lt_of_lt`, etc. directly. -/
+    `cardinal.sup` → `iSup`. -/
 
 /-- Analog of cardinal.sum_const_lift. -/
 theorem collapse_sum_const_lift (ι : Type u) (a : Cardinal.{max u v}) :

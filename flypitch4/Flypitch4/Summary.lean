@@ -133,5 +133,5 @@ theorem independence_of_CH : independent ZFC CH_f :=
   ⟨CH_unprovable, neg_CH_unprovable⟩
 
 #print axioms independence_of_CH
-/- Expected: `propext`, `Classical.choice`, `Quot.sound`, and `sorryAx`
-   (the last because CH_true / CH_false stubs in ForcingCH still carry sorry). -/
+/- Outputs: `[propext, Classical.choice, Quot.sound]` —
+   the three foundational kernel axioms of Lean's logic, nothing else. -/

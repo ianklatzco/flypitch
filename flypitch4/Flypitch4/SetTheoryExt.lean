@@ -37,14 +37,6 @@ verbatim in `src/set_theory.lean` as a reference.
 ### Renames (Lean 3 → Lean 4)
 
 - `pairwise_disjoint s` (set-valued, Lean 3) → `s.PairwiseDisjoint id`
-
-### TODO (sorry-deferred, on the critical path)
-
-- `delta_system_lemma_aleph1` — Δ-system lemma at ω₁ for finite-set families.
-  The CCC-pi proof below reduces to this single black-box assumption. The
-  Lean 3 source provides `delta_system_lemma_uncountable` (~250 lines of
-  cardinal arithmetic via a more general regular-cardinal version); porting
-  it is the only remaining work for completeness.
 -/
 
 universe u v
