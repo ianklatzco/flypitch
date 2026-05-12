@@ -1133,6 +1133,58 @@ lemma aleph1_larger_than_continuum {Γ : 𝔹_collapse} :
   rw [inf_assoc]
   exact le_inf subset_self π_spec'
 
+lemma no_pset_surj_omega_aleph_one {h : PSet.{u}}
+    (hh_func : PSet.is_func PSet.omega pSet_aleph1 h) :
+    ¬ PSet.is_surj PSet.omega pSet_aleph1 h := by
+  intro Hsurj
+  obtain ⟨hf_sub, hf_uniq⟩ := hh_func
+  have hg_exist : ∀ i : PSet.omega.Type, ∃ j : pSet_aleph1.Type,
+      ZFSet.pair (ZFSet.mk (PSet.omega.Func i)) (ZFSet.mk (pSet_aleph1.Func j)) ∈ ZFSet.mk h := by
+    intro i
+    have hi_mem : ZFSet.mk (PSet.omega.Func i) ∈ ZFSet.mk PSet.omega :=
+      ZFSet.mk_mem_iff.mpr (PSet.func_mem PSet.omega i)
+    obtain ⟨w, hw_pair, _⟩ := hf_uniq _ hi_mem
+    have hw_in_aleph1 : w ∈ ZFSet.mk pSet_aleph1 := by
+      have h_in_prod := hf_sub hw_pair
+      rw [ZFSet.mem_prod] at h_in_prod
+      obtain ⟨a, _, b, hb, hab⟩ := h_in_prod
+      exact (ZFSet.pair_injective hab).2 ▸ hb
+    obtain ⟨j, hj⟩ : ∃ j : pSet_aleph1.Type, ZFSet.mk (pSet_aleph1.Func j) = w := by
+      have hwp : w.out ∈ pSet_aleph1 := by
+        have : ZFSet.mk w.out ∈ ZFSet.mk pSet_aleph1 := by
+          simp [ZFSet.mk_out, hw_in_aleph1]
+        exact ZFSet.mk_mem_iff.mp this
+      rw [PSet.mem_def] at hwp
+      obtain ⟨j, hj⟩ := hwp
+      exact ⟨j, (ZFSet.sound hj.symm).trans (ZFSet.mk_out w)⟩
+    exact ⟨j, hj ▸ hw_pair⟩
+  let G : PSet.omega.Type → pSet_aleph1.Type := fun i => (hg_exist i).choose
+  have hG_surj : Function.Surjective G := by
+    intro j
+    obtain ⟨a, ha_omega, ha_pair⟩ := Hsurj (pSet_aleph1.Func j) (PSet.func_mem pSet_aleph1 j)
+    obtain ⟨i, hi⟩ : ∃ i : PSet.omega.Type, PSet.Equiv (PSet.omega.Func i) a := by
+      rw [PSet.mem_def] at ha_omega
+      obtain ⟨i, hi⟩ := ha_omega
+      exact ⟨i, hi.symm⟩
+    refine ⟨i, ?_⟩
+    have hi_mem : ZFSet.mk (PSet.omega.Func i) ∈ ZFSet.mk PSet.omega :=
+      ZFSet.mk_mem_iff.mpr (PSet.func_mem PSet.omega i)
+    obtain ⟨_, _, huniq⟩ := hf_uniq _ hi_mem
+    have hi_pair_j : ZFSet.pair (ZFSet.mk (PSet.omega.Func i)) (ZFSet.mk (pSet_aleph1.Func j)) ∈
+        ZFSet.mk h := by
+      rwa [← ZFSet.sound hi] at ha_pair
+    have h1 := (hg_exist i).choose_spec
+    have heq : ZFSet.mk (pSet_aleph1.Func (G i)) = ZFSet.mk (pSet_aleph1.Func j) :=
+      (huniq (ZFSet.mk (pSet_aleph1.Func (G i))) h1).trans
+      (huniq (ZFSet.mk (pSet_aleph1.Func j)) hi_pair_j).symm
+    by_contra hne
+    exact PSet.ordinalMk_inj (Cardinal.aleph 1).ord (G i) j hne (ZFSet.exact heq)
+  have hcard_le : #(pSet_aleph1.Type) ≤ #(PSet.omega.Type) :=
+    Cardinal.mk_le_of_surjective hG_surj
+  rw [@PSet.mk_type_mk_eq'' (Cardinal.aleph 1) (Cardinal.aleph0_le_aleph 1),
+      PSet.mk_omega_eq_mk_omega] at hcard_le
+  exact absurd hcard_le (not_le.mpr PSet.omega_lt_aleph_one)
+
 -- src/forcing_CH.lean:559-593
 -- src/forcing_CH.lean:559-593
 set_option maxHeartbeats 800000 in
@@ -1161,75 +1213,8 @@ lemma surjection_reflect {Γ : 𝔹_collapse} (H_bot_lt : ⊥ < Γ)
   let hΓ'_le : hΓ' ≤ Γ_1 := hrefl.choose_spec.choose_spec.2.1
   let hΓ'_eq : hΓ' ≤ check h =ᴮ f := hrefl.choose_spec.choose_spec.2.2.1
   let hh_func : PSet.is_func PSet.omega pSet_aleph1 h := hrefl.choose_spec.choose_spec.2.2.2
-  -- Workaround for universe issue: h : PSet.{u_1} but H needs PSet.{u}.
-  -- Since u_1 and u are the same level (both = ForcingCH's universe), we use `show` to coerce.
-  -- The key: hh_func : PSet.is_func PSet.omega pSet_aleph1 h at universe u_1 = u.
-  -- We know ¬ PSet.is_surj PSet.omega pSet_aleph1 h from hh_func + H:
-  -- H says: for ANY f : PSet.{u}, ¬ is_func f ∨ ¬ is_surj f.
-  -- Since hh_func holds, ¬ is_surj must hold for h at universe u_1.
-  -- But h : PSet.{u_1} can't directly go into H.
-  -- Alternative: use hh_func directly with check_not_is_surj after getting surjectivity assumption.
-  -- If h WERE surjective (PSet level), check_not_is_surj would give contradiction.
-  -- We derive: ¬ PSet.is_surj by cardinality (no surjection ω → aleph1 since #aleph1 > #ω).
-  -- Cardinality: #(pSet_aleph1.Type) = ℵ₁ > ℵ₀ = #(PSet.omega.Type).
-  -- A surjection would give ℵ₁ ≤ ℵ₀, contradiction.
-  -- ¬ PSet.is_surj PSet.omega pSet_aleph1 h: from cardinality.
-  -- A PSet surjection omega → aleph1 would give a Type-level surjection,
-  -- hence #(aleph1.Type) ≤ #(omega.Type) = ℵ₀ < ℵ₁, contradiction.
-  -- This is the key theorem needed (ex_no_surj_omega_aleph_one in Lean 3).
-  -- We prove it from hh_func using the fact that aleph1.Type has card ℵ₁.
-  -- ¬ PSet.is_surj PSet.omega pSet_aleph1 h
-  -- From H h (the by_contra hypothesis) + hh_func:
-  -- H h : ¬ PSet.is_func ... h ∨ ¬ PSet.is_surj ... h
-  -- Since hh_func holds, ¬ PSet.is_surj must hold.
-  -- Universe issue: h : PSet.{u_1} while H : ∀ f : PSet.{u}.
-  -- Workaround: use hh_func to show h satisfies is_func at u_1 = u,
-  -- then use H at a u_1-value cast.
-  have hh_not_surj : ¬ PSet.is_surj PSet.omega pSet_aleph1 h := by
-    intro Hsurj
-    obtain ⟨hf_sub, hf_uniq⟩ := hh_func
-    have hg_exist : ∀ i : PSet.omega.Type, ∃ j : pSet_aleph1.Type,
-        ZFSet.pair (ZFSet.mk (PSet.omega.Func i)) (ZFSet.mk (pSet_aleph1.Func j)) ∈ ZFSet.mk h := by
-      intro i
-      have hi_mem : ZFSet.mk (PSet.omega.Func i) ∈ ZFSet.mk PSet.omega :=
-        ZFSet.mk_mem_iff.mpr (PSet.func_mem PSet.omega i)
-      obtain ⟨w, hw_pair, _⟩ := hf_uniq _ hi_mem
-      have hw_in_aleph1 : w ∈ ZFSet.mk pSet_aleph1 := by
-        have h_in_prod := hf_sub hw_pair
-        rw [ZFSet.mem_prod] at h_in_prod
-        obtain ⟨a, _, b, hb, hab⟩ := h_in_prod
-        exact (ZFSet.pair_injective hab).2 ▸ hb
-      obtain ⟨j, hj⟩ : ∃ j : pSet_aleph1.Type, ZFSet.mk (pSet_aleph1.Func j) = w := by
-        have hwp : w.out ∈ pSet_aleph1 := by
-          have : ZFSet.mk w.out ∈ ZFSet.mk pSet_aleph1 := by simp [ZFSet.mk_out, hw_in_aleph1]
-          exact ZFSet.mk_mem_iff.mp this
-        rw [PSet.mem_def] at hwp
-        obtain ⟨j, hj⟩ := hwp
-        exact ⟨j, (ZFSet.sound hj.symm).trans (ZFSet.mk_out w)⟩
-      exact ⟨j, hj ▸ hw_pair⟩
-    let G : PSet.omega.Type → pSet_aleph1.Type := fun i => (hg_exist i).choose
-    have hG_surj : Function.Surjective G := by
-      intro j
-      obtain ⟨a, ha_omega, ha_pair⟩ := Hsurj (pSet_aleph1.Func j) (PSet.func_mem pSet_aleph1 j)
-      obtain ⟨i, hi⟩ : ∃ i : PSet.omega.Type, PSet.Equiv (PSet.omega.Func i) a := by
-        rw [PSet.mem_def] at ha_omega; obtain ⟨i, hi⟩ := ha_omega; exact ⟨i, hi.symm⟩
-      refine ⟨i, ?_⟩
-      have hi_mem : ZFSet.mk (PSet.omega.Func i) ∈ ZFSet.mk PSet.omega :=
-        ZFSet.mk_mem_iff.mpr (PSet.func_mem PSet.omega i)
-      obtain ⟨_, _, huniq⟩ := hf_uniq _ hi_mem
-      have hi_pair_j : ZFSet.pair (ZFSet.mk (PSet.omega.Func i)) (ZFSet.mk (pSet_aleph1.Func j)) ∈
-          ZFSet.mk h := by rwa [← ZFSet.sound hi] at ha_pair
-      have h1 := (hg_exist i).choose_spec
-      have heq : ZFSet.mk (pSet_aleph1.Func (G i)) = ZFSet.mk (pSet_aleph1.Func j) :=
-        (huniq (ZFSet.mk (pSet_aleph1.Func (G i))) h1).trans
-        (huniq (ZFSet.mk (pSet_aleph1.Func j)) hi_pair_j).symm
-      by_contra hne
-      exact PSet.ordinalMk_inj (Cardinal.aleph 1).ord (G i) j hne (ZFSet.exact heq)
-    have hcard_le : #(pSet_aleph1.Type) ≤ #(PSet.omega.Type) :=
-      Cardinal.mk_le_of_surjective hG_surj
-    rw [@PSet.mk_type_mk_eq'' (Cardinal.aleph 1) (Cardinal.aleph0_le_aleph 1),
-        PSet.mk_omega_eq_mk_omega] at hcard_le
-    exact absurd hcard_le (not_le.mpr PSet.omega_lt_aleph_one)
+  have hh_not_surj : ¬ PSet.is_surj PSet.omega pSet_aleph1 h :=
+    no_pset_surj_omega_aleph_one hh_func
   have hΓ'_surj : hΓ' ≤ is_surj bSet.omega (check pSet_aleph1) f :=
     hΓ'_le.trans Hf_right
   have B_ext_is_surj_last : B_ext (fun z : bSet 𝔹_collapse =>
@@ -1272,52 +1257,8 @@ lemma omega_lt_aleph_one_collapse {Γ : 𝔹_collapse} :
   let hΓ'_le : hΓ' ≤ Γ_1 := hrefl.choose_spec.choose_spec.2.1
   let hΓ'_eq : hΓ' ≤ check h =ᴮ f := hrefl.choose_spec.choose_spec.2.2.1
   let hh_func : PSet.is_func PSet.omega pSet_aleph1 h := hrefl.choose_spec.choose_spec.2.2.2
-  -- Cardinality: ¬ is_surj h (PSet level) — same argument as in surjection_reflect
-  have hh_not_surj : ¬ PSet.is_surj PSet.omega pSet_aleph1 h := by
-    intro Hsurj
-    obtain ⟨hf_sub, hf_uniq⟩ := hh_func
-    have hg_exist : ∀ i : PSet.omega.Type, ∃ j : pSet_aleph1.Type,
-        ZFSet.pair (ZFSet.mk (PSet.omega.Func i)) (ZFSet.mk (pSet_aleph1.Func j)) ∈ ZFSet.mk h := by
-      intro i
-      have hi_mem : ZFSet.mk (PSet.omega.Func i) ∈ ZFSet.mk PSet.omega :=
-        ZFSet.mk_mem_iff.mpr (PSet.func_mem PSet.omega i)
-      obtain ⟨w, hw_pair, _⟩ := hf_uniq _ hi_mem
-      have hw_in_aleph1 : w ∈ ZFSet.mk pSet_aleph1 := by
-        have h_in_prod := hf_sub hw_pair
-        rw [ZFSet.mem_prod] at h_in_prod
-        obtain ⟨a, _, b, hb, hab⟩ := h_in_prod
-        exact (ZFSet.pair_injective hab).2 ▸ hb
-      obtain ⟨j, hj⟩ : ∃ j : pSet_aleph1.Type, ZFSet.mk (pSet_aleph1.Func j) = w := by
-        have hwp : w.out ∈ pSet_aleph1 := by
-          have : ZFSet.mk w.out ∈ ZFSet.mk pSet_aleph1 := by simp [ZFSet.mk_out, hw_in_aleph1]
-          exact ZFSet.mk_mem_iff.mp this
-        rw [PSet.mem_def] at hwp
-        obtain ⟨j, hj⟩ := hwp
-        exact ⟨j, (ZFSet.sound hj.symm).trans (ZFSet.mk_out w)⟩
-      exact ⟨j, hj ▸ hw_pair⟩
-    let G : PSet.omega.Type → pSet_aleph1.Type := fun i => (hg_exist i).choose
-    have hG_surj : Function.Surjective G := by
-      intro j
-      obtain ⟨a, ha_omega, ha_pair⟩ := Hsurj (pSet_aleph1.Func j) (PSet.func_mem pSet_aleph1 j)
-      obtain ⟨i, hi⟩ : ∃ i : PSet.omega.Type, PSet.Equiv (PSet.omega.Func i) a := by
-        rw [PSet.mem_def] at ha_omega; obtain ⟨i, hi⟩ := ha_omega; exact ⟨i, hi.symm⟩
-      refine ⟨i, ?_⟩
-      have hi_mem : ZFSet.mk (PSet.omega.Func i) ∈ ZFSet.mk PSet.omega :=
-        ZFSet.mk_mem_iff.mpr (PSet.func_mem PSet.omega i)
-      obtain ⟨_, _, huniq⟩ := hf_uniq _ hi_mem
-      have hi_pair_j : ZFSet.pair (ZFSet.mk (PSet.omega.Func i)) (ZFSet.mk (pSet_aleph1.Func j)) ∈
-          ZFSet.mk h := by rwa [← ZFSet.sound hi] at ha_pair
-      have h1 := (hg_exist i).choose_spec
-      have heq : ZFSet.mk (pSet_aleph1.Func (G i)) = ZFSet.mk (pSet_aleph1.Func j) :=
-        (huniq (ZFSet.mk (pSet_aleph1.Func (G i))) h1).trans
-        (huniq (ZFSet.mk (pSet_aleph1.Func j)) hi_pair_j).symm
-      by_contra hne
-      exact PSet.ordinalMk_inj (Cardinal.aleph 1).ord (G i) j hne (ZFSet.exact heq)
-    have hcard_le : #(pSet_aleph1.Type) ≤ #(PSet.omega.Type) :=
-      Cardinal.mk_le_of_surjective hG_surj
-    rw [@PSet.mk_type_mk_eq'' (Cardinal.aleph 1) (Cardinal.aleph0_le_aleph 1),
-        PSet.mk_omega_eq_mk_omega] at hcard_le
-    exact absurd hcard_le (not_le.mpr PSet.omega_lt_aleph_one)
+  have hh_not_surj : ¬ PSet.is_surj PSet.omega pSet_aleph1 h :=
+    no_pset_surj_omega_aleph_one hh_func
   -- Contradiction: h is both surjective (from H_surj) and not surjective (from cardinality)
   have hΓ'_surj : hΓ' ≤ is_surj bSet.omega (check pSet_aleph1) f :=
     hΓ'_le.trans Hf_right
