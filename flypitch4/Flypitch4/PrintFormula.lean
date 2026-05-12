@@ -3,6 +3,7 @@ Copyright (c) 2019 The Flypitch Project. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
 Authors: Andrew Tindall, Jesse Han, Floris van Doorn
+Lean 4 port: Ian Klatzco, Claude
 -/
 /- Lean 4 port of src/print_formula.lean (70 lines) — Task 23 -/
 
