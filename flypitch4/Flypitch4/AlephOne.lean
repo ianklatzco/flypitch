@@ -3,6 +3,7 @@ Copyright (c) 2019 The Flypitch Project. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
 Authors: Jesse Han, Floris van Doorn
+Lean 4 port: Ian Klatzco, Claude
 -/
 -- Lean 4 port of src/aleph_one.lean lines 1-450 — Task 19a (part 1 of 2)
 
