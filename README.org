@@ -1,4 +1,4 @@
-#+TITLE: Flypitch
+#+TITLE: Flypitch (Lean 4)
 *** A formal proof of the independence of the continuum hypothesis
 In this repository we give a formal proof of the [[https://en.wikipedia.org/wiki/Continuum_hypothesis#Independence_from_ZFC][independence of the continuum hypothesis]], completing the original objective of the Flypitch project.
 
