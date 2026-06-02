@@ -4,6 +4,9 @@ This records the validation work performed on the Lean 4 `flypitch4` port,
 with particular attention to whether the CH independence result was backed by
 real Lean proof terms or by hidden stubs deeper in the object tree.
 
+For a more mathematical audit of the theorem path and the collapse-side object
+bridge, see `validation/mathematical-audit.md`.
+
 ## Scope
 
 The main theorem checked was:
