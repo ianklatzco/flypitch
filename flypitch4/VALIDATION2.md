@@ -118,28 +118,29 @@ This is the right cardinal obstruction for the collapse proof.
 
 ## Runnable Checks
 
-Two reusable Lean validation scripts were added.
+Two reusable Lean validation scripts were added and run during this validation
+pass.
 
-Run the intermediate axiom audit:
+The intermediate axiom audit was run from `flypitch4` with:
 
 ```sh
 lake env lean validation/AxiomAudit.lean
 ```
 
-This was run successfully. Every checked declaration reported only:
+Result: passed. Every checked declaration reported only:
 
 ```text
 [propext, Classical.choice, Quot.sound]
 ```
 
-Run the theorem-shape guard:
+The theorem-shape guard was run from `flypitch4` with:
 
 ```sh
 lake env lean validation/StatementShape.lean
 ```
 
-This was run successfully. It prints nothing on success and fails if key
-theorem shapes are weakened or no longer elaborate as expected.
+Result: passed. This script prints nothing on success and fails if key theorem
+shapes are weakened or no longer elaborate as expected.
 
 ## Conclusion
 
