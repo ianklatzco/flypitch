@@ -242,20 +242,20 @@ The most important remaining caveat is statement equivalence with the Lean 3
 source. A Lean 4 theorem can be fully proved and still be the wrong theorem if
 one of the ported statements was weakened.
 
-## Best Next Mathematical Checks
+## Follow-Up Checks
 
-The next useful checks are:
+A follow-up pass added `statement-comparison.md`, `predicate-comparison.md`,
+`axiom-audit.md`, `AxiomAudit.lean`, and `StatementShape.lean`. Those cover
+endpoint statement comparison against Lean 3, lower-level predicate orientation,
+intermediate axiom profiles, and executable theorem-shape checks.
 
-1. Compare every CH endpoint statement against the Lean 3 source.
-2. Compare every reflection lemma statement used by `surjection_reflect`.
-3. Audit the definitions of `larger_than`, `surjects_onto`, `is_surj`,
-   `is_function`, and their formula-realization lemmas.
-4. Check that `pSet_aleph1` is definitionally or propositionally tied to
+The next useful checks below that level are:
+
+1. Check that `pSet_aleph1` is definitionally or propositionally tied to
    `PSet.card_ex (Cardinal.aleph 1)` in the expected way.
-5. Print axioms for the intermediate forcing endpoints, not just
-   `independence_of_CH`.
-6. Add a small machine-checkable validation target so future edits cannot
-   silently change the axiom profile or endpoint statements.
+2. Add more theorem-shape assertions for formula-realization lemmas if future
+   CI should guard against orientation drift.
 
-The highest-value mathematical work is item 1 plus item 2: statement comparison
-against Lean 3 around the CH endpoints and the reflection bridge.
+The highest-value mathematical work now is item 1, because the collapse proof
+uses `pSet_aleph1` as the named ground-model aleph1 object throughout the
+reflection and cardinality arguments.
