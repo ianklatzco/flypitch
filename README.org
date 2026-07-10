@@ -6,6 +6,10 @@ In this repository we give a formal proof of the [[https://en.wikipedia.org/wiki
 
 Now ported to Lean4, mostly unattended, over the course of a week.
 
+# Please note this ported was automated by Claude Opus 4.7.
+
+See [VALIDATION.md](https://github.com/ianklatzco/flypitch/blob/master/flypitch4/VALIDATION.md) and [VALIDATION2.md](https://github.com/ianklatzco/flypitch/blob/master/flypitch4/VALIDATION2.md) for details.
+
 ---
 
 The formal statement of the independence of the continuum hypothesis is given in [[src/summary.lean]]:
